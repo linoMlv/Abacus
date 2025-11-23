@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlmodel
+pymysql
+python-dotenv
+typer
+rich
+passlib[bcrypt]
