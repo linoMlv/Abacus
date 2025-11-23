@@ -5,29 +5,29 @@ from sqlmodel import Session, select
 from typing import List
 from datetime import datetime
 import os
-from passlib.context import CryptContext
+import bcrypt
 
 from database import get_session
 from models import Association, Balance, Operation, OperationType, AssociationRead, BalanceRead
 
 app = FastAPI()
 
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__default_rounds=12,
-    bcrypt__default_ident="2b"
-)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against a hashed password using bcrypt."""
+    # Convert plain password to bytes and truncate to 72 bytes (bcrypt's limit)
+    password_bytes = plain_password.encode('utf-8')[:72]
+    # Convert hashed password to bytes
+    hashed_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password_bytes, hashed_bytes)
 
-def verify_password(plain_password, hashed_password):
+def get_password_hash(password: str) -> str:
+    """Hash a password using bcrypt."""
     # Truncate to 72 bytes to comply with bcrypt's limit
-    truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    return pwd_context.verify(truncated_password, hashed_password)
-
-def get_password_hash(password):
-    # Truncate to 72 bytes to comply with bcrypt's limit
-    truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(truncated_password)
+    password_bytes = password.encode('utf-8')[:72]
+    # Generate salt and hash
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 origins = [
     "http://localhost:5173",
