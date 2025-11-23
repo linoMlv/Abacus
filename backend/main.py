@@ -20,10 +20,14 @@ pwd_context = CryptContext(
 )
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    # Truncate to 72 bytes to comply with bcrypt's limit
+    truncated_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    return pwd_context.verify(truncated_password, hashed_password)
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    # Truncate to 72 bytes to comply with bcrypt's limit
+    truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    return pwd_context.hash(truncated_password)
 
 origins = [
     "http://localhost:5173",
