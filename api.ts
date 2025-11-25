@@ -64,6 +64,7 @@ export const api = {
         type: OperationType;
         date: string;
         balance_id: string;
+        invoice?: string;
     }): Promise<Operation> {
         const response = await fetch(`${API_URL}/operations`, {
             method: 'POST',
@@ -91,7 +92,8 @@ export const api = {
                 amount: operation.amount,
                 type: operation.type,
                 date: operation.date,
-                balance_id: operation.balanceId
+                balance_id: operation.balanceId,
+                invoice: operation.invoice
             }),
         });
         if (!response.ok) {

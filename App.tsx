@@ -4,6 +4,7 @@ import { Association } from './types';
 import { api } from './api';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const App: React.FC = () => {
   const [activeAssociation, setActiveAssociation] = useState<Association | null>(null);
@@ -52,11 +53,13 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
       {activeAssociation ? (
-        <Dashboard
-          association={activeAssociation}
-          onLogout={handleLogout}
-          onUpdateAssociation={updateAssociation}
-        />
+        <ErrorBoundary>
+          <Dashboard
+            association={activeAssociation}
+            onLogout={handleLogout}
+            onUpdateAssociation={updateAssociation}
+          />
+        </ErrorBoundary>
       ) : (
         <LoginScreen onLogin={handleLogin} />
       )}

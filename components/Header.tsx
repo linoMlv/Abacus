@@ -4,6 +4,7 @@ import { format, parseISO } from 'date-fns';
 
 import { Operation, Balance } from '../types';
 import ExportButton from './ExportButton';
+import ErrorBoundary from './ErrorBoundary';
 
 interface HeaderProps {
     associationName: string;
@@ -51,12 +52,14 @@ const Header: React.FC<HeaderProps> = ({ associationName, onLogout, dateRange, s
                                 className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-gray-800"
                             />
                         </div>
-                        <ExportButton
-                            operations={operations}
-                            balances={balances}
-                            dateRange={dateRange}
-                            associationName={associationName}
-                        />
+                        <ErrorBoundary fallback={<span className="text-red-500 text-sm">Export Unavailable</span>}>
+                            <ExportButton
+                                operations={operations}
+                                balances={balances}
+                                dateRange={dateRange}
+                                associationName={associationName}
+                            />
+                        </ErrorBoundary>
                         <button onClick={onLogout} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">
                             Logout
                         </button>

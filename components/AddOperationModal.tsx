@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Balance, Operation, OperationType } from '../types';
 
 interface AddOperationModalProps {
@@ -9,17 +9,22 @@ interface AddOperationModalProps {
     onUpdateOperation?: (operation: Operation) => void;
     operationToEdit?: Operation | null;
     balances: Balance[];
+    existingGroups: string[];
 }
 
-const AddOperationModal: React.FC<AddOperationModalProps> = ({ isOpen, onClose, onAddOperation, onUpdateOperation, operationToEdit, balances }) => {
+const AddOperationModal: React.FC<AddOperationModalProps> = ({ isOpen, onClose, onAddOperation, onUpdateOperation, operationToEdit, balances, existingGroups }) => {
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [group, setGroup] = useState('');
+    const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
+    const [filteredGroups, setFilteredGroups] = useState<string[]>([]);
+    const groupInputRef = useRef<HTMLInputElement>(null);
+    const groupDropdownRef = useRef<HTMLUListElement>(null);
     const [amount, setAmount] = useState('');
     const [type, setType] = useState<OperationType>(OperationType.EXPENSE);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [balanceId, setBalanceId] = useState<string>('');
-    const [invoice, setInvoice] = useState<File | null>(null);
+    const [invoice, setInvoice] = useState<string>('');
 
     useEffect(() => {
         if (operationToEdit) {
@@ -30,11 +35,48 @@ const AddOperationModal: React.FC<AddOperationModalProps> = ({ isOpen, onClose, 
             setType(operationToEdit.type);
             setDate(new Date(operationToEdit.date).toISOString().split('T')[0]);
             setBalanceId(operationToEdit.balanceId);
+            setInvoice(operationToEdit.invoice || '');
         } else if (balances.length > 0) {
             setBalanceId(balances[0].id);
             resetFormFields();
         }
     }, [balances, operationToEdit, isOpen]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setFilteredGroups(existingGroups);
+        }
+    }, [isOpen, existingGroups]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                groupDropdownRef.current &&
+                !groupDropdownRef.current.contains(event.target as Node) &&
+                groupInputRef.current &&
+                !groupInputRef.current.contains(event.target as Node)
+            ) {
+                setIsGroupDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const handleGroupChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setGroup(value);
+        setFilteredGroups(existingGroups.filter(g => g.toLowerCase().includes(value.toLowerCase())));
+        setIsGroupDropdownOpen(true);
+    };
+
+    const handleGroupSelect = (selectedGroup: string) => {
+        setGroup(selectedGroup);
+        setIsGroupDropdownOpen(false);
+    };
 
     const resetFormFields = () => {
         setName('');
@@ -44,7 +86,7 @@ const AddOperationModal: React.FC<AddOperationModalProps> = ({ isOpen, onClose, 
         setType(OperationType.EXPENSE);
         setDate(new Date().toISOString().split('T')[0]);
         if (balances.length > 0) setBalanceId(balances[0].id);
-        setInvoice(null);
+        setInvoice('');
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -62,7 +104,7 @@ const AddOperationModal: React.FC<AddOperationModalProps> = ({ isOpen, onClose, 
             amount: parseFloat(amount),
             type,
             date: new Date(date).toISOString(),
-            invoice: invoice ? invoice.name : (operationToEdit?.invoice)
+            invoice
         };
 
         if (operationToEdit && onUpdateOperation) {
@@ -116,9 +158,40 @@ const AddOperationModal: React.FC<AddOperationModalProps> = ({ isOpen, onClose, 
                         <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition" />
                     </div>
 
-                    <div>
-                        <label className="text-sm font-medium text-gray-700">Group</label>
-                        <input type="text" placeholder="e.g., Donations, Office Supplies" value={group} onChange={e => setGroup(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition" />
+                    <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
+                        <input
+                            ref={groupInputRef}
+                            type="text"
+                            placeholder="Select or type a group..."
+                            value={group}
+                            onChange={handleGroupChange}
+                            onFocus={() => setIsGroupDropdownOpen(true)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-800"
+                            required
+                        />
+                        {isGroupDropdownOpen && (
+                            <ul
+                                ref={groupDropdownRef}
+                                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                            >
+                                {filteredGroups.length > 0 ? (
+                                    filteredGroups.map((g) => (
+                                        <li
+                                            key={g}
+                                            onClick={() => handleGroupSelect(g)}
+                                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700"
+                                        >
+                                            {g}
+                                        </li>
+                                    ))
+                                ) : (
+                                    <li className="px-4 py-2 text-sm text-gray-500 italic">
+                                        Type to create "{group}"
+                                    </li>
+                                )}
+                            </ul>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -139,8 +212,8 @@ const AddOperationModal: React.FC<AddOperationModalProps> = ({ isOpen, onClose, 
 
                     {type === OperationType.EXPENSE && (
                         <div>
-                            <label className="text-sm font-medium text-gray-700">Invoice</label>
-                            <input type="file" onChange={e => setInvoice(e.target.files ? e.target.files[0] : null)} className="w-full mt-1 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
+                            <label className="text-sm font-medium text-gray-700">Invoice URL</label>
+                            <input type="url" placeholder="https://..." value={invoice} onChange={e => setInvoice(e.target.value)} className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition" />
                         </div>
                     )}
 

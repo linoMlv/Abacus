@@ -13,8 +13,11 @@ interface OperationsChartProps {
 const OperationsChart: React.FC<OperationsChartProps> = ({ balances, allOperations, dateRange }) => {
 
     const chartData = useMemo(() => {
+        if (!balances || !allOperations || !dateRange) return { data: [], colors: [] };
+
+        const validOperations = allOperations.filter(op => op && op.date && !isNaN(new Date(op.date).getTime()));
         const days = eachDayOfInterval(dateRange);
-        
+
         const balanceColors = ['#1f2937', '#6b7280', '#ef4444', '#10b981', '#3b82f6', '#a855f7'];
 
         const data = days.map(day => {
@@ -23,20 +26,20 @@ const OperationsChart: React.FC<OperationsChartProps> = ({ balances, allOperatio
             };
 
             balances.forEach(balance => {
-                const balanceAtStartOfRange = balance.initialAmount + allOperations
+                const balanceAtStartOfRange = balance.initialAmount + validOperations
                     .filter(op => op.balanceId === balance.id && isBefore(new Date(op.date), dateRange.start))
                     .reduce((acc, op) => acc + (op.type === 'income' ? op.amount : -op.amount), 0);
-                
-                const dailyTotal = allOperations
-                    .filter(op => op.balanceId === balance.id && isBefore(new Date(op.date), day) && isEqual(new Date(op.date), day))
+
+                const dailyTotal = validOperations
+                    .filter(op => op.balanceId === balance.id && (isBefore(new Date(op.date), day) || isEqual(new Date(op.date), day)))
                     .reduce((acc, op) => acc + (op.type === 'income' ? op.amount : -op.amount), balanceAtStartOfRange);
-                
-                const operationsInPeriodUntilDay = allOperations
+
+                const operationsInPeriodUntilDay = validOperations
                     .filter(op => {
                         const opDate = new Date(op.date);
                         return op.balanceId === balance.id &&
-                               opDate >= dateRange.start &&
-                               opDate <= day;
+                            opDate >= dateRange.start &&
+                            opDate <= day;
                     })
                     .reduce((acc, op) => acc + (op.type === 'income' ? op.amount : -op.amount), 0);
 
@@ -45,13 +48,17 @@ const OperationsChart: React.FC<OperationsChartProps> = ({ balances, allOperatio
 
             return entry;
         });
-        
+
         return { data, colors: balanceColors };
     }, [balances, allOperations, dateRange]);
 
 
-    if (!balances.length) {
+    if (!balances || !balances.length) {
         return <p>No balances to display.</p>
+    }
+
+    if (!chartData.data.length) {
+        return <p>No data to display for this period.</p>
     }
 
     return (
@@ -60,12 +67,12 @@ const OperationsChart: React.FC<OperationsChartProps> = ({ balances, allOperatio
                 <LineChart data={chartData.data}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#6b7280" />
-                    <YAxis tick={{ fontSize: 12 }} stroke="#6b7280" tickFormatter={(value) => new Intl.NumberFormat('fr-FR', { notation: 'compact', compactDisplay: 'short' }).format(value as number)}/>
-                    <Tooltip 
+                    <YAxis tick={{ fontSize: 12 }} stroke="#6b7280" tickFormatter={(value) => new Intl.NumberFormat('fr-FR', { notation: 'compact', compactDisplay: 'short' }).format(value as number)} />
+                    <Tooltip
                         contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}
                         formatter={(value) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value as number)}
                     />
-                    <Legend wrapperStyle={{fontSize: "14px"}}/>
+                    <Legend wrapperStyle={{ fontSize: "14px" }} />
                     {balances.map((balance, index) => (
                         <Line
                             key={balance.id}

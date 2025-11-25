@@ -163,8 +163,12 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ operations, balances, dateRan
         const startBalance = balance.initialAmount + initialIncome - initialExpense;
 
         const periodOps = balanceOps.filter(op => {
-            const opDate = new Date(op.date);
-            return opDate >= dateRange.start && opDate <= dateRange.end;
+            try {
+                const opDate = new Date(op.date);
+                return !isNaN(opDate.getTime()) && opDate >= dateRange.start && opDate <= dateRange.end;
+            } catch {
+                return false;
+            }
         });
 
         const periodIncome = periodOps.filter(op => op.type === OperationType.INCOME).reduce((sum, op) => sum + op.amount, 0);
@@ -234,56 +238,118 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ operations, balances, dateRan
             </Page>
 
             {/* Detailed Pages */}
-            {summaryData.map((data) => (
-                <Page key={data.balance.id} size="A4" style={styles.page}>
-                    <View style={styles.balanceSection}>
-                        <Text style={styles.balanceTitle}>{data.balance.name} - Details</Text>
+            {summaryData.map((data) => {
+                const incomes = data.periodOps.filter(op => op.type === OperationType.INCOME);
+                const expenses = data.periodOps.filter(op => op.type === OperationType.EXPENSE);
 
-                        {data.periodOps.length > 0 ? (
-                            <View style={styles.table}>
-                                <View style={styles.tableRow}>
-                                    <View style={styles.tableColHeader}>
-                                        <Text style={styles.tableCellHeader}>Date</Text>
-                                    </View>
-                                    <View style={styles.tableColHeader}>
-                                        <Text style={styles.tableCellHeader}>Name</Text>
-                                    </View>
-                                    <View style={styles.tableColHeader}>
-                                        <Text style={styles.tableCellHeader}>Type</Text>
-                                    </View>
-                                    <View style={styles.tableColHeader}>
-                                        <Text style={styles.tableCellHeader}>Amount</Text>
-                                    </View>
-                                </View>
-                                {data.periodOps.map((op) => (
-                                    <View style={styles.tableRow} key={op.id}>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>{format(new Date(op.date), 'MMM dd, yyyy')}</Text>
+                return (
+                    <Page key={data.balance.id} size="A4" style={styles.page}>
+                        <View style={styles.balanceSection}>
+                            <Text style={styles.balanceTitle}>{data.balance.name} - Details</Text>
+
+                            {incomes.length > 0 && (
+                                <>
+                                    <Text style={{ ...styles.balanceTitle, fontSize: 14, backgroundColor: 'transparent', borderLeftWidth: 0, paddingLeft: 0, marginTop: 10, marginBottom: 5 }}>Income</Text>
+                                    <View style={styles.table}>
+                                        <View style={styles.tableRow}>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Date</Text>
+                                            </View>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Name</Text>
+                                            </View>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Description</Text>
+                                            </View>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Amount</Text>
+                                            </View>
                                         </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>{op.name}</Text>
-                                        </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={styles.tableCell}>{op.type}</Text>
-                                        </View>
-                                        <View style={styles.tableCol}>
-                                            <Text style={op.type === OperationType.EXPENSE ? styles.tableCellExpense : styles.tableCellIncome}>
-                                                {op.type === OperationType.EXPENSE ? '-' : '+'}{op.amount.toFixed(2)} €
-                                            </Text>
-                                        </View>
+                                        {incomes.map((op) => (
+                                            <View style={styles.tableRow} key={op.id}>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>
+                                                        {(() => {
+                                                            try {
+                                                                return format(new Date(op.date), 'MMM dd, yyyy');
+                                                            } catch {
+                                                                return 'Invalid Date';
+                                                            }
+                                                        })()}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{op.name}</Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{op.description || '-'}</Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCellIncome}>+{op.amount.toFixed(2)} €</Text>
+                                                </View>
+                                            </View>
+                                        ))}
                                     </View>
-                                ))}
+                                </>
+                            )}
+
+                            {expenses.length > 0 && (
+                                <>
+                                    <Text style={{ ...styles.balanceTitle, fontSize: 14, backgroundColor: 'transparent', borderLeftWidth: 0, paddingLeft: 0, marginTop: 20, marginBottom: 5 }}>Expenses</Text>
+                                    <View style={styles.table}>
+                                        <View style={styles.tableRow}>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Date</Text>
+                                            </View>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Name</Text>
+                                            </View>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Description</Text>
+                                            </View>
+                                            <View style={styles.tableColHeader}>
+                                                <Text style={styles.tableCellHeader}>Amount</Text>
+                                            </View>
+                                        </View>
+                                        {expenses.map((op) => (
+                                            <View style={styles.tableRow} key={op.id}>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>
+                                                        {(() => {
+                                                            try {
+                                                                return format(new Date(op.date), 'MMM dd, yyyy');
+                                                            } catch {
+                                                                return 'Invalid Date';
+                                                            }
+                                                        })()}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{op.name}</Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCell}>{op.description || '-'}</Text>
+                                                </View>
+                                                <View style={styles.tableCol}>
+                                                    <Text style={styles.tableCellExpense}>-{op.amount.toFixed(2)} €</Text>
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+
+                            {data.periodOps.length === 0 && (
+                                <Text style={styles.emptyMessage}>No operations for this period.</Text>
+                            )}
+
+                            <View style={styles.totalRow}>
+                                <Text style={styles.totalText}>End Balance: {data.endBalance.toFixed(2)} €</Text>
                             </View>
-                        ) : (
-                            <Text style={styles.emptyMessage}>No operations for this period.</Text>
-                        )}
-
-                        <View style={styles.totalRow}>
-                            <Text style={styles.totalText}>End Balance: {data.endBalance.toFixed(2)} €</Text>
                         </View>
-                    </View>
-                </Page>
-            ))}
+                    </Page>
+                );
+            })}
         </Document>
     );
 };

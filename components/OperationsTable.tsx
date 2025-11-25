@@ -125,7 +125,15 @@ const OperationsTable: React.FC<OperationsTableProps> = ({ title, operations, on
                         <div className="flex-1 min-w-0 pr-4">
                           <div className="flex items-center justify-between mb-1">
                             <p className="text-base font-semibold text-gray-900 truncate">{op.name}</p>
-                            <p className="text-sm text-gray-500 whitespace-nowrap ml-4">{format(new Date(op.date), 'MMM dd, yyyy')}</p>
+                            <p className="text-sm text-gray-500 whitespace-nowrap ml-4">
+                              {(() => {
+                                try {
+                                  return format(new Date(op.date), 'MMM dd, yyyy');
+                                } catch (e) {
+                                  return 'Invalid Date';
+                                }
+                              })()}
+                            </p>
                           </div>
                           <p className="text-sm text-gray-500 truncate">{op.description}</p>
                         </div>

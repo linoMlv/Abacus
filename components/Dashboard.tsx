@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Association, Balance, Operation, OperationType } from '../types';
 import { api } from '../api';
 import Header from './Header';
@@ -9,6 +9,8 @@ import OperationsTable from './OperationsTable';
 import AddOperationModal from './AddOperationModal';
 import AddBalanceModal from './AddBalanceModal';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import ErrorBoundary from './ErrorBoundary';
+import ConfirmationModal from './ConfirmationModal';
 
 interface DashboardProps {
     association: Association;
@@ -19,7 +21,14 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAssociation }) => {
     const today = new Date();
     const [dateRange, setDateRange] = useState<{ start: Date, end: Date }>({ start: startOfMonth(today), end: endOfMonth(today) });
-    const [selectedBalanceId, setSelectedBalanceId] = useState<string | null>(association.balances[0]?.id ?? null);
+    const [selectedBalanceId, setSelectedBalanceId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!selectedBalanceId && association.balances.length > 0) {
+            const sortedBalances = [...association.balances].sort((a, b) => a.position - b.position);
+            setSelectedBalanceId(sortedBalances[0].id);
+        }
+    }, [association.balances, selectedBalanceId]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isAddBalanceModalOpen, setIsAddBalanceModalOpen] = useState(false);
 
@@ -27,6 +36,8 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
     const [draggedBalanceIndex, setDraggedBalanceIndex] = useState<number | null>(null);
 
     const [operationToEdit, setOperationToEdit] = useState<Operation | null>(null);
+    const [isDeleteBalanceModalOpen, setIsDeleteBalanceModalOpen] = useState(false);
+    const [balanceToDeleteId, setBalanceToDeleteId] = useState<string | null>(null);
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
     const scroll = (direction: 'left' | 'right') => {
@@ -57,6 +68,11 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
 
     const incomesForSelectedBalance = operationsForSelectedBalance.filter(op => op.type === OperationType.INCOME);
     const expensesForSelectedBalance = operationsForSelectedBalance.filter(op => op.type === OperationType.EXPENSE);
+
+    const existingGroups = useMemo(() => {
+        const groups = new Set(association.operations.map(op => op.group));
+        return Array.from(groups).sort();
+    }, [association.operations]);
 
     const handleAddOperation = async (newOperationData: Omit<Operation, 'id'>) => {
         try {
@@ -99,18 +115,16 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
     };
 
     const handleDeleteOperation = async (operationId: string) => {
-        if (window.confirm('Are you sure you want to delete this operation?')) {
-            try {
-                await api.deleteOperation(operationId);
-                const updatedAssociation = {
-                    ...association,
-                    operations: association.operations.filter(op => op.id !== operationId)
-                };
-                onUpdateAssociation(updatedAssociation);
-            } catch (error) {
-                console.error("Failed to delete operation", error);
-                alert("Failed to delete operation");
-            }
+        try {
+            await api.deleteOperation(operationId);
+            const updatedAssociation = {
+                ...association,
+                operations: association.operations.filter(op => op.id !== operationId)
+            };
+            onUpdateAssociation(updatedAssociation);
+        } catch (error) {
+            console.error("Failed to delete operation", error);
+            alert("Failed to delete operation");
         }
     };
 
@@ -145,22 +159,30 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
         setIsAddBalanceModalOpen(true);
     };
 
-    const handleDeleteBalance = async (balanceId: string) => {
-        if (window.confirm('Are you sure you want to delete this balance? All associated operations will be lost.')) {
-            try {
-                await api.deleteBalance(balanceId);
-                const updatedAssociation = {
-                    ...association,
-                    balances: association.balances.filter(b => b.id !== balanceId)
-                };
-                onUpdateAssociation(updatedAssociation);
-                if (selectedBalanceId === balanceId) {
-                    setSelectedBalanceId(updatedAssociation.balances[0]?.id ?? null);
-                }
-            } catch (error) {
-                console.error("Failed to delete balance", error);
-                alert("Failed to delete balance");
+    const handleDeleteBalance = (balanceId: string) => {
+        setBalanceToDeleteId(balanceId);
+        setIsDeleteBalanceModalOpen(true);
+    };
+
+    const confirmDeleteBalance = async () => {
+        if (!balanceToDeleteId) return;
+
+        try {
+            await api.deleteBalance(balanceToDeleteId);
+            const updatedAssociation = {
+                ...association,
+                balances: association.balances.filter(b => b.id !== balanceToDeleteId)
+            };
+            onUpdateAssociation(updatedAssociation);
+            if (selectedBalanceId === balanceToDeleteId) {
+                setSelectedBalanceId(updatedAssociation.balances[0]?.id ?? null);
             }
+        } catch (error) {
+            console.error("Failed to delete balance", error);
+            alert("Failed to delete balance");
+        } finally {
+            setIsDeleteBalanceModalOpen(false);
+            setBalanceToDeleteId(null);
         }
     };
 
@@ -304,11 +326,14 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
                     <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-md border border-gray-200">
                         <h3 className="text-xl font-semibold mb-4 text-gray-800">Balances Variation</h3>
-                        <OperationsChart
-                            balances={association.balances}
-                            allOperations={association.operations}
-                            dateRange={dateRange}
-                        />
+                        <ErrorBoundary>
+                            <OperationsChart
+                                key={association.operations.length}
+                                balances={association.balances}
+                                allOperations={association.operations}
+                                dateRange={dateRange}
+                            />
+                        </ErrorBoundary>
                     </div>
 
                     {selectedBalance && (
@@ -318,18 +343,22 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
                                     Operations for <span className="text-gray-900 font-bold">{selectedBalance.name}</span>
                                 </h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <OperationsTable
-                                        title="Income"
-                                        operations={incomesForSelectedBalance}
-                                        onEdit={handleEditOperation}
-                                        onDelete={handleDeleteOperation}
-                                    />
-                                    <OperationsTable
-                                        title="Expenses"
-                                        operations={expensesForSelectedBalance}
-                                        onEdit={handleEditOperation}
-                                        onDelete={handleDeleteOperation}
-                                    />
+                                    <ErrorBoundary>
+                                        <OperationsTable
+                                            title="Income"
+                                            operations={incomesForSelectedBalance}
+                                            onEdit={handleEditOperation}
+                                            onDelete={handleDeleteOperation}
+                                        />
+                                    </ErrorBoundary>
+                                    <ErrorBoundary>
+                                        <OperationsTable
+                                            title="Expenses"
+                                            operations={expensesForSelectedBalance}
+                                            onEdit={handleEditOperation}
+                                            onDelete={handleDeleteOperation}
+                                        />
+                                    </ErrorBoundary>
                                 </div>
                             </div>
                         </>
@@ -337,6 +366,18 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
                 </div>
 
             </main>
+            <ConfirmationModal
+                isOpen={isDeleteBalanceModalOpen}
+                onClose={() => {
+                    setIsDeleteBalanceModalOpen(false);
+                    setBalanceToDeleteId(null);
+                }}
+                onConfirm={confirmDeleteBalance}
+                title="Delete Balance"
+                message="Are you sure you want to delete this balance? All associated operations will be lost. This action cannot be undone."
+                confirmText="Delete"
+                isDanger={true}
+            />
             <AddOperationModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
@@ -344,6 +385,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
                 onUpdateOperation={handleUpdateOperation}
                 operationToEdit={operationToEdit}
                 balances={association.balances}
+                existingGroups={existingGroups}
             />
             <AddBalanceModal
                 isOpen={isAddBalanceModalOpen}
