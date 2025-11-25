@@ -15,6 +15,9 @@ def main():
     backend_dir = os.path.join(root_dir, "backend")
     static_dir = os.path.join(backend_dir, "static")
 
+    print("Updating repository...")
+    run_command("git pull", cwd=root_dir)
+
     print("Building Frontend...")
     run_command("npm run build", cwd=root_dir)
 
