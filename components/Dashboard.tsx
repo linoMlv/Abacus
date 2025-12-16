@@ -85,7 +85,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
     const expensesForSelectedBalance = operationsForSelectedBalance.filter(op => op.type === OperationType.EXPENSE);
 
     const existingGroups = useMemo(() => {
-        const groups = new Set(association.operations.map(op => op.group));
+        const groups = new Set((association.operations || []).map(op => op.group));
         return Array.from(groups).sort();
     }, [association.operations]);
 

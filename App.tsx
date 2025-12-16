@@ -14,7 +14,7 @@ const App: React.FC = () => {
     const loadAssociation = async () => {
       try {
         const storedAssociationId = localStorage.getItem('abacus-active-association-id');
-        if (storedAssociationId) {
+        if (storedAssociationId && storedAssociationId !== 'undefined') {
           const association = await api.getAssociation(storedAssociationId);
           setActiveAssociation(association);
         }
@@ -35,6 +35,7 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('abacus-active-association-id');
+    localStorage.removeItem('abacus_token');
     setActiveAssociation(null);
   };
 

@@ -26,11 +26,21 @@ export const api = {
             const error = await response.json();
             throw new Error(error.detail || 'Login failed');
         }
-        return response.json();
+        const data = await response.json();
+        localStorage.setItem('abacus_token', data.access_token);
+        return data.association;
     },
 
     async getAssociation(id: string): Promise<Association> {
-        const response = await fetch(`${API_URL}/associations/${id}`);
+        const token = localStorage.getItem('abacus_token');
+        const headers: HeadersInit = {
+            'Authorization': `Bearer ${token}`
+        };
+
+        const response = await fetch(`${API_URL}/associations/${id}`, {
+            headers
+        });
+
         if (!response.ok) {
             throw new Error('Failed to fetch association');
         }
@@ -66,9 +76,13 @@ export const api = {
         balance_id: string;
         invoice?: string;
     }): Promise<Operation> {
+        const token = localStorage.getItem('abacus_token');
         const response = await fetch(`${API_URL}/operations`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify(operation),
         });
         if (!response.ok) {
@@ -82,9 +96,13 @@ export const api = {
     },
 
     async updateOperation(operation: Operation): Promise<Operation> {
+        const token = localStorage.getItem('abacus_token');
         const response = await fetch(`${API_URL}/operations/${operation.id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({
                 name: operation.name,
                 description: operation.description,
@@ -107,8 +125,12 @@ export const api = {
     },
 
     async deleteOperation(id: string): Promise<void> {
+        const token = localStorage.getItem('abacus_token');
         const response = await fetch(`${API_URL}/operations/${id}`, {
             method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
         });
         if (!response.ok) {
             throw new Error('Failed to delete operation');
@@ -116,9 +138,13 @@ export const api = {
     },
 
     async addBalance(name: string, initialAmount: number, associationId: string): Promise<any> {
+        const token = localStorage.getItem('abacus_token');
         const response = await fetch(`${API_URL}/balances_add`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({ name, initialAmount, association_id: associationId }),
         });
         if (!response.ok) {
@@ -128,9 +154,13 @@ export const api = {
     },
 
     async updateBalance(balance: Balance): Promise<Balance> {
+        const token = localStorage.getItem('abacus_token');
         const response = await fetch(`${API_URL}/balances/${balance.id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
             body: JSON.stringify({
                 name: balance.name,
                 initialAmount: balance.initialAmount,
@@ -144,8 +174,12 @@ export const api = {
     },
 
     async deleteBalance(balanceId: string): Promise<void> {
+        const token = localStorage.getItem('abacus_token');
         const response = await fetch(`${API_URL}/balances/${balanceId}`, {
             method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
         });
         if (!response.ok) {
             throw new Error('Failed to delete balance');
