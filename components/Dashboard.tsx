@@ -20,7 +20,22 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAssociation }) => {
     const today = new Date();
-    const [dateRange, setDateRange] = useState<{ start: Date, end: Date }>({ start: startOfMonth(today), end: endOfMonth(today) });
+    const [dateRange, setDateRange] = useState<{ start: Date, end: Date }>(() => {
+        const stored = localStorage.getItem('abacus-date-range');
+        if (stored) {
+            try {
+                const { start, end } = JSON.parse(stored);
+                return { start: new Date(start), end: new Date(end) };
+            } catch (e) {
+                console.error("Failed to parse date range from local storage", e);
+            }
+        }
+        return { start: startOfMonth(today), end: endOfMonth(today) };
+    });
+
+    useEffect(() => {
+        localStorage.setItem('abacus-date-range', JSON.stringify(dateRange));
+    }, [dateRange]);
     const [selectedBalanceId, setSelectedBalanceId] = useState<string | null>(null);
 
     useEffect(() => {
