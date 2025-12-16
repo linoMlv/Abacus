@@ -67,14 +67,14 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout, onUpdateAs
     };
 
     const filteredOperations = useMemo(() => {
-        return association.operations.filter(op => {
+        return (association.operations || []).filter(op => {
             const opDate = new Date(op.date);
             return opDate >= dateRange.start && opDate <= dateRange.end;
         });
     }, [association.operations, dateRange]);
 
     const selectedBalance = useMemo(() => {
-        return association.balances.find(b => b.id === selectedBalanceId) ?? null;
+        return (association.balances || []).find(b => b.id === selectedBalanceId) ?? null;
     }, [association.balances, selectedBalanceId]);
 
     const operationsForSelectedBalance = useMemo(() => {
