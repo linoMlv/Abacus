@@ -2,6 +2,27 @@ import { Association, Operation, OperationType, Balance } from './types';
 
 const API_URL = '/api';
 
+const mapAssociationData = (data: any): Association => {
+    const mappedOperations = data.operations.map((op: any) => ({
+        ...op,
+        balanceId: op.balance_id || op.balanceId
+    }));
+
+    const mappedBalances = data.balances.map((balance: any) => ({
+        ...balance,
+        operations: balance.operations.map((op: any) => ({
+            ...op,
+            balanceId: op.balance_id || op.balanceId
+        }))
+    }));
+
+    return {
+        ...data,
+        operations: mappedOperations,
+        balances: mappedBalances
+    };
+};
+
 export const api = {
     async signup(name: string, password: string, balances: { name: string; amount: string }[]): Promise<Association> {
         const response = await fetch(`${API_URL}/signup`, {
@@ -13,7 +34,8 @@ export const api = {
             const error = await response.json();
             throw new Error(error.detail || 'Signup failed');
         }
-        return response.json();
+        const data = await response.json();
+        return mapAssociationData(data);
     },
 
     async login(name: string, password: string): Promise<Association> {
@@ -28,7 +50,7 @@ export const api = {
         }
         const data = await response.json();
         localStorage.setItem('abacus_token', data.access_token);
-        return data.association;
+        return mapAssociationData(data.association);
     },
 
     async getAssociation(id: string): Promise<Association> {
@@ -45,25 +67,7 @@ export const api = {
             throw new Error('Failed to fetch association');
         }
         const data = await response.json();
-
-        const mappedOperations = data.operations.map((op: any) => ({
-            ...op,
-            balanceId: op.balance_id || op.balanceId
-        }));
-
-        const mappedBalances = data.balances.map((balance: any) => ({
-            ...balance,
-            operations: balance.operations.map((op: any) => ({
-                ...op,
-                balanceId: op.balance_id || op.balanceId
-            }))
-        }));
-
-        return {
-            ...data,
-            operations: mappedOperations,
-            balances: mappedBalances
-        };
+        return mapAssociationData(data);
     },
 
     async createOperation(operation: {
