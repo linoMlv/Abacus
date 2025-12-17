@@ -1,16 +1,17 @@
-from fastapi import Depends, HTTPException, status, Request
+
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 from sqlmodel import Session, select
-from typing import Optional
-from jose import jwt, JWTError
 
 from database import get_session
 from models import Association
-from security import SECRET_KEY, ALGORITHM
+from security import ALGORITHM, SECRET_KEY
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login", auto_error=False)
 
-async def get_token(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
+
+async def get_token(request: Request, token: str | None = Depends(oauth2_scheme)):
     if token:
         return token
     token = request.cookies.get("access_token")
@@ -24,7 +25,10 @@ async def get_token(request: Request, token: Optional[str] = Depends(oauth2_sche
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-async def get_current_association(token: str = Depends(get_token), session: Session = Depends(get_session)):
+
+async def get_current_association(
+    token: str = Depends(get_token), session: Session = Depends(get_session)
+):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -37,7 +41,7 @@ async def get_current_association(token: str = Depends(get_token), session: Sess
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     statement = select(Association).where(Association.name == name)
     association = session.exec(statement).first()
     if association is None:
