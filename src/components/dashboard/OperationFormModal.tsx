@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Balance, Operation, OperationType } from '../../types';
 import { useAddOperation, useUpdateOperation } from '../../hooks/useAbacusData';
 

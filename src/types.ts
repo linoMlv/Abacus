@@ -20,12 +20,13 @@ export interface Balance {
   name: string;
   initialAmount: number;
   position: number;
+  operations?: Operation[];
 }
 
 export interface Association {
   id: string;
   name: string;
-  password: string;
+  password?: string;
   balances: Balance[];
   operations: Operation[];
 }
