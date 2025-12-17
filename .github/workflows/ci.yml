@@ -93,4 +93,4 @@ jobs:
 
       - name: 🧪 Unit Tests (Pytest)
         # Lance les tests (utilise conftest.py pour la DB en mémoire)
-        run: pytest
+        run: python -m pytest
