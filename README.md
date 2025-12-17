@@ -82,25 +82,25 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 
 ### **Frontend**
 
-| Technologie | Version | Description |
-| :--- | :--- | :--- |
-| [React](https://react.dev/) | 19.x | Framework UI moderne |
-| [TypeScript](https://www.typescriptlang.org/) | 5.x | JavaScript typé pour plus de robustesse |
-| [Vite](https://vitejs.dev/) | 6.x | Build tool ultra-rapide |
-| [TanStack Query](https://tanstack.com/query) | 5.x | Gestion d'état serveur et cache |
-| [Tailwind CSS](https://tailwindcss.com/) | 3.x | Framework CSS utilitaire |
-| [Recharts](https://recharts.org/) | 3.x | Bibliothèque de graphiques React |
-| [Vitest](https://vitest.dev/) | 1.x | Framework de test unitaire rapide |
+| Technologie                                   | Version | Description                             |
+| :-------------------------------------------- | :------ | :-------------------------------------- |
+| [React](https://react.dev/)                   | 19.x    | Framework UI moderne                    |
+| [TypeScript](https://www.typescriptlang.org/) | 5.x     | JavaScript typé pour plus de robustesse |
+| [Vite](https://vitejs.dev/)                   | 6.x     | Build tool ultra-rapide                 |
+| [TanStack Query](https://tanstack.com/query)  | 5.x     | Gestion d'état serveur et cache         |
+| [Tailwind CSS](https://tailwindcss.com/)      | 3.x     | Framework CSS utilitaire                |
+| [Recharts](https://recharts.org/)             | 3.x     | Bibliothèque de graphiques React        |
+| [Vitest](https://vitest.dev/)                 | 1.x     | Framework de test unitaire rapide       |
 
 ### **Backend**
 
-| Technologie | Description |
-| :--- | :--- |
-| [FastAPI](https://fastapi.tiangolo.com/) | Framework Python moderne et performant |
-| [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic |
-| [MySQL](https://www.mysql.com/) | Base de données relationnelle |
-| [Pytest](https://docs.pytest.org/) | Framework de test Python standard |
-| [Ruff](https://docs.astral.sh/ruff/) | Linter et Formatter Python ultra-rapide |
+| Technologie                                | Description                             |
+| :----------------------------------------- | :-------------------------------------- |
+| [FastAPI](https://fastapi.tiangolo.com/)   | Framework Python moderne et performant  |
+| [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic     |
+| [MySQL](https://www.mysql.com/)            | Base de données relationnelle           |
+| [Pytest](https://docs.pytest.org/)         | Framework de test Python standard       |
+| [Ruff](https://docs.astral.sh/ruff/)       | Linter et Formatter Python ultra-rapide |
 
 ---
 
@@ -122,6 +122,7 @@ cd abacus
 ### 2️⃣ Configuration du Backend
 
 1.  **Installer les dépendances** :
+
     ```bash
     cd backend
     python -m venv venv
@@ -131,6 +132,7 @@ cd abacus
 
 2.  **Configuration** :
     Copiez `.env.example` vers `.env` et configurez votre base de données et votre clé secrète.
+
     ```bash
     cp .env.example .env
     ```
@@ -160,6 +162,7 @@ cd backend
 source venv/bin/activate
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
 API : `http://localhost:8000/docs`
 
 #### Terminal 2 : Frontend
@@ -167,6 +170,7 @@ API : `http://localhost:8000/docs`
 ```bash
 npm run dev
 ```
+
 Application : `http://localhost:9873`
 
 ### Mode production (Docker)
@@ -176,6 +180,7 @@ Le moyen le plus simple de lancer en production est d'utiliser Docker Compose :
 ```bash
 docker-compose up --build -d
 ```
+
 L'application sera accessible sur le port **9874**.
 
 ---

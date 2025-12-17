@@ -35,6 +35,17 @@ const OperationFormModal: React.FC<OperationFormModalProps> = ({
 
   const isSubmitting = addMutation.isPending || updateMutation.isPending;
 
+  const resetFormFields = useCallback(() => {
+    setName('');
+    setDescription('');
+    setGroup('');
+    setAmount('');
+    setType(OperationType.EXPENSE);
+    setDate(new Date().toISOString().split('T')[0]);
+    if (balances.length > 0) setBalanceId(balances[0].id);
+    setInvoice('');
+  }, [balances]);
+
   useEffect(() => {
     if (operationToEdit) {
       setName(operationToEdit.name);
@@ -49,7 +60,7 @@ const OperationFormModal: React.FC<OperationFormModalProps> = ({
       setBalanceId(balances[0].id);
       resetFormFields();
     }
-  }, [balances, operationToEdit, isOpen]);
+  }, [balances, operationToEdit, isOpen, resetFormFields]);
 
   useEffect(() => {
     if (isOpen) {
@@ -83,17 +94,6 @@ const OperationFormModal: React.FC<OperationFormModalProps> = ({
   const handleGroupSelect = (selectedGroup: string) => {
     setGroup(selectedGroup);
     setIsGroupDropdownOpen(false);
-  };
-
-  const resetFormFields = () => {
-    setName('');
-    setDescription('');
-    setGroup('');
-    setAmount('');
-    setType(OperationType.EXPENSE);
-    setDate(new Date().toISOString().split('T')[0]);
-    if (balances.length > 0) setBalanceId(balances[0].id);
-    setInvoice('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

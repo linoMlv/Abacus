@@ -54,8 +54,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         initialBalances.map((b) => ({ name: b.name.trim(), amount: b.amount }))
       );
       onLogin(newAssociation);
-    } catch (err: any) {
-      setError(err.message || 'Signup failed');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Signup failed');
+      }
     }
   };
 
@@ -69,8 +73,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     try {
       const association = await api.login(associationName.trim(), password);
       onLogin(association);
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Login failed');
+      }
     }
   };
 

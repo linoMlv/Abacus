@@ -1,70 +1,96 @@
-name: Abacus CI
+name: 🚀 Abacus Quality Gate
 
-# Déclenchement : à chaque push sur main ou pull request
 on:
   push:
-    branches: [ main ]
+    branches: ['main']
   pull_request:
-    branches: [ main ]
+    branches: ['main']
+  workflow_dispatch: # Permet le lancement manuel
+
+# Sécurité : Limite les permissions du token au minimum nécessaire
+permissions:
+  contents: read
 
 jobs:
-  # --- JOB FRONTEND ---
-  frontend-check:
-    name: 🎨 Frontend (React/TS)
+  # ------------------------------------------------------------------
+  # JOB FRONTEND
+  # ------------------------------------------------------------------
+  frontend:
+    name: 🎨 Frontend (React/Vite)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - name: Checkout code
+      - name: ⬇️ Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install dependencies
+      - name: 📦 Install Dependencies
+        # 'npm ci' est plus strict et rapide que 'npm install' pour la CI
         run: npm ci
 
-      - name: Lint & Format Check
-        # Vérifie ESLint et Prettier
+      - name: 💅 Linting (ESLint)
+        # Vérifie le style et les erreurs potentielles
         run: npm run lint
 
-      - name: Type Check & Build
-        # Vérifie que TypeScript compile et que le build Vite fonctionne
-        run: npm run build
+      - name: 🔍 Type Checking (TypeScript)
+        # Vérifie la cohérence des types sans émettre de fichiers
+        run: npx tsc --noEmit
 
-      - name: Run Tests
-        # Lance Vitest en mode "run" (pas de watch)
+      - name: 🧪 Unit Tests (Vitest)
+        # Lance les tests en mode "run" (pas de watch)
         run: npm run test -- --run
 
-  # --- JOB BACKEND ---
-  backend-check:
+      - name: 🏗️ Production Build
+        # Vérifie que le build de production passe sans erreur
+        run: npm run build
+
+  # ------------------------------------------------------------------
+  # JOB BACKEND
+  # ------------------------------------------------------------------
+  backend:
     name: 🐍 Backend (FastAPI)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: ./backend
+
+    # Variables d'environnement pour le contexte de test
+    env:
+      DATABASE_URL: 'sqlite:///:memory:'
+      SECRET_KEY: 'ci-secret-key-do-not-use-in-production'
+      ALGORITHM: 'HS256'
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
     steps:
-      - name: Checkout code
+      - name: ⬇️ Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: 🐍 Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: 📦 Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Linting (Ruff)
-        # Vérifie les erreurs de code
+      - name: 🧹 Code Analysis (Ruff)
+        # Vérifie les erreurs de code et les bonnes pratiques
         run: ruff check .
 
-      - name: Formatting (Ruff)
-        # Vérifie que le code est bien formaté
+      - name: 🎨 Format Check (Ruff)
+        # Vérifie que le code respecte le formatage standard
         run: ruff format --check .
 
-      - name: Run Tests (Pytest)
-        # Lance les tests avec la DB en mémoire
+      - name: 🧪 Unit Tests (Pytest)
+        # Lance les tests (utilise conftest.py pour la DB en mémoire)
         run: pytest

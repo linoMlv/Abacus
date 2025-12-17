@@ -2,17 +2,44 @@ import { Association, Operation, OperationType, Balance } from './types';
 
 const API_URL = '/api';
 
-const mapAssociationData = (data: any): Association => {
-  const mappedOperations = data.operations.map((op: any) => ({
+interface BackendOperation {
+  id: string;
+  name: string;
+  description: string;
+  group: string;
+  amount: number;
+  type: OperationType;
+  date: string;
+  balance_id: string;
+  invoice?: string;
+}
+
+interface BackendBalance {
+  id: string;
+  name: string;
+  initialAmount: number;
+  position: number;
+  operations: BackendOperation[];
+}
+
+interface BackendAssociation {
+  id: string;
+  name: string;
+  balances: BackendBalance[];
+  operations: BackendOperation[];
+}
+
+const mapAssociationData = (data: BackendAssociation): Association => {
+  const mappedOperations: Operation[] = data.operations.map((op) => ({
     ...op,
-    balanceId: op.balance_id || op.balanceId,
+    balanceId: op.balance_id,
   }));
 
-  const mappedBalances = data.balances.map((balance: any) => ({
+  const mappedBalances: Balance[] = data.balances.map((balance) => ({
     ...balance,
-    operations: balance.operations.map((op: any) => ({
+    operations: balance.operations.map((op) => ({
       ...op,
-      balanceId: op.balance_id || op.balanceId,
+      balanceId: op.balance_id,
     })),
   }));
 
@@ -63,7 +90,7 @@ export const api = {
       const error = await response.json();
       throw new Error(error.detail || 'Signup failed');
     }
-    const data = await response.json();
+    const data: BackendAssociation = await response.json();
     return mapAssociationData(data);
   },
 
@@ -86,7 +113,7 @@ export const api = {
     if (!response.ok) {
       return null;
     }
-    const data = await response.json();
+    const data: BackendAssociation = await response.json();
     return mapAssociationData(data);
   },
 
@@ -103,7 +130,7 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to fetch association');
     }
-    const data = await response.json();
+    const data: BackendAssociation = await response.json();
     return mapAssociationData(data);
   },
 
@@ -124,7 +151,7 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to create operation');
     }
-    const data = await response.json();
+    const data: BackendOperation = await response.json();
     return {
       ...data,
       balanceId: data.balance_id,
@@ -148,7 +175,7 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to update operation');
     }
-    const data = await response.json();
+    const data: BackendOperation = await response.json();
     return {
       ...data,
       balanceId: data.balance_id,
@@ -164,7 +191,7 @@ export const api = {
     }
   },
 
-  async addBalance(name: string, initialAmount: number, associationId: string): Promise<any> {
+  async addBalance(name: string, initialAmount: number, associationId: string): Promise<Balance> {
     const response = await fetchWithAuth(`${API_URL}/balances_add`, {
       method: 'POST',
       body: JSON.stringify({ name, initialAmount, association_id: associationId }),
@@ -172,7 +199,14 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to add balance');
     }
-    return response.json();
+    const data: BackendBalance = await response.json();
+    return {
+      ...data,
+      operations: (data.operations || []).map((op) => ({
+        ...op,
+        balanceId: op.balance_id,
+      })),
+    };
   },
 
   async updateBalance(balance: Balance): Promise<Balance> {
@@ -187,7 +221,14 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to update balance');
     }
-    return response.json();
+    const data: BackendBalance = await response.json();
+    return {
+      ...data,
+      operations: (data.operations || []).map((op) => ({
+        ...op,
+        balanceId: op.balance_id,
+      })),
+    };
   },
 
   async deleteBalance(balanceId: string): Promise<void> {

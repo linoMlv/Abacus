@@ -72,10 +72,11 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`relative p-6 rounded-xl border transition-all duration-200 cursor-pointer group ${isSelected
+      className={`relative p-6 rounded-xl border transition-all duration-200 cursor-pointer group ${
+        isSelected
           ? 'bg-gray-800 text-white shadow-lg'
           : 'bg-white text-gray-800 shadow-md border-gray-200 hover:shadow-lg hover:border-gray-300'
-        }`}
+      }`}
     >
       <div className="flex justify-between items-start">
         <p className={`text-lg font-semibold ${isSelected ? 'text-gray-300' : 'text-gray-600'}`}>

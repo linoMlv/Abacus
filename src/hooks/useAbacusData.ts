@@ -65,8 +65,8 @@ export function useAddOperation() {
     }) => api.createOperation(op),
     onSuccess: (_, _variables) => {
       // Invalidate relevant association to re-fetch fresh data
-      // (Finding the association ID is tricky without passing it, 
-      // but usually we are in a context where we know it. 
+      // (Finding the association ID is tricky without passing it,
+      // but usually we are in a context where we know it.
       // For simplicity, we invalidate all associations or we rely on the component to refetch)
       queryClient.invalidateQueries({ queryKey: ['association'] });
     },
