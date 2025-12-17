@@ -186,6 +186,24 @@ const OperationsTable: React.FC<OperationsTableProps> = ({ title, operations, on
             >
               Edit
             </button>
+            {(() => {
+              const op = operations.find(o => o.id === openMenuId);
+              if (op?.invoice) {
+                return (
+                  <button
+                    onClick={() => {
+                      window.open(op.invoice, '_blank');
+                      setOpenMenuId(null);
+                      setMenuPosition(null);
+                    }}
+                    className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Voir la facture
+                  </button>
+                );
+              }
+              return null;
+            })()}
             <button
               onClick={() => {
                 const op = operations.find(o => o.id === openMenuId);

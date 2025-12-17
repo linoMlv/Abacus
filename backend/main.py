@@ -113,6 +113,7 @@ class OperationCreate(BaseModel):
     type: OperationType
     date: datetime
     balance_id: str
+    invoice: str | None = None
 
 def association_to_read(association: Association) -> AssociationRead:
     all_operations = []
@@ -219,7 +220,8 @@ def create_operation(
         amount=op.amount,
         type=op.type,
         date=op.date,
-        balance_id=op.balance_id
+        balance_id=op.balance_id,
+        invoice=op.invoice
     )
     session.add(operation)
     session.commit()
@@ -256,6 +258,7 @@ class OperationUpdate(BaseModel):
     type: OperationType
     date: datetime
     balance_id: str
+    invoice: str | None = None
 
 @app.put("/api/operations/{operation_id}")
 def update_operation(
@@ -285,6 +288,7 @@ def update_operation(
     operation.type = op.type
     operation.date = op.date
     operation.balance_id = op.balance_id
+    operation.invoice = op.invoice
     
     session.add(operation)
     session.commit()
