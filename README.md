@@ -13,8 +13,7 @@ Abacus est une application web moderne conçue spécifiquement pour la gestion c
 - [Technologies utilisées](#️-technologies-utilisées)
 - [Installation](#-installation)
 - [Lancement de l'application](#-lancement-de-lapplication)
-- [Utilisation](#-utilisation)
-- [Commandes CLI](#️-commandes-cli)
+- [Développement & Qualité](#-développement--qualité)
 - [Architecture](#-architecture)
 - [Licence](#-licence)
 
@@ -28,7 +27,7 @@ Abacus est une application web moderne conçue spécifiquement pour la gestion c
 - ✅ **L'enregistrement de vos opérations** (recettes et dépenses)
 - ✅ **La visualisation de vos données** avec des graphiques interactifs
 - ✅ **L'export PDF** de vos rapports financiers
-- ✅ **La sécurité** avec un système d'authentification utilisateur
+- ✅ **La sécurité** avec un système d'authentification robuste (Cookies HttpOnly)
 - ✅ **Le multi-tenant** pour gérer plusieurs associations sur une même instance
 
 L'application a été pensée pour être **minimaliste**, **rapide** et **accessible**, même pour les utilisateurs non techniques.
@@ -49,15 +48,14 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 - Création et suppression de balances multiples
 - Modification du nom et du montant initial
 - Suivi du solde actuel en temps réel
-- Organisation par cartes visuelles
+- Organisation par cartes visuelles avec Drag & Drop
 
 ### 📊 Gestion des opérations
 
 - Enregistrement de recettes et dépenses
 - Catégorisation des opérations (salaires, achats, dons, etc.)
 - Ajout de descriptions détaillées
-- Menu contextuel pour éditer ou supprimer
-- Modal de confirmation pour les suppressions
+- Modification et suppression intuitives
 
 ### 📈 Visualisations
 
@@ -74,10 +72,9 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 
 ### 🔐 Sécurité
 
-- Authentification par utilisateur (login/password)
+- Authentification sécurisée via Cookies **HttpOnly** (Protection XSS)
 - Hachage sécurisé des mots de passe (bcrypt)
-- Isolation multi-tenant des données
-- Sessions sécurisées
+- Isolation stricte des données entre associations
 
 ---
 
@@ -85,28 +82,25 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 
 ### **Frontend**
 
-| Technologie                                   | Version | Description                             |
-| --------------------------------------------- | ------- | --------------------------------------- |
-| [React](https://react.dev/)                   | 19.2.0  | Framework UI moderne et performant      |
-| [TypeScript](https://www.typescriptlang.org/) | 5.8.2   | JavaScript typé pour plus de robustesse |
-| [Vite](https://vitejs.dev/)                   | 6.2.0   | Build tool ultra-rapide                 |
-| [Tailwind CSS](https://tailwindcss.com/)      | -       | Framework CSS utilitaire                |
-| [Recharts](https://recharts.org/)             | 3.3.0   | Bibliothèque de graphiques React        |
-| [React PDF](https://react-pdf.org/)           | 4.3.1   | Génération de documents PDF             |
-| [date-fns](https://date-fns.org/)             | 4.1.0   | Manipulation de dates                   |
+| Technologie | Version | Description |
+| :--- | :--- | :--- |
+| [React](https://react.dev/) | 19.x | Framework UI moderne |
+| [TypeScript](https://www.typescriptlang.org/) | 5.x | JavaScript typé pour plus de robustesse |
+| [Vite](https://vitejs.dev/) | 6.x | Build tool ultra-rapide |
+| [TanStack Query](https://tanstack.com/query) | 5.x | Gestion d'état serveur et cache |
+| [Tailwind CSS](https://tailwindcss.com/) | 3.x | Framework CSS utilitaire |
+| [Recharts](https://recharts.org/) | 3.x | Bibliothèque de graphiques React |
+| [Vitest](https://vitest.dev/) | 1.x | Framework de test unitaire rapide |
 
 ### **Backend**
 
-| Technologie                                | Description                                |
-| ------------------------------------------ | ------------------------------------------ |
-| [FastAPI](https://fastapi.tiangolo.com/)   | Framework Python moderne et performant     |
-| [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic        |
-| [MySQL](https://www.mysql.com/)            | Base de données relationnelle              |
-| [PyMySQL](https://pymysql.readthedocs.io/) | Connecteur MySQL pour Python               |
-| [Uvicorn](https://www.uvicorn.org/)        | Serveur ASGI haute performance             |
-| [Typer](https://typer.tiangolo.com/)       | CLI moderne pour Python                    |
-| [Rich](https://github.com/Textualize/rich) | Rendu de texte enrichi dans le terminal    |
-| [Passlib](https://passlib.readthedocs.io/) | Hachage sécurisé de mots de passe (bcrypt) |
+| Technologie | Description |
+| :--- | :--- |
+| [FastAPI](https://fastapi.tiangolo.com/) | Framework Python moderne et performant |
+| [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic |
+| [MySQL](https://www.mysql.com/) | Base de données relationnelle |
+| [Pytest](https://docs.pytest.org/) | Framework de test Python standard |
+| [Ruff](https://docs.astral.sh/ruff/) | Linter et Formatter Python ultra-rapide |
 
 ---
 
@@ -114,11 +108,9 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 
 ### Prérequis
 
-Avant de commencer, assurez-vous d'avoir installé :
-
-- **Node.js** (v16 ou supérieur) - [Télécharger](https://nodejs.org/)
-- **Python** (v3.8 ou supérieur) - [Télécharger](https://www.python.org/)
-- **MySQL** (v5.7 ou supérieur) - [Télécharger](https://www.mysql.com/)
+- **Node.js** (v18 ou supérieur)
+- **Python** (v3.11 ou supérieur)
+- **MySQL** (ou MariaDB)
 
 ### 1️⃣ Cloner le projet
 
@@ -129,57 +121,29 @@ cd abacus
 
 ### 2️⃣ Configuration du Backend
 
-#### Installer les dépendances Python
+1.  **Installer les dépendances** :
+    ```bash
+    cd backend
+    python -m venv venv
+    source venv/bin/activate  # Ou venv\Scripts\activate sous Windows
+    pip install -r requirements.txt
+    ```
 
-```bash
-cd backend
-pip install -r requirements.txt
-```
+2.  **Configuration** :
+    Copiez `.env.example` vers `.env` et configurez votre base de données et votre clé secrète.
+    ```bash
+    cp .env.example .env
+    ```
 
-> **Note** : Il est recommandé d'utiliser un environnement virtuel :
->
-> ```bash
-> python -m venv venv
-> # Windows
-> venv\Scripts\activate
-> # Linux/Mac
-> source venv/bin/activate
-> ```
-
-#### Configurer la base de données
-
-1. **Créer une base de données MySQL** :
-
-   ```sql
-   CREATE DATABASE abacus CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   ```
-
-2. **Configurer les variables d'environnement** :
-   - Copier le fichier d'exemple :
-     ```bash
-     # Linux/Mac
-     cp .env.example .env
-     # Windows
-     copy .env.example .env
-     ```
-   - Éditer le fichier `.env` et renseigner vos informations MySQL :
-     ```env
-     DATABASE_URL=mysql+pymysql://utilisateur:motdepasse@localhost:3306/abacus
-     ```
-     > Remplacez `utilisateur`, `motdepasse` et `localhost:3306` par vos paramètres MySQL.
-
-3. **Initialiser les tables** :
-   ```bash
-   python cli.py setup-db
-   ```
+3.  **Initialiser la base de données** :
+    ```bash
+    python cli.py setup-db
+    ```
 
 ### 3️⃣ Configuration du Frontend
 
-#### Installer les dépendances Node.js
-
-Depuis la racine du projet :
-
 ```bash
+# À la racine du projet
 npm install
 ```
 
@@ -189,116 +153,48 @@ npm install
 
 ### Mode développement
 
-Pour développer avec rechargement automatique, lancez le backend et le frontend dans **deux terminaux séparés** :
-
 #### Terminal 1 : Backend
 
 ```bash
 cd backend
-python cli.py start
+source venv/bin/activate
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
-
-✅ Le backend sera accessible sur **http://localhost:8000**
-
-- API REST : `http://localhost:8000/api`
-- Documentation Swagger : `http://localhost:8000/docs`
+API : `http://localhost:8000/docs`
 
 #### Terminal 2 : Frontend
 
 ```bash
 npm run dev
 ```
+Application : `http://localhost:9873`
 
-✅ L'application sera accessible sur **http://localhost:9873**
+### Mode production (Docker)
 
-### Mode production
-
-Pour lancer l'application complète en production :
+Le moyen le plus simple de lancer en production est d'utiliser Docker Compose :
 
 ```bash
-python run_prod.py
+docker-compose up --build -d
 ```
-
-✅ L'application sera accessible sur **http://0.0.0.0:9874**
-
-Ce script :
-
-1. Compile le frontend React en version optimisée
-2. Copie les fichiers statiques dans le dossier `backend`
-3. Lance le serveur FastAPI en mode production
+L'application sera accessible sur le port **9874**.
 
 ---
 
-## 📖 Utilisation
+## 🧪 Développement & Qualité
 
-### 1. Première connexion
+Le projet suit des standards de qualité stricts.
 
-1. Ouvrez votre navigateur sur `http://localhost:9873` (dev) ou `http://localhost:9874` (prod)
-2. **Créez un compte** en cliquant sur "Register"
-3. Remplissez vos informations (nom d'utilisateur et mot de passe)
-4. Connectez-vous avec vos identifiants
+### Frontend
 
-### 2. Créer votre première balance
+- **Linting** : `npm run lint` (ESLint)
+- **Formatage** : `npm run format` (Prettier)
+- **Tests** : `npm run test` (Vitest)
+- **Build** : `npm run build` (TypeScript + Vite)
 
-1. Sur le dashboard, cliquez sur le bouton **"+ Ajouter une balance"**
-2. Remplissez les informations :
-   - **Nom** : ex. "Compte Principal", "Caisse", "Épargne"
-   - **Montant initial** : le solde de départ (peut être 0)
-3. Validez
+### Backend
 
-### 3. Ajouter des opérations
-
-1. Sélectionnez une balance dans le carrousel
-2. Cliquez sur **"+ Ajouter une opération"**
-3. Renseignez les détails :
-   - **Type** : Recette ou Dépense
-   - **Montant** : montant de l'opération
-   - **Date** : date de l'opération
-   - **Catégorie** : type d'opération (salaire, achat, don, etc.)
-   - **Description** : détails complémentaires
-4. Validez
-
-### 4. Visualiser vos données
-
-- **Carrousel** : Naviguez entre vos balances avec les flèches
-- **Graphiques** : Consultez l'évolution de vos revenus/dépenses au fil du temps
-- **Tableau** : Visualisez toutes les opérations en détail, triables et filtrables
-
-### 5. Modifier ou supprimer
-
-- **Opérations** : Clic droit sur une opération → Modifier ou Supprimer
-- **Balances** : Menu contextuel sur chaque carte de balance
-
-### 6. Exporter en PDF
-
-1. Cliquez sur le bouton **"Exporter PDF"** dans l'en-tête
-2. Le rapport complet sera généré et téléchargé automatiquement
-3. Le PDF contient toutes vos balances et opérations avec un design professionnel
-
----
-
-## 🎛️ Commandes CLI
-
-Le backend dispose d'un outil CLI (`cli.py`) pour faciliter les tâches courantes :
-
-| Commande                 | Description                                                                 |
-| ------------------------ | --------------------------------------------------------------------------- |
-| `python cli.py start`    | Démarre le serveur de développement FastAPI (avec rechargement automatique) |
-| `python cli.py setup-db` | Crée toutes les tables nécessaires dans la base de données                  |
-| `python cli.py reset-db` | ⚠️ **DANGER** : Supprime et recrée toutes les tables (perte de données)     |
-
-**Exemples** :
-
-```bash
-# Démarrer le serveur
-python cli.py start
-
-# Créer les tables (première installation)
-python cli.py setup-db
-
-# Réinitialiser complètement la base (développement uniquement)
-python cli.py reset-db
-```
+- **Linting & Formatage** : `ruff check .` et `ruff format .`
+- **Tests** : `pytest`
 
 ---
 
@@ -306,77 +202,28 @@ python cli.py reset-db
 
 ```
 abacus/
-├── backend/              # Backend FastAPI
-│   ├── api/             # Routes API
-│   ├── models/          # Modèles SQLModel
-│   ├── database.py      # Configuration DB
-│   ├── cli.py           # Outil CLI
-│   ├── .env             # Variables d'environnement
-│   └── requirements.txt # Dépendances Python
-│
-├── components/          # Composants React
-│   ├── Dashboard.tsx
-│   ├── BalanceCard.tsx
-│   ├── OperationsTable.tsx
-│   ├── OperationsChart.tsx
-│   ├── AddBalanceModal.tsx
-│   ├── AddOperationModal.tsx
-│   ├── ExportButton.tsx
-│   ├── PDFDocument.tsx
+├── src/                  # Code source Frontend
+│   ├── components/       # Composants React (atomiques et métier)
+│   │   └── dashboard/    # Sous-composants du Dashboard
+│   ├── hooks/            # Hooks personnalisés (React Query)
+│   ├── api.ts            # Couche API typée
+│   ├── types.ts          # Définitions TypeScript partagées
 │   └── ...
-│
-├── public/              # Ressources statiques
-├── App.tsx              # Composant principal
-├── api.ts               # Client API
-├── types.ts             # Types TypeScript
-├── index.tsx            # Point d'entrée React
-├── vite.config.ts       # Configuration Vite
-├── package.json         # Dépendances Node.js
-└── README.md            # Ce fichier
+├── backend/              # Code source Backend
+│   ├── routers/          # Endpoints API découpés par domaine
+│   ├── models.py         # Modèles de données (DB & Pydantic)
+│   ├── security.py       # Logique d'authentification
+│   ├── main.py           # Point d'entrée FastAPI
+│   └── tests/            # Tests d'intégration et unitaires
+├── public/               # Assets statiques
+└── ...
 ```
-
-### Flux de données
-
-1. **Frontend** (React) → HTTP Request → **Backend** (FastAPI)
-2. **Backend** → SQL Query → **Database** (MySQL)
-3. **Database** → Data → **Backend** → JSON Response → **Frontend**
-
-### Multi-tenant
-
-Chaque utilisateur a ses propres données isolées. Le backend filtre automatiquement toutes les requêtes en fonction de l'utilisateur connecté.
 
 ---
 
 ## 📄 Licence
 
-Ce projet est sous licence **CC BY-NC-SA 4.0** (Creative Commons Attribution - Pas d'Utilisation Commerciale - Partage dans les Mêmes Conditions).
+Ce projet est sous licence **CC BY-NC-SA 4.0**.
 
 **Auteur** : Coodlab, Mallevaey Lino  
 **Version** : 2025.11.22
-
----
-
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à :
-
-- Signaler des bugs
-- Proposer de nouvelles fonctionnalités
-- Soumettre des pull requests
-
----
-
-## 📞 Support
-
-Pour toute question ou problème :
-
-- Ouvrez une issue sur le dépôt GitHub
-- Consultez la documentation Swagger : `http://localhost:8000/docs`
-
----
-
-<div align="center">
-
-**Fait avec ❤️ pour simplifier la comptabilité associative**
-
-</div>

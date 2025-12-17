@@ -1,0 +1,70 @@
+name: Abacus CI
+
+# Déclenchement : à chaque push sur main ou pull request
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # --- JOB FRONTEND ---
+  frontend-check:
+    name: 🎨 Frontend (React/TS)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint & Format Check
+        # Vérifie ESLint et Prettier
+        run: npm run lint
+
+      - name: Type Check & Build
+        # Vérifie que TypeScript compile et que le build Vite fonctionne
+        run: npm run build
+
+      - name: Run Tests
+        # Lance Vitest en mode "run" (pas de watch)
+        run: npm run test -- --run
+
+  # --- JOB BACKEND ---
+  backend-check:
+    name: 🐍 Backend (FastAPI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Linting (Ruff)
+        # Vérifie les erreurs de code
+        run: ruff check .
+
+      - name: Formatting (Ruff)
+        # Vérifie que le code est bien formaté
+        run: ruff format --check .
+
+      - name: Run Tests (Pytest)
+        # Lance les tests avec la DB en mémoire
+        run: pytest
