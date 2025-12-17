@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "9874:80"
+      - '9874:80'
     depends_on:
       - backend
     restart: unless-stopped
@@ -15,8 +15,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    environment:
-      - DATABASE_URL=mysql+pymysql://root:root@db:3306/abacus
+    env_file:
+      - ./backend/.env
     depends_on:
       - db
     restart: unless-stopped

@@ -1,30 +1,36 @@
-
 import React, { useMemo } from 'react';
 import { Balance, Operation, OperationType } from '../types';
 
 interface BalanceCardProps {
   balance: Balance;
   operations: Operation[];
+  currentBalance: number;
   isSelected: boolean;
   onClick: () => void;
   onEdit: (balance: Balance) => void;
   onDelete: (balanceId: string) => void;
 }
 
-const BalanceCard: React.FC<BalanceCardProps> = ({ balance, operations, isSelected, onClick, onEdit, onDelete }) => {
-  const { totalIncome, totalExpenses, currentBalance } = useMemo(() => {
+const BalanceCard: React.FC<BalanceCardProps> = ({
+  balance,
+  operations,
+  currentBalance,
+  isSelected,
+  onClick,
+  onEdit,
+  onDelete,
+}) => {
+  const { totalIncome, totalExpenses } = useMemo(() => {
     const totalIncome = operations
-      .filter(op => op.type === OperationType.INCOME)
+      .filter((op) => op.type === OperationType.INCOME)
       .reduce((sum, op) => sum + op.amount, 0);
 
     const totalExpenses = operations
-      .filter(op => op.type === OperationType.EXPENSE)
+      .filter((op) => op.type === OperationType.EXPENSE)
       .reduce((sum, op) => sum + op.amount, 0);
 
-    const currentBalance = balance.initialAmount + totalIncome - totalExpenses;
-
-    return { totalIncome, totalExpenses, currentBalance };
-  }, [balance, operations]);
+    return { totalIncome, totalExpenses };
+  }, [operations]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -32,7 +38,9 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ balance, operations, isSelect
 
   const [openMenu, setOpenMenu] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
-  const [menuPosition, setMenuPosition] = React.useState<{ top: number; left: number } | null>(null);
+  const [menuPosition, setMenuPosition] = React.useState<{ top: number; left: number } | null>(
+    null
+  );
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -65,8 +73,8 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ balance, operations, isSelect
     <div
       onClick={onClick}
       className={`relative p-6 rounded-xl border transition-all duration-200 cursor-pointer group ${isSelected
-        ? 'bg-gray-800 text-white shadow-lg'
-        : 'bg-white text-gray-800 shadow-md border-gray-200 hover:shadow-lg hover:border-gray-300'
+          ? 'bg-gray-800 text-white shadow-lg'
+          : 'bg-white text-gray-800 shadow-md border-gray-200 hover:shadow-lg hover:border-gray-300'
         }`}
     >
       <div className="flex justify-between items-start">
@@ -77,7 +85,12 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ balance, operations, isSelect
           onClick={toggleMenu}
           className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${isSelected ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-400'}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
             <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
           </svg>
         </button>
@@ -87,11 +100,19 @@ const BalanceCard: React.FC<BalanceCardProps> = ({ balance, operations, isSelect
       <div className="flex justify-between items-center mt-6">
         <div className="text-center">
           <p className={`text-sm ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>Income</p>
-          <p className={`font-semibold text-green-500 ${isSelected ? 'text-green-400' : 'text-green-600'}`}>{formatCurrency(totalIncome)}</p>
+          <p
+            className={`font-semibold text-green-500 ${isSelected ? 'text-green-400' : 'text-green-600'}`}
+          >
+            {formatCurrency(totalIncome)}
+          </p>
         </div>
         <div className="text-center">
           <p className={`text-sm ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>Expenses</p>
-          <p className={`font-semibold text-red-500 ${isSelected ? 'text-red-400' : 'text-red-600'}`}>{formatCurrency(totalExpenses)}</p>
+          <p
+            className={`font-semibold text-red-500 ${isSelected ? 'text-red-400' : 'text-red-600'}`}
+          >
+            {formatCurrency(totalExpenses)}
+          </p>
         </div>
       </div>
 

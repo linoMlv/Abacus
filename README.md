@@ -38,18 +38,21 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 ## ⚡ Fonctionnalités
 
 ### 🏠 Dashboard interactif
+
 - Vue d'ensemble de votre santé financière
 - Affichage en carrousel de toutes vos balances
 - Graphiques d'évolution des revenus et dépenses
 - Tableaux détaillés de toutes les opérations
 
 ### 💰 Gestion des balances
+
 - Création et suppression de balances multiples
 - Modification du nom et du montant initial
 - Suivi du solde actuel en temps réel
 - Organisation par cartes visuelles
 
 ### 📊 Gestion des opérations
+
 - Enregistrement de recettes et dépenses
 - Catégorisation des opérations (salaires, achats, dons, etc.)
 - Ajout de descriptions détaillées
@@ -57,17 +60,20 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 - Modal de confirmation pour les suppressions
 
 ### 📈 Visualisations
+
 - **Graphiques** : Évolution temporelle avec Recharts
 - **Tableaux** : Liste détaillée et filtrable de toutes les opérations
 - **Carrousel** : Navigation fluide entre vos différentes balances
 
 ### 📄 Export PDF
+
 - Génération de rapports PDF professionnels
 - Consolidation de toutes les opérations par période
 - Une page par balance avec design soigné
 - Export direct depuis le dashboard
 
 ### 🔐 Sécurité
+
 - Authentification par utilisateur (login/password)
 - Hachage sécurisé des mots de passe (bcrypt)
 - Isolation multi-tenant des données
@@ -78,26 +84,28 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 ## 🛠️ Technologies utilisées
 
 ### **Frontend**
-| Technologie | Version | Description |
-|-------------|---------|-------------|
-| [React](https://react.dev/) | 19.2.0 | Framework UI moderne et performant |
-| [TypeScript](https://www.typescriptlang.org/) | 5.8.2 | JavaScript typé pour plus de robustesse |
-| [Vite](https://vitejs.dev/) | 6.2.0 | Build tool ultra-rapide |
-| [Tailwind CSS](https://tailwindcss.com/) | - | Framework CSS utilitaire |
-| [Recharts](https://recharts.org/) | 3.3.0 | Bibliothèque de graphiques React |
-| [React PDF](https://react-pdf.org/) | 4.3.1 | Génération de documents PDF |
-| [date-fns](https://date-fns.org/) | 4.1.0 | Manipulation de dates |
+
+| Technologie                                   | Version | Description                             |
+| --------------------------------------------- | ------- | --------------------------------------- |
+| [React](https://react.dev/)                   | 19.2.0  | Framework UI moderne et performant      |
+| [TypeScript](https://www.typescriptlang.org/) | 5.8.2   | JavaScript typé pour plus de robustesse |
+| [Vite](https://vitejs.dev/)                   | 6.2.0   | Build tool ultra-rapide                 |
+| [Tailwind CSS](https://tailwindcss.com/)      | -       | Framework CSS utilitaire                |
+| [Recharts](https://recharts.org/)             | 3.3.0   | Bibliothèque de graphiques React        |
+| [React PDF](https://react-pdf.org/)           | 4.3.1   | Génération de documents PDF             |
+| [date-fns](https://date-fns.org/)             | 4.1.0   | Manipulation de dates                   |
 
 ### **Backend**
-| Technologie | Description |
-|-------------|-------------|
-| [FastAPI](https://fastapi.tiangolo.com/) | Framework Python moderne et performant |
-| [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic |
-| [MySQL](https://www.mysql.com/) | Base de données relationnelle |
-| [PyMySQL](https://pymysql.readthedocs.io/) | Connecteur MySQL pour Python |
-| [Uvicorn](https://www.uvicorn.org/) | Serveur ASGI haute performance |
-| [Typer](https://typer.tiangolo.com/) | CLI moderne pour Python |
-| [Rich](https://github.com/Textualize/rich) | Rendu de texte enrichi dans le terminal |
+
+| Technologie                                | Description                                |
+| ------------------------------------------ | ------------------------------------------ |
+| [FastAPI](https://fastapi.tiangolo.com/)   | Framework Python moderne et performant     |
+| [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic        |
+| [MySQL](https://www.mysql.com/)            | Base de données relationnelle              |
+| [PyMySQL](https://pymysql.readthedocs.io/) | Connecteur MySQL pour Python               |
+| [Uvicorn](https://www.uvicorn.org/)        | Serveur ASGI haute performance             |
+| [Typer](https://typer.tiangolo.com/)       | CLI moderne pour Python                    |
+| [Rich](https://github.com/Textualize/rich) | Rendu de texte enrichi dans le terminal    |
 | [Passlib](https://passlib.readthedocs.io/) | Hachage sécurisé de mots de passe (bcrypt) |
 
 ---
@@ -107,6 +115,7 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 ### Prérequis
 
 Avant de commencer, assurez-vous d'avoir installé :
+
 - **Node.js** (v16 ou supérieur) - [Télécharger](https://nodejs.org/)
 - **Python** (v3.8 ou supérieur) - [Télécharger](https://www.python.org/)
 - **MySQL** (v5.7 ou supérieur) - [Télécharger](https://www.mysql.com/)
@@ -128,6 +137,7 @@ pip install -r requirements.txt
 ```
 
 > **Note** : Il est recommandé d'utiliser un environnement virtuel :
+>
 > ```bash
 > python -m venv venv
 > # Windows
@@ -139,6 +149,7 @@ pip install -r requirements.txt
 #### Configurer la base de données
 
 1. **Créer une base de données MySQL** :
+
    ```sql
    CREATE DATABASE abacus CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
@@ -151,7 +162,6 @@ pip install -r requirements.txt
      # Windows
      copy .env.example .env
      ```
-   
    - Éditer le fichier `.env` et renseigner vos informations MySQL :
      ```env
      DATABASE_URL=mysql+pymysql://utilisateur:motdepasse@localhost:3306/abacus
@@ -189,6 +199,7 @@ python cli.py start
 ```
 
 ✅ Le backend sera accessible sur **http://localhost:8000**
+
 - API REST : `http://localhost:8000/api`
 - Documentation Swagger : `http://localhost:8000/docs`
 
@@ -211,6 +222,7 @@ python run_prod.py
 ✅ L'application sera accessible sur **http://0.0.0.0:9874**
 
 Ce script :
+
 1. Compile le frontend React en version optimisée
 2. Copie les fichiers statiques dans le dossier `backend`
 3. Lance le serveur FastAPI en mode production
@@ -269,11 +281,11 @@ Ce script :
 
 Le backend dispose d'un outil CLI (`cli.py`) pour faciliter les tâches courantes :
 
-| Commande | Description |
-|----------|-------------|
-| `python cli.py start` | Démarre le serveur de développement FastAPI (avec rechargement automatique) |
-| `python cli.py setup-db` | Crée toutes les tables nécessaires dans la base de données |
-| `python cli.py reset-db` | ⚠️ **DANGER** : Supprime et recrée toutes les tables (perte de données) |
+| Commande                 | Description                                                                 |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `python cli.py start`    | Démarre le serveur de développement FastAPI (avec rechargement automatique) |
+| `python cli.py setup-db` | Crée toutes les tables nécessaires dans la base de données                  |
+| `python cli.py reset-db` | ⚠️ **DANGER** : Supprime et recrée toutes les tables (perte de données)     |
 
 **Exemples** :
 
@@ -347,6 +359,7 @@ Ce projet est sous licence **CC BY-NC-SA 4.0** (Creative Commons Attribution - P
 ## 🤝 Contribution
 
 Les contributions sont les bienvenues ! N'hésitez pas à :
+
 - Signaler des bugs
 - Proposer de nouvelles fonctionnalités
 - Soumettre des pull requests
@@ -356,6 +369,7 @@ Les contributions sont les bienvenues ! N'hésitez pas à :
 ## 📞 Support
 
 Pour toute question ou problème :
+
 - Ouvrez une issue sur le dépôt GitHub
 - Consultez la documentation Swagger : `http://localhost:8000/docs`
 

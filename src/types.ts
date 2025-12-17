@@ -1,4 +1,3 @@
-
 export enum OperationType {
   INCOME = 'income',
   EXPENSE = 'expense',

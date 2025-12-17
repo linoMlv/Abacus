@@ -50,3 +50,24 @@ class AssociationRead(SQLModel):
     name: str
     balances: List[BalanceRead] = []
     operations: List[Operation] = []
+
+def association_to_read(association: Association) -> AssociationRead:
+    all_operations = []
+    balance_reads = []
+    for balance in association.balances:
+        ops = balance.operations
+        all_operations.extend(ops)
+        balance_reads.append(BalanceRead(
+            id=balance.id,
+            name=balance.name,
+            initialAmount=balance.initialAmount,
+            position=balance.position,
+            operations=ops
+        ))
+    
+    return AssociationRead(
+        id=association.id,
+        name=association.name,
+        balances=balance_reads,
+        operations=all_operations
+    )

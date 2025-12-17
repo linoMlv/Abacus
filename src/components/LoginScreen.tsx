@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Association, Balance } from '../types';
+import { Association } from '../types';
 import { api } from '../api';
 
 interface LoginScreenProps {
@@ -11,7 +10,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [isLoginView, setIsLoginView] = useState(true);
   const [associationName, setAssociationName] = useState('');
   const [password, setPassword] = useState('');
-  const [initialBalances, setInitialBalances] = useState<{ name: string; amount: string }[]>([{ name: '', amount: '' }]);
+  const [initialBalances, setInitialBalances] = useState<{ name: string; amount: string }[]>([
+    { name: '', amount: '' },
+  ]);
   const [error, setError] = useState('');
 
   const handleAddBalance = () => {
@@ -33,7 +34,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setError('Association name and password are required.');
       return false;
     }
-    if (initialBalances.some(b => !b.name.trim() || !b.amount.trim() || isNaN(parseFloat(b.amount)))) {
+    if (
+      initialBalances.some((b) => !b.name.trim() || !b.amount.trim() || isNaN(parseFloat(b.amount)))
+    ) {
       setError('All balance fields must be filled correctly.');
       return false;
     }
@@ -45,7 +48,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     if (!validateSignup()) return;
 
     try {
-      const newAssociation = await api.signup(associationName.trim(), password, initialBalances.map(b => ({ name: b.name.trim(), amount: b.amount })));
+      const newAssociation = await api.signup(
+        associationName.trim(),
+        password,
+        initialBalances.map((b) => ({ name: b.name.trim(), amount: b.amount }))
+      );
       onLogin(newAssociation);
     } catch (err: any) {
       setError(err.message || 'Signup failed');
@@ -74,29 +81,33 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     } else {
       handleSignup();
     }
-  }
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
       <div className="w-full max-w-md">
         <h1 className="text-4xl font-bold text-center text-gray-800 mb-2">Abacus</h1>
-        <p className="text-center text-gray-500 mb-8">Simplified accounting for your association.</p>
+        <p className="text-center text-gray-500 mb-8">
+          Simplified accounting for your association.
+        </p>
         <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200">
-          <h2 className="text-2xl font-semibold text-center mb-6">{isLoginView ? 'Login' : 'Create Account'}</h2>
+          <h2 className="text-2xl font-semibold text-center mb-6">
+            {isLoginView ? 'Login' : 'Create Account'}
+          </h2>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <input
               type="text"
               placeholder="Association Name"
               value={associationName}
-              onChange={e => setAssociationName(e.target.value)}
+              onChange={(e) => setAssociationName(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition"
             />
             <input
               type="password"
               placeholder="Password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition"
             />
 
@@ -110,25 +121,46 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                         type="text"
                         placeholder="Balance Name (e.g., Main Account)"
                         value={balance.name}
-                        onChange={e => handleBalanceChange(index, 'name', e.target.value)}
+                        onChange={(e) => handleBalanceChange(index, 'name', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       />
                       <input
                         type="number"
                         placeholder="Amount (€)"
                         value={balance.amount}
-                        onChange={e => handleBalanceChange(index, 'amount', e.target.value)}
+                        onChange={(e) => handleBalanceChange(index, 'amount', e.target.value)}
                         className="w-40 px-3 py-2 border border-gray-300 rounded-lg text-sm"
                       />
                       {initialBalances.length > 1 && (
-                        <button type="button" onClick={() => handleRemoveBalance(index)} className="p-2 text-gray-400 hover:text-red-500 transition">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" /></svg>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveBalance(index)}
+                          className="p-2 text-gray-400 hover:text-red-500 transition"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
                         </button>
                       )}
                     </div>
                   ))}
                 </div>
-                <button type="button" onClick={handleAddBalance} className="mt-3 text-sm font-semibold text-gray-700 hover:text-gray-900">+ Add another balance</button>
+                <button
+                  type="button"
+                  onClick={handleAddBalance}
+                  className="mt-3 text-sm font-semibold text-gray-700 hover:text-gray-900"
+                >
+                  + Add another balance
+                </button>
               </div>
             )}
 
@@ -144,7 +176,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             {isLoginView ? "Don't have an account?" : 'Already have an account?'}
-            <button onClick={() => { setIsLoginView(!isLoginView); setError(''); }} className="font-semibold text-gray-700 hover:underline ml-1">
+            <button
+              onClick={() => {
+                setIsLoginView(!isLoginView);
+                setError('');
+              }}
+              className="font-semibold text-gray-700 hover:underline ml-1"
+            >
               {isLoginView ? 'Sign Up' : 'Login'}
             </button>
           </p>
