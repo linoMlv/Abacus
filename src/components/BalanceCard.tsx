@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Balance, Operation, OperationType } from '../types';
 
 interface BalanceCardProps {
@@ -38,13 +39,19 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
 
   const [openMenu, setOpenMenu] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
   const [menuPosition, setMenuPosition] = React.useState<{ top: number; left: number } | null>(
     null
   );
 
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setOpenMenu(false);
       }
     };
@@ -83,6 +90,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
           {balance.name}
         </p>
         <button
+          ref={buttonRef}
           onClick={toggleMenu}
           className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${isSelected ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-400'}`}
         >
@@ -117,35 +125,38 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
         </div>
       </div>
 
-      {openMenu && menuPosition && (
-        <div
-          ref={menuRef}
-          className="fixed z-50 w-32 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
-          style={{ top: menuPosition.top, left: menuPosition.left }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="py-1">
-            <button
-              onClick={() => {
-                onEdit(balance);
-                setOpenMenu(false);
-              }}
-              className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => {
-                onDelete(balance.id);
-                setOpenMenu(false);
-              }}
-              className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      )}
+      {openMenu &&
+        menuPosition &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-50 w-32 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="py-1">
+              <button
+                onClick={() => {
+                  onEdit(balance);
+                  setOpenMenu(false);
+                }}
+                className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  onDelete(balance.id);
+                  setOpenMenu(false);
+                }}
+                className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
+              >
+                Delete
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
