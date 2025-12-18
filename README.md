@@ -231,4 +231,4 @@ abacus/
 Ce projet est sous licence **CC BY-NC-SA 4.0**.
 
 **Auteur** : Coodlab, Mallevaey Lino  
-**Version** : 2025.11.22
+**Version** : 2025.12.18
