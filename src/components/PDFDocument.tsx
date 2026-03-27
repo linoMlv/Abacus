@@ -211,7 +211,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({
 
         <Text style={styles.balanceTitle}>Summary</Text>
         <View style={styles.table}>
-          <View style={styles.tableRow}>
+          <View style={styles.tableRow} wrap={false}>
             <View style={{ ...styles.tableColHeader, width: '20%' }}>
               <Text style={styles.tableCellHeader}>Balance</Text>
             </View>
@@ -229,7 +229,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({
             </View>
           </View>
           {summaryData.map((data) => (
-            <View style={styles.tableRow} key={data.balance.id}>
+            <View style={styles.tableRow} key={data.balance.id} wrap={false}>
               <View style={{ ...styles.tableCol, width: '20%' }}>
                 <Text style={styles.tableCell}>{data.balance.name}</Text>
               </View>
@@ -276,7 +276,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({
                     Income
                   </Text>
                   <View style={styles.table}>
-                    <View style={styles.tableRow}>
+                    <View style={styles.tableRow} wrap={false}>
                       <View style={styles.tableColHeader}>
                         <Text style={styles.tableCellHeader}>Date</Text>
                       </View>
@@ -291,7 +291,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({
                       </View>
                     </View>
                     {incomes.map((op) => (
-                      <View style={styles.tableRow} key={op.id}>
+                      <View style={styles.tableRow} key={op.id} wrap={false}>
                         <View style={styles.tableCol}>
                           <Text style={styles.tableCell}>
                             {(() => {
@@ -334,7 +334,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({
                     Expenses
                   </Text>
                   <View style={styles.table}>
-                    <View style={styles.tableRow}>
+                    <View style={styles.tableRow} wrap={false}>
                       <View style={styles.tableColHeader}>
                         <Text style={styles.tableCellHeader}>Date</Text>
                       </View>
@@ -349,7 +349,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({
                       </View>
                     </View>
                     {expenses.map((op) => (
-                      <View style={styles.tableRow} key={op.id}>
+                      <View style={styles.tableRow} key={op.id} wrap={false}>
                         <View style={styles.tableCol}>
                           <Text style={styles.tableCell}>
                             {(() => {
