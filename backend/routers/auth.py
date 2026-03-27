@@ -1,8 +1,10 @@
+import os
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
 
 from database import get_session
 from dependencies import get_current_association
@@ -10,7 +12,6 @@ from models import (
     Association,
     AssociationRead,
     Balance,
-    association_to_read,
 )
 from security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -61,7 +62,7 @@ def signup(request: SignupRequest, session: Session = Depends(get_session)):
     for b in request.balances:
         balance = Balance(
             name=b.name,
-            initialAmount=float(b.amount),
+            initialAmount=Decimal(b.amount),
             association_id=association.id,
             position=0,
         )
@@ -69,14 +70,18 @@ def signup(request: SignupRequest, session: Session = Depends(get_session)):
 
     session.commit()
     session.refresh(association)
-    return association_to_read(association)
+    return association
 
 
 @router.post("/login", response_model=LoginResponse)
 def login(
     response: Response, request: LoginRequest, session: Session = Depends(get_session)
 ):
-    statement = select(Association).where(Association.name == request.name)
+    statement = (
+        select(Association)
+        .where(Association.name == request.name)
+        .options(selectinload(Association.balances))
+    )
     association = session.exec(statement).first()
     if not association or not verify_password(request.password, association.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -86,6 +91,9 @@ def login(
         data={"sub": association.name}, expires_delta=access_token_expires
     )
 
+    from security import ENVIRONMENT
+    is_secure = ENVIRONMENT == "production"
+
     response.set_cookie(
         key="access_token",
         value=f"Bearer {access_token}",
@@ -93,13 +101,13 @@ def login(
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         samesite="lax",
-        secure=False,
+        secure=is_secure,
     )
 
     return LoginResponse(
         access_token=access_token,
         token_type="bearer",
-        association=association_to_read(association),
+        association=association,
     )
 
 
@@ -111,4 +119,4 @@ def logout(response: Response):
 
 @router.get("/me", response_model=AssociationRead)
 def read_users_me(current_association: Association = Depends(get_current_association)):
-    return association_to_read(current_association)
+    return current_association

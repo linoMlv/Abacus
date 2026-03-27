@@ -59,13 +59,18 @@ const Header: React.FC<HeaderProps> = ({
             </div>
             <ErrorBoundary
               fallback={<span className="text-red-500 text-sm">Export Unavailable</span>}
+              resetKey={operations.length}
             >
-              <ExportButton
-                operations={operations}
-                balances={balances}
-                dateRange={dateRange}
-                associationName={associationName}
-              />
+              {operations.length > 0 ? (
+                <ExportButton
+                  operations={operations}
+                  balances={balances}
+                  dateRange={dateRange}
+                  associationName={associationName}
+                />
+              ) : (
+                <span className="text-gray-400 text-sm">Loading...</span>
+              )}
             </ErrorBoundary>
             <button
               onClick={onLogout}

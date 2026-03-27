@@ -4,7 +4,13 @@ from datetime import UTC, datetime, timedelta
 import bcrypt
 from jose import jwt
 
+import logging
+
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 SECRET_KEY = os.getenv("SECRET_KEY", "default_insecure_key_for_dev_only")
+if ENVIRONMENT == "production" and SECRET_KEY == "default_insecure_key_for_dev_only":
+    logging.warning("CRITICAL SECURITY RISK: Using default SECRET_KEY in production!")
+
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 

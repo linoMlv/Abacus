@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Association, Balance, Operation, OperationType } from '../types';
 import { startOfMonth, endOfMonth } from 'date-fns';
-import { useDeleteBalance, useDeleteOperation, useUpdateBalance } from '../hooks/useAbacusData';
+import { useDeleteBalance, useDeleteOperation, useOperationsByDate, useOperationsByBalance, useReorderBalances, useAllOperationsUntilEnd } from '../hooks/useAbacusData';
 
 // Components
 import Header from './Header';
@@ -64,33 +64,31 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
   const [isDeleteBalanceModalOpen, setIsDeleteBalanceModalOpen] = useState(false);
   const [balanceToDeleteId, setBalanceToDeleteId] = useState<string | null>(null);
 
-  // --- Mutations ---
   const deleteOperationMutation = useDeleteOperation();
   const deleteBalanceMutation = useDeleteBalance();
-  const updateBalanceMutation = useUpdateBalance();
+  const reorderBalancesMutation = useReorderBalances();
+
+  // --- Queries ---
+  const { data: dateOperations = [] } = useOperationsByDate(
+    dateRange.start.toISOString(),
+    dateRange.end.toISOString()
+  );
+
+  const { data: balanceOperations = [] } = useOperationsByBalance(selectedBalanceId);
+
+  const { data: allOpsUntilEnd = [] } = useAllOperationsUntilEnd(
+    dateRange.end.toISOString()
+  );
 
   // --- Computed Data ---
-  const filteredOperations = useMemo(() => {
-    return (association.operations || []).filter((op) => {
-      const opDate = new Date(op.date);
-      return opDate >= dateRange.start && opDate <= dateRange.end;
-    });
-  }, [association.operations, dateRange]);
+  const filteredOperations = dateOperations;
+  const operationsUntilEndOfPeriod = allOpsUntilEnd;
 
   const selectedBalance = useMemo(() => {
     return (association.balances || []).find((b) => b.id === selectedBalanceId) ?? null;
   }, [association.balances, selectedBalanceId]);
 
-  const operationsUntilEndOfPeriod = useMemo(() => {
-    return (association.operations || []).filter((op) => {
-      const opDate = new Date(op.date);
-      return opDate <= dateRange.end;
-    });
-  }, [association.operations, dateRange.end]);
-
-  const operationsForSelectedBalance = useMemo(() => {
-    return filteredOperations.filter((op) => op.balanceId === selectedBalanceId);
-  }, [filteredOperations, selectedBalanceId]);
+  const operationsForSelectedBalance = balanceOperations;
 
   const incomesForSelectedBalance = operationsForSelectedBalance.filter(
     (op) => op.type === OperationType.INCOME
@@ -100,9 +98,9 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
   );
 
   const existingGroups = useMemo(() => {
-    const groups = new Set((association.operations || []).map((op) => op.group));
+    const groups = new Set(dateOperations.map((op) => op.group));
     return Array.from(groups).sort();
-  }, [association.operations]);
+  }, [dateOperations]);
 
   // --- Handlers ---
 
@@ -179,7 +177,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
     // Ideally we would update local state via a specialized hook or optimistic update in React Query
     // For now, we fire requests.
     try {
-      await Promise.all(updates.map((b) => updateBalanceMutation.mutateAsync(b)));
+      await reorderBalancesMutation.mutateAsync(updates);
     } catch (err) {
       console.error('Failed to reorder', err);
     }
@@ -193,7 +191,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
         onLogout={onLogout}
         dateRange={dateRange}
         setDateRange={setDateRange}
-        operations={association.operations}
+        operations={allOpsUntilEnd}
         balances={association.balances}
       />
 
@@ -335,7 +333,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
             <ErrorBoundary>
               <OperationsChart
                 balances={association.balances}
-                allOperations={association.operations}
+                allOperations={dateOperations}
                 dateRange={dateRange}
               />
             </ErrorBoundary>

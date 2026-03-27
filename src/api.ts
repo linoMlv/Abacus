@@ -30,22 +30,15 @@ interface BackendAssociation {
 }
 
 const mapAssociationData = (data: BackendAssociation): Association => {
-  const mappedOperations: Operation[] = data.operations.map((op) => ({
-    ...op,
-    balanceId: op.balance_id,
-  }));
-
   const mappedBalances: Balance[] = data.balances.map((balance) => ({
     ...balance,
-    operations: balance.operations.map((op) => ({
-      ...op,
-      balanceId: op.balance_id,
-    })),
+    initialAmount: parseFloat(String(balance.initialAmount)),
+    operations: [],
   }));
 
   return {
     ...data,
-    operations: mappedOperations,
+    operations: [],
     balances: mappedBalances,
   };
 };
@@ -63,15 +56,14 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
     ...options,
     headers,
     credentials: 'include', // Tells the browser to send cookies with the request
+    cache: 'no-store', // Prevent aggressive browser caching of API responses
   };
 
   const response = await fetch(url, config);
 
-  if (response.status === 401) {
-    // Optional: Redirect to login or dispatch an event if 401 occurs
-    // window.location.href = '/';
-    // We let the caller handle the error, but this is a good place for global hooks
-  }
+  // Note: 401 handling is done per-caller (e.g. getMe returns null).
+  // Do NOT redirect globally here — it causes an infinite reload loop
+  // on the login page since /api/me always returns 401 when unauthenticated.
 
   return response;
 }
@@ -132,6 +124,46 @@ export const api = {
     }
     const data: BackendAssociation = await response.json();
     return mapAssociationData(data);
+  },
+
+  async getOperationsByDate(start: string, end: string): Promise<Operation[]> {
+    const params = new URLSearchParams();
+    if (start) params.append('start_date', start);
+    if (end) params.append('end_date', end);
+    const response = await fetchWithAuth(`${API_URL}/operations?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch operations by date');
+    }
+    const data: BackendOperation[] = await response.json();
+    return data.map((op) => ({ ...op, balanceId: op.balance_id, amount: parseFloat(String(op.amount)) }));
+  },
+
+  async getAllOperationsUntilDate(end: string): Promise<Operation[]> {
+    const response = await fetchWithAuth(`${API_URL}/operations?end_date=${end}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch all operations until date');
+    }
+    const data: BackendOperation[] = await response.json();
+    return data.map((op) => ({ ...op, balanceId: op.balance_id, amount: parseFloat(String(op.amount)) }));
+  },
+
+  async getOperationsByBalance(balanceId: string, skip: number, limit: number): Promise<Operation[]> {
+    const response = await fetchWithAuth(`${API_URL}/balances/${balanceId}/operations?skip=${skip}&limit=${limit}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch operations for balance');
+    }
+    const data: BackendOperation[] = await response.json();
+    return data.map((op) => ({ ...op, balanceId: op.balance_id, amount: parseFloat(String(op.amount)) }));
+  },
+
+  async reorderBalances(balances: { id: string; position: number }[]): Promise<void> {
+    const response = await fetchWithAuth(`${API_URL}/balances/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ balances }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to reorder balances');
+    }
   },
 
   async createOperation(operation: {
@@ -202,10 +234,7 @@ export const api = {
     const data: BackendBalance = await response.json();
     return {
       ...data,
-      operations: (data.operations || []).map((op) => ({
-        ...op,
-        balanceId: op.balance_id,
-      })),
+      operations: [],
     };
   },
 
@@ -224,10 +253,7 @@ export const api = {
     const data: BackendBalance = await response.json();
     return {
       ...data,
-      operations: (data.operations || []).map((op) => ({
-        ...op,
-        balanceId: op.balance_id,
-      })),
+      operations: [],
     };
   },
 

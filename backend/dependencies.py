@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlmodel import Session, select
+from sqlalchemy.orm import selectinload
 
 from database import get_session
 from models import Association
@@ -41,7 +42,11 @@ async def get_current_association(
     except JWTError:
         raise credentials_exception
 
-    statement = select(Association).where(Association.name == name)
+    statement = (
+        select(Association)
+        .where(Association.name == name)
+        .options(selectinload(Association.balances))
+    )
     association = session.exec(statement).first()
     if association is None:
         raise credentials_exception

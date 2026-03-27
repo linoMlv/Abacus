@@ -1,8 +1,9 @@
 from datetime import datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from database import get_session
 from dependencies import get_current_association
@@ -10,12 +11,26 @@ from models import Association, Balance, Operation, OperationType
 
 router = APIRouter(prefix="/api/operations", tags=["operations"])
 
+@router.get("")
+def get_operations(
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    session: Session = Depends(get_session),
+    current_association: Association = Depends(get_current_association),
+):
+    statement = select(Operation).join(Balance).where(Balance.association_id == current_association.id)
+    if start_date:
+        statement = statement.where(Operation.date >= start_date)
+    if end_date:
+        statement = statement.where(Operation.date <= end_date)
+    return session.exec(statement).all()
+
 
 class OperationCreate(BaseModel):
     name: str
     description: str
     group: str
-    amount: float
+    amount: Decimal
     type: OperationType
     date: datetime
     balance_id: str
@@ -26,7 +41,7 @@ class OperationUpdate(BaseModel):
     name: str
     description: str
     group: str
-    amount: float
+    amount: Decimal
     type: OperationType
     date: datetime
     balance_id: str
@@ -39,6 +54,8 @@ def create_operation(
     session: Session = Depends(get_session),
     current_association: Association = Depends(get_current_association),
 ):
+    if op.amount < 0:
+        raise HTTPException(status_code=400, detail="Amount cannot be negative")
     balance = session.get(Balance, op.balance_id)
     if not balance:
         raise HTTPException(status_code=404, detail="Balance not found")
@@ -92,6 +109,9 @@ def update_operation(
     session: Session = Depends(get_session),
     current_association: Association = Depends(get_current_association),
 ):
+    if op.amount < 0:
+        raise HTTPException(status_code=400, detail="Amount cannot be negative")
+
     operation = session.get(Operation, operation_id)
     if not operation:
         raise HTTPException(status_code=404, detail="Operation not found")

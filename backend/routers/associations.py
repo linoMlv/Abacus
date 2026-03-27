@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 
 from database import get_session
 from dependencies import get_current_association
-from models import Association, AssociationRead, Balance, association_to_read
+from models import Association, AssociationRead, Balance
 
 router = APIRouter(prefix="/api/associations", tags=["associations"])
 
@@ -23,11 +23,11 @@ def get_association(
     statement = (
         select(Association)
         .where(Association.id == association_id)
-        .options(selectinload(Association.balances).selectinload(Balance.operations))
+        .options(selectinload(Association.balances))
     )
     association = session.exec(statement).first()
 
     if not association:
         raise HTTPException(status_code=404, detail="Association not found")
 
-    return association_to_read(association)
+    return association

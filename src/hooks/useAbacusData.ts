@@ -6,6 +6,9 @@ import { Operation, Balance, OperationType } from '../types';
 export const keys = {
   me: ['me'],
   association: (id: string) => ['association', id],
+  operationsByDate: (start: string, end: string) => ['operationsByDate', start, end],
+  operationsByBalance: (balanceId: string) => ['operationsByBalance', balanceId],
+  allOperationsUntilEnd: (end: string) => ['allOperationsUntilEnd', end],
 };
 
 // --- Queries ---
@@ -23,6 +26,30 @@ export function useAssociation(id: string | undefined) {
     queryKey: keys.association(id!),
     queryFn: () => api.getAssociation(id!),
     enabled: !!id,
+  });
+}
+
+export function useOperationsByDate(start: string, end: string) {
+  return useQuery({
+    queryKey: keys.operationsByDate(start, end),
+    queryFn: () => api.getOperationsByDate(start, end),
+    enabled: !!start && !!end,
+  });
+}
+
+export function useOperationsByBalance(balanceId: string | null) {
+  return useQuery({
+    queryKey: keys.operationsByBalance(balanceId!),
+    queryFn: () => api.getOperationsByBalance(balanceId!, 0, 1000),
+    enabled: !!balanceId,
+  });
+}
+
+export function useAllOperationsUntilEnd(end: string) {
+  return useQuery({
+    queryKey: keys.allOperationsUntilEnd(end),
+    queryFn: () => api.getAllOperationsUntilDate(end),
+    enabled: !!end,
   });
 }
 
@@ -64,10 +91,9 @@ export function useAddOperation() {
       invoice?: string;
     }) => api.createOperation(op),
     onSuccess: (_, _variables) => {
-      // Invalidate relevant association to re-fetch fresh data
-      // (Finding the association ID is tricky without passing it,
-      // but usually we are in a context where we know it.
-      // For simplicity, we invalidate all associations or we rely on the component to refetch)
+      queryClient.invalidateQueries({ queryKey: ['operationsByDate'] });
+      queryClient.invalidateQueries({ queryKey: ['operationsByBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['allOperationsUntilEnd'] });
       queryClient.invalidateQueries({ queryKey: ['association'] });
     },
   });
@@ -77,6 +103,9 @@ export function useUpdateOperation() {
   return useMutation({
     mutationFn: (op: Operation) => api.updateOperation(op),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operationsByDate'] });
+      queryClient.invalidateQueries({ queryKey: ['operationsByBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['allOperationsUntilEnd'] });
       queryClient.invalidateQueries({ queryKey: ['association'] });
     },
   });
@@ -87,6 +116,9 @@ export function useDeleteOperation() {
   return useMutation({
     mutationFn: (id: string) => api.deleteOperation(id),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['operationsByDate'] });
+      queryClient.invalidateQueries({ queryKey: ['operationsByBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['allOperationsUntilEnd'] });
       queryClient.invalidateQueries({ queryKey: ['association'] });
     },
   });
@@ -124,6 +156,16 @@ export function useDeleteBalance() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.deleteBalance(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['association'] });
+    },
+  });
+}
+
+export function useReorderBalances() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (balances: { id: string; position: number }[]) => api.reorderBalances(balances),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['association'] });
     },
