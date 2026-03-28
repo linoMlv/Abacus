@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 
@@ -59,4 +59,32 @@ class AssociationRead(SQLModel):
     balances: list[BalanceRead] = []
 
 
+class LogEntry(SQLModel, table=True):
+    __tablename__ = "log_entry"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    method: str
+    path: str
+    status_code: int = 0
+    ip_address: str | None = None
+    user_agent: str | None = None
+    user: str | None = None
+    duration_ms: float | None = None
+    event_type: str | None = None
+    detail: str | None = None
+
+
+class LogEntryRead(SQLModel):
+    id: str
+    timestamp: datetime
+    method: str
+    path: str
+    status_code: int
+    ip_address: str | None
+    user_agent: str | None
+    user: str | None
+    duration_ms: float | None
+    event_type: str | None
+    detail: str | None
 

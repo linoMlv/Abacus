@@ -1,0 +1,124 @@
+import json
+import time
+
+from jose import JWTError, jwt
+from sqlmodel import Session
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+from database import engine
+from models import LogEntry
+from security import ALGORITHM, SECRET_KEY
+
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    EXCLUDED_PREFIXES = ("/api/logs", "/health")
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        path = request.url.path
+
+        # Skip logging for excluded paths and non-API paths (static files)
+        if any(path.startswith(p) for p in self.EXCLUDED_PREFIXES):
+            return await call_next(request)
+        if not path.startswith("/api"):
+            return await call_next(request)
+
+        start_time = time.time()
+
+        # Extract user from login request body before it's consumed
+        login_user = None
+        if path == "/api/login" and request.method == "POST":
+            try:
+                body = await request.body()
+                data = json.loads(body)
+                login_user = data.get("name")
+            except Exception:
+                pass
+
+        # Extract user for signup
+        signup_user = None
+        if path == "/api/signup" and request.method == "POST":
+            try:
+                body = await request.body()
+                data = json.loads(body)
+                signup_user = data.get("name")
+            except Exception:
+                pass
+
+        response = await call_next(request)
+
+        duration_ms = (time.time() - start_time) * 1000
+
+        # Determine event type and user
+        event_type = "request"
+        user = _extract_user_from_cookie(request)
+        detail = None
+
+        if path == "/api/login" and request.method == "POST":
+            if response.status_code == 200:
+                event_type = "login"
+                user = login_user
+            else:
+                event_type = "login_failed"
+                user = login_user
+                detail = f"HTTP {response.status_code}"
+        elif path == "/api/logout" and request.method == "POST":
+            event_type = "logout"
+        elif path == "/api/signup" and request.method == "POST":
+            if response.status_code == 200:
+                event_type = "signup"
+                user = signup_user
+            else:
+                event_type = "signup_failed"
+                user = signup_user
+                detail = f"HTTP {response.status_code}"
+
+        ip_address = _get_client_ip(request)
+        user_agent = request.headers.get("user-agent")
+
+        log_entry = LogEntry(
+            method=request.method,
+            path=path,
+            status_code=response.status_code,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            user=user,
+            duration_ms=round(duration_ms, 2),
+            event_type=event_type,
+            detail=detail,
+        )
+
+        try:
+            with Session(engine) as session:
+                session.add(log_entry)
+                session.commit()
+        except Exception:
+            pass  # Don't let logging failures break the app
+
+        return response
+
+
+def _extract_user_from_cookie(request: Request) -> str | None:
+    token = request.cookies.get("access_token")
+    if not token:
+        return None
+    if token.startswith("Bearer "):
+        token = token[7:]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload.get("sub")
+    except JWTError:
+        return None
+
+
+def _get_client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip
+    if request.client:
+        return request.client.host
+    return None

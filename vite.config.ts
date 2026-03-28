@@ -6,6 +6,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
+    appType: 'spa',
     server: {
       port: 9873,
       host: '0.0.0.0',

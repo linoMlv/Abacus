@@ -2,10 +2,15 @@ import React from 'react';
 import { useMe, useLogout } from './hooks/useAbacusData';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
+import LogsPage from './components/LogsPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 
 const App: React.FC = () => {
+  if (window.location.pathname === '/logs') {
+    return <LogsPage />;
+  }
+
   const { data: activeAssociation, isLoading } = useMe();
   const logoutMutation = useLogout();
   const queryClient = useQueryClient();
