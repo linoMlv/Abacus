@@ -26,6 +26,7 @@ export interface Balance {
 export interface Association {
   id: string;
   name: string;
+  email: string;
   password?: string;
   balances: Balance[];
   operations: Operation[];

@@ -9,6 +9,8 @@ rich==13.7.0
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.9
+alembic>=1.13.0
+mcp>=1.0.0
 # Dev dependencies
 ruff==0.1.15
 pytest==8.0.0

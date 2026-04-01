@@ -3,12 +3,16 @@ import { useMe, useLogout } from './hooks/useAbacusData';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import LogsPage from './components/LogsPage';
+import ResetPasswordPage from './components/ResetPasswordPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 
 const App: React.FC = () => {
   if (window.location.pathname === '/logs') {
     return <LogsPage />;
+  }
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPasswordPage />;
   }
 
   const { data: activeAssociation, isLoading } = useMe();

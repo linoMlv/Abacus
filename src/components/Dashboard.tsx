@@ -12,6 +12,7 @@ import ErrorBoundary from './ErrorBoundary';
 import ConfirmationModal from './ConfirmationModal';
 import OperationFormModal from './dashboard/OperationFormModal';
 import BalanceFormModal from './dashboard/BalanceFormModal';
+import SettingsModal from './SettingsModal';
 
 interface DashboardProps {
   association: Association;
@@ -63,6 +64,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
 
   const [isDeleteBalanceModalOpen, setIsDeleteBalanceModalOpen] = useState(false);
   const [balanceToDeleteId, setBalanceToDeleteId] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const deleteOperationMutation = useDeleteOperation();
   const deleteBalanceMutation = useDeleteBalance();
@@ -189,6 +191,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
       <Header
         associationName={association.name}
         onLogout={onLogout}
+        onOpenSettings={() => setIsSettingsOpen(true)}
         dateRange={dateRange}
         setDateRange={setDateRange}
         operations={allOpsUntilEnd}
@@ -387,6 +390,12 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
         message="Are you sure you want to delete this balance? All operations linked to it will be permanently lost."
         confirmText="Delete Balance"
         isDanger={true}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        association={association}
       />
     </div>
   );

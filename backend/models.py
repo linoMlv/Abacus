@@ -14,6 +14,7 @@ class OperationType(str, Enum):
 class Association(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     name: str = Field(unique=True)
+    email: str = Field(unique=True)
     password: str
 
     balances: list["Balance"] = Relationship(back_populates="association")
@@ -56,7 +57,40 @@ class BalanceRead(SQLModel):
 class AssociationRead(SQLModel):
     id: str
     name: str
+    email: str
     balances: list[BalanceRead] = []
+
+
+class ApiKey(SQLModel, table=True):
+    __tablename__ = "api_key"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    name: str
+    key_hash: str
+    key_prefix: str = Field(max_length=8)
+    association_id: str = Field(foreign_key="association.id")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_used_at: datetime | None = None
+    is_active: bool = Field(default=True)
+
+    association: Association | None = Relationship()
+
+
+class ApiKeyRead(SQLModel):
+    id: str
+    name: str
+    key_prefix: str
+    created_at: datetime
+    last_used_at: datetime | None
+    is_active: bool
+
+
+class ApiKeyCreated(SQLModel):
+    id: str
+    name: str
+    key: str
+    key_prefix: str
+    created_at: datetime
 
 
 class LogEntry(SQLModel, table=True):

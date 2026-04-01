@@ -77,8 +77,20 @@ export function useLogout() {
   });
 }
 
-export function useAddOperation() {
+// Helper to invalidate all data queries after a mutation
+function useInvalidateAll() {
   const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: keys.me });
+    queryClient.invalidateQueries({ queryKey: ['operationsByDate'] });
+    queryClient.invalidateQueries({ queryKey: ['operationsByBalance'] });
+    queryClient.invalidateQueries({ queryKey: ['allOperationsUntilEnd'] });
+    queryClient.invalidateQueries({ queryKey: ['association'] });
+  };
+}
+
+export function useAddOperation() {
+  const invalidateAll = useInvalidateAll();
   return useMutation({
     mutationFn: (op: {
       name: string;
@@ -90,42 +102,28 @@ export function useAddOperation() {
       balance_id: string;
       invoice?: string;
     }) => api.createOperation(op),
-    onSuccess: (_, _variables) => {
-      queryClient.invalidateQueries({ queryKey: ['operationsByDate'] });
-      queryClient.invalidateQueries({ queryKey: ['operationsByBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['allOperationsUntilEnd'] });
-      queryClient.invalidateQueries({ queryKey: ['association'] });
-    },
+    onSuccess: invalidateAll,
   });
 }
+
 export function useUpdateOperation() {
-  const queryClient = useQueryClient();
+  const invalidateAll = useInvalidateAll();
   return useMutation({
     mutationFn: (op: Operation) => api.updateOperation(op),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['operationsByDate'] });
-      queryClient.invalidateQueries({ queryKey: ['operationsByBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['allOperationsUntilEnd'] });
-      queryClient.invalidateQueries({ queryKey: ['association'] });
-    },
+    onSuccess: invalidateAll,
   });
 }
 
 export function useDeleteOperation() {
-  const queryClient = useQueryClient();
+  const invalidateAll = useInvalidateAll();
   return useMutation({
     mutationFn: (id: string) => api.deleteOperation(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['operationsByDate'] });
-      queryClient.invalidateQueries({ queryKey: ['operationsByBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['allOperationsUntilEnd'] });
-      queryClient.invalidateQueries({ queryKey: ['association'] });
-    },
+    onSuccess: invalidateAll,
   });
 }
 
 export function useAddBalance() {
-  const queryClient = useQueryClient();
+  const invalidateAll = useInvalidateAll();
   return useMutation({
     mutationFn: ({
       name,
@@ -136,38 +134,47 @@ export function useAddBalance() {
       initialAmount: number;
       associationId: string;
     }) => api.addBalance(name, initialAmount, associationId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['association'] });
-    },
+    onSuccess: invalidateAll,
   });
 }
 
 export function useUpdateBalance() {
-  const queryClient = useQueryClient();
+  const invalidateAll = useInvalidateAll();
   return useMutation({
     mutationFn: (balance: Balance) => api.updateBalance(balance),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['association'] });
-    },
+    onSuccess: invalidateAll,
   });
 }
 
 export function useDeleteBalance() {
-  const queryClient = useQueryClient();
+  const invalidateAll = useInvalidateAll();
   return useMutation({
     mutationFn: (id: string) => api.deleteBalance(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['association'] });
-    },
+    onSuccess: invalidateAll,
   });
 }
 
 export function useReorderBalances() {
-  const queryClient = useQueryClient();
+  const invalidateAll = useInvalidateAll();
   return useMutation({
     mutationFn: (balances: { id: string; position: number }[]) => api.reorderBalances(balances),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['association'] });
+    onSuccess: invalidateAll,
+  });
+}
+
+export function useUpdateAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name?: string; email?: string }) => api.updateAccount(data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(keys.me, data);
     },
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
+      api.changePassword(currentPassword, newPassword),
   });
 }

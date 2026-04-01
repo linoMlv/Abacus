@@ -220,6 +220,8 @@ const LogsPage: React.FC = () => {
             <option value="logout">Logout</option>
             <option value="signup">Signup</option>
             <option value="signup_failed">Signup Failed</option>
+            <option value="mcp_request">MCP Request</option>
+            <option value="mcp_auth_failed">MCP Auth Failed</option>
           </select>
           <input
             type="text"
@@ -349,6 +351,8 @@ const EventBadge: React.FC<{ type: string | null }> = ({ type }) => {
     login_failed: 'bg-red-100 text-red-800',
     signup: 'bg-blue-100 text-blue-800',
     signup_failed: 'bg-red-100 text-red-800',
+    mcp_request: 'bg-purple-100 text-purple-800',
+    mcp_auth_failed: 'bg-red-100 text-red-800',
     request: 'bg-gray-100 text-gray-600',
   };
   const color = colors[type || ''] || colors.request;

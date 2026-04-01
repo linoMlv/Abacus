@@ -8,7 +8,11 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [isLoginView, setIsLoginView] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
   const [associationName, setAssociationName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [initialBalances, setInitialBalances] = useState<{ name: string; amount: string }[]>([
     { name: '', amount: '' },
@@ -29,9 +33,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setInitialBalances(newBalances);
   };
 
+  const handleForgotPassword = async () => {
+    setError('');
+    if (!forgotEmail.trim()) {
+      setError('Please enter your email address.');
+      return;
+    }
+    try {
+      await api.forgotPassword(forgotEmail.trim());
+      setForgotSent(true);
+    } catch {
+      setError('Failed to send reset email.');
+    }
+  };
+
   const validateSignup = () => {
-    if (!associationName.trim() || !password.trim()) {
-      setError('Association name and password are required.');
+    if (!associationName.trim() || !email.trim() || !password.trim()) {
+      setError('Association name, email, and password are required.');
       return false;
     }
     if (
@@ -50,6 +68,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     try {
       const newAssociation = await api.signup(
         associationName.trim(),
+        email.trim(),
         password,
         initialBalances.map((b) => ({ name: b.name.trim(), amount: b.amount }))
       );
@@ -91,6 +110,60 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
+  if (showForgotPassword) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+        <div className="w-full max-w-md">
+          <h1 className="text-4xl font-bold text-center text-gray-800 mb-2">Abacus</h1>
+          <p className="text-center text-gray-500 mb-8">Password Recovery</p>
+          <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200">
+            {forgotSent ? (
+              <div className="text-center space-y-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-gray-600">If an account with this email exists, a reset link has been sent.</p>
+                <button
+                  onClick={() => { setShowForgotPassword(false); setForgotSent(false); setForgotEmail(''); }}
+                  className="text-sm font-semibold text-gray-700 hover:underline"
+                >
+                  Back to login
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-semibold text-center">Reset Password</h2>
+                <p className="text-sm text-gray-500 text-center">Enter the email address associated with your account.</p>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition"
+                />
+                {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+                <button
+                  onClick={handleForgotPassword}
+                  className="w-full bg-gray-800 text-white py-3 rounded-lg font-semibold hover:bg-gray-900 transition"
+                >
+                  Send Reset Link
+                </button>
+                <p className="text-center">
+                  <button
+                    onClick={() => { setShowForgotPassword(false); setError(''); }}
+                    className="text-sm font-semibold text-gray-700 hover:underline"
+                  >
+                    Back to login
+                  </button>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
       <div className="w-full max-w-md">
@@ -111,6 +184,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               onChange={(e) => setAssociationName(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition"
             />
+            {!isLoginView && (
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-800 transition"
+              />
+            )}
             <input
               type="password"
               placeholder="Password"
@@ -182,7 +264,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
+          {isLoginView && (
+            <p className="text-center text-sm text-gray-400 mt-4">
+              <button
+                onClick={() => { setShowForgotPassword(true); setError(''); }}
+                className="hover:text-gray-600 hover:underline transition"
+              >
+                Forgot your password?
+              </button>
+            </p>
+          )}
+
+          <p className="text-center text-sm text-gray-500 mt-4">
             {isLoginView ? "Don't have an account?" : 'Already have an account?'}
             <button
               onClick={() => {

@@ -25,6 +25,7 @@ interface BackendBalance {
 interface BackendAssociation {
   id: string;
   name: string;
+  email: string;
   balances: BackendBalance[];
   operations: BackendOperation[];
 }
@@ -71,12 +72,13 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
 export const api = {
   async signup(
     name: string,
+    email: string,
     password: string,
     balances: { name: string; amount: string }[]
   ): Promise<Association> {
     const response = await fetchWithAuth(`${API_URL}/signup`, {
       method: 'POST',
-      body: JSON.stringify({ name, password, balances }),
+      body: JSON.stringify({ name, email, password, balances }),
     });
     if (!response.ok) {
       const error = await response.json();
@@ -263,6 +265,79 @@ export const api = {
     });
     if (!response.ok) {
       throw new Error('Failed to delete balance');
+    }
+  },
+
+  async updateAccount(data: { name?: string; email?: string }): Promise<Association> {
+    const response = await fetchWithAuth(`${API_URL}/account`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update account');
+    }
+    const raw: BackendAssociation = await response.json();
+    return mapAssociationData(raw);
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const response = await fetchWithAuth(`${API_URL}/account/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to change password');
+    }
+  },
+
+  async forgotPassword(email: string): Promise<void> {
+    const response = await fetchWithAuth(`${API_URL}/forgot-password`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to send reset email');
+    }
+  },
+
+  async resetPassword(token: string, password: string): Promise<void> {
+    const response = await fetchWithAuth(`${API_URL}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to reset password');
+    }
+  },
+
+  async createApiKey(name: string): Promise<{ id: string; name: string; key: string; key_prefix: string; created_at: string }> {
+    const response = await fetchWithAuth(`${API_URL}/api-keys`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create API key');
+    }
+    return response.json();
+  },
+
+  async listApiKeys(): Promise<{ id: string; name: string; key_prefix: string; created_at: string; last_used_at: string | null; is_active: boolean }[]> {
+    const response = await fetchWithAuth(`${API_URL}/api-keys`);
+    if (!response.ok) {
+      throw new Error('Failed to list API keys');
+    }
+    return response.json();
+  },
+
+  async revokeApiKey(keyId: string): Promise<void> {
+    const response = await fetchWithAuth(`${API_URL}/api-keys/${keyId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to revoke API key');
     }
   },
 };

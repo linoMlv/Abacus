@@ -11,7 +11,7 @@ from alembic import context
 load_dotenv()
 
 # Ensure all models are imported so their tables are registered on SQLModel.metadata
-from models import Association, Balance, Operation, LogEntry  # noqa: F401
+from models import Association, Balance, Operation, LogEntry, ApiKey  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
