@@ -15,6 +15,7 @@ Abacus est une application web moderne conçue spécifiquement pour la gestion c
 - [Lancement de l'application](#-lancement-de-lapplication)
 - [Développement & Qualité](#-développement--qualité)
 - [Architecture](#-architecture)
+- [Serveur MCP](#-serveur-mcp)
 - [Licence](#-licence)
 
 ---
@@ -29,6 +30,8 @@ Abacus est une application web moderne conçue spécifiquement pour la gestion c
 - ✅ **L'export PDF** de vos rapports financiers
 - ✅ **La sécurité** avec un système d'authentification robuste (Cookies HttpOnly)
 - ✅ **Le multi-tenant** pour gérer plusieurs associations sur une même instance
+- ✅ **L'intégration IA** via un serveur MCP (Model Context Protocol) pour piloter sa comptabilité depuis un agent IA
+- ✅ **Le monitoring** avec une page de logs serveur dédiée
 
 L'application a été pensée pour être **minimaliste**, **rapide** et **accessible**, même pour les utilisateurs non techniques.
 
@@ -70,6 +73,20 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 - Une page par balance avec design soigné
 - Export direct depuis le dashboard
 
+### 🤖 Serveur MCP (Model Context Protocol)
+
+- Endpoint Streamable HTTP à `/mcp` pour connecter des agents IA (Claude, etc.)
+- Authentification par clé API (`X-API-Key`), gérable depuis les paramètres
+- 10 outils exposés : consultation des balances, CRUD opérations, infos du compte
+- Compatible Claude Desktop, Claude Code, et tout client MCP
+
+### 📋 Logs serveur
+
+- Page dédiée `/logs` avec authentification indépendante
+- Historique complet : connexions, requêtes API, appels MCP
+- Filtres par type d'événement, utilisateur, chemin
+- Pagination et auto-refresh
+
 ### 🔐 Sécurité
 
 - Authentification sécurisée via Cookies **HttpOnly** (Protection XSS)
@@ -100,6 +117,8 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 | [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic     |
 | [MySQL](https://www.mysql.com/)            | Base de données relationnelle           |
 | [Pytest](https://docs.pytest.org/)         | Framework de test Python standard       |
+| [Alembic](https://alembic.sqlalchemy.org/)  | Migrations de base de données           |
+| [MCP SDK](https://modelcontextprotocol.io/) | Serveur Model Context Protocol          |
 | [Ruff](https://docs.astral.sh/ruff/)       | Linter et Formatter Python ultra-rapide |
 
 ---
@@ -203,6 +222,46 @@ Le projet suit des standards de qualité stricts.
 
 ---
 
+## 🤖 Serveur MCP
+
+Abacus expose un serveur [Model Context Protocol](https://modelcontextprotocol.io/) permettant aux agents IA de consulter et modifier la comptabilité de l'association.
+
+### Configuration
+
+1. Créez une clé API depuis **Paramètres > API Keys** dans l'application
+2. Ajoutez cette configuration à votre client MCP (Claude Desktop, Claude Code, etc.) :
+
+```json
+{
+  "mcpServers": {
+    "abacus": {
+      "type": "streamable-http",
+      "url": "https://votre-serveur.com/mcp",
+      "headers": {
+        "X-API-Key": "abk_..."
+      }
+    }
+  }
+}
+```
+
+### Outils disponibles
+
+| Outil                  | Description                                       |
+| :--------------------- | :------------------------------------------------ |
+| `get_account_info`     | Informations du compte (nom, email, balances)     |
+| `list_balances`        | Liste des balances avec soldes                    |
+| `create_balance`       | Créer une nouvelle balance                        |
+| `update_balance`       | Modifier une balance existante                    |
+| `delete_balance`       | Supprimer une balance (sans opérations)           |
+| `list_operations`      | Lister les opérations (filtrable par date)        |
+| `get_balance_operations` | Opérations d'une balance spécifique             |
+| `create_operation`     | Enregistrer une recette ou dépense                |
+| `update_operation`     | Modifier une opération existante                  |
+| `delete_operation`     | Supprimer une opération                           |
+
+---
+
 ## 🏗️ Architecture
 
 ```
@@ -216,9 +275,12 @@ abacus/
 │   └── ...
 ├── backend/              # Code source Backend
 │   ├── routers/          # Endpoints API découpés par domaine
+│   ├── alembic/          # Migrations de base de données
 │   ├── models.py         # Modèles de données (DB & Pydantic)
 │   ├── security.py       # Logique d'authentification
-│   ├── main.py           # Point d'entrée FastAPI
+│   ├── middleware.py     # Middleware de logging
+│   ├── mcp_server.py    # Serveur MCP (Model Context Protocol)
+│   ├── main.py           # Point d'entrée FastAPI + ASGI
 │   └── tests/            # Tests d'intégration et unitaires
 ├── public/               # Assets statiques
 └── ...
@@ -231,4 +293,4 @@ abacus/
 Ce projet est sous licence **CC BY-NC-SA 4.0**.
 
 **Auteur** : Coodlab, Mallevaey Lino  
-**Version** : 2025.12.18
+**Version** : 2026.04.01
