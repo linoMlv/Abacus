@@ -1,4 +1,5 @@
 import React from 'react';
+import Footer from './components/Footer';
 import { useMe, useLogout } from './hooks/useAbacusData';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
@@ -7,7 +8,7 @@ import ResetPasswordPage from './components/ResetPasswordPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   if (window.location.pathname === '/logs') {
     return <LogsPage />;
   }
@@ -30,7 +31,7 @@ const App: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center flex-grow bg-gray-50">
         <div className="flex flex-col items-center gap-4">
           <svg
             className="animate-spin h-10 w-10 text-gray-800"
@@ -59,7 +60,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
+    <div className="justify-center bg-gray-50 text-gray-800 font-sans flex flex-col flex-grow">
       {activeAssociation ? (
         <ErrorBoundary>
           <Dashboard association={activeAssociation} onLogout={handleLogout} />
@@ -67,6 +68,17 @@ const App: React.FC = () => {
       ) : (
         <LoginScreen onLogin={handleLoginSuccess} />
       )}
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <div className="flex flex-col min-h-screen font-sans bg-gray-50">
+      <div className="flex flex-col flex-grow">
+        <AppContent />
+        <Footer />
+      </div>
     </div>
   );
 };

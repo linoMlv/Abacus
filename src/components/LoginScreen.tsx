@@ -112,9 +112,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
   if (showForgotPassword) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+      <div className="flex items-center justify-center flex-grow bg-gray-50 px-4">
         <div className="w-full max-w-md">
-          <h1 className="text-4xl font-bold text-center text-gray-800 mb-2">Abacus</h1>
+          <img src="/abacus.svg" alt="Abacus Logo" className="h-20 w-auto mx-auto mb-6" />
           <p className="text-center text-gray-500 mb-8">Password Recovery</p>
           <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200">
             {forgotSent ? (
@@ -165,9 +165,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+    <div className="flex items-center justify-center bg-gray-50 px-4"> {/* min-h-screen */}
       <div className="w-full max-w-md">
-        <h1 className="text-4xl font-bold text-center text-gray-800 mb-2">Abacus</h1>
+        <img src="/abacus.svg" alt="Abacus Logo" className="h-20 w-auto mx-auto mb-6" />
         <p className="text-center text-gray-500 mb-8">
           Simplified accounting for your association.
         </p>

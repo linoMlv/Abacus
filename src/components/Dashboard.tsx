@@ -187,7 +187,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
+    <div className="flex-grow bg-gray-50 pb-12">
       <Header
         associationName={association.name}
         onLogout={onLogout}

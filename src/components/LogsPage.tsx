@@ -141,9 +141,9 @@ const LogsPage: React.FC = () => {
 
   if (!authenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+      <div className="flex items-center justify-center flex-grow bg-gray-50 px-4">
         <div className="w-full max-w-md">
-          <h1 className="text-4xl font-bold text-center text-gray-800 mb-2">Abacus</h1>
+          <img src="/abacus.svg" alt="Abacus Logo" className="h-20 w-auto mx-auto mb-6" />
           <p className="text-center text-gray-500 mb-8">Server Logs</p>
           <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200">
             <h2 className="text-2xl font-semibold text-center mb-6">Authentication</h2>
@@ -177,7 +177,7 @@ const LogsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800">
+    <div className="flex-grow bg-gray-50 text-gray-800">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
