@@ -130,6 +130,7 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 - **Node.js** (v18 ou supérieur)
 - **Python** (v3.11 ou supérieur)
 - **MySQL** (ou MariaDB)
+- **Jaspe** ([https://github.com/coodlab/jaspe](https://github.com/coodlab/jaspe))
 
 ### 1️⃣ Cloner le projet
 

@@ -1,10 +1,7 @@
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import LoggingMiddleware
 from routers import account, api_keys, associations, auth, balances, logs, operations
@@ -49,20 +46,6 @@ _fastapi_app.include_router(api_keys.router)
 @_fastapi_app.get("/health")
 def health_check():
     return {"status": "ok"}
-
-
-# Static files (Frontend build serving)
-static_dir = "static"
-if os.path.exists(static_dir):
-    @_fastapi_app.get("/logs")
-    def serve_logs_spa():
-        return FileResponse(os.path.join(static_dir, "index.html"))
-
-    @_fastapi_app.get("/reset-password")
-    def serve_reset_password_spa():
-        return FileResponse(os.path.join(static_dir, "index.html"))
-
-    _fastapi_app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 
 # Top-level ASGI app: intercepts /mcp before FastAPI's middleware stack,

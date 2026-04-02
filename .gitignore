@@ -112,6 +112,7 @@ celerybeat.pid
 .env
 .env.*
 !.env.example
+.env.toml
 
 # ==========================================
 # IDE / Editors
@@ -165,6 +166,9 @@ $RECYCLE.BIN/
 # ==========================================
 # Miscellaneous
 # ==========================================
+
+# Jaspe
+.jaspe/
 
 # Temporary files
 *.tmp
