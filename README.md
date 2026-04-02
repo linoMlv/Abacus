@@ -291,7 +291,7 @@ abacus/
 
 ## 📄 Licence
 
-Ce projet est sous licence **CC BY-NC-SA 4.0**.
+Ce projet est sous licence **[EUROPEAN UNION PUBLIC LICENCE v. 1.2](https://eupl.eu/1.2/en/)**.
 
 **Auteur** : Coodlab, Mallevaey Lino  
-**Version** : 2026.04.01
+**Version** : 2026.04.02
