@@ -4,11 +4,11 @@ const Footer: React.FC = () => {
   return (
     <footer className="w-full py-4 text-center text-sm text-gray-500 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-center items-center gap-2">
-        <span>CC BY-NC-SA 4.0, Coodlab - Mallevaey Lino</span>
+        <span><a href="https://eupl.eu/1.2/en/" target="_blank" rel="noopener noreferrer">EUPL v1.2</a>, Coodlab - Mallevaey Lino</span>
         <span className="hidden sm:inline">&bull;</span>
-        <a 
-          href="https://github.com/linomlv/abacus" 
-          target="_blank" 
+        <a
+          href="https://github.com/linomlv/abacus"
+          target="_blank"
           rel="noopener noreferrer"
           className="hover:text-gray-800 transition-colors inline-flex items-center gap-1"
         >
