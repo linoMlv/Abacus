@@ -88,13 +88,23 @@ const OperationsTable: React.FC<OperationsTableProps> = ({
   };
 
   const groupedOperations = useMemo(() => {
-    return operations.reduce(
+    const grouped = operations.reduce(
       (acc, op) => {
         (acc[op.group] = acc[op.group] || []).push(op);
         return acc;
       },
       {} as Record<string, Operation[]>
     );
+
+    return Object.entries(grouped)
+      .map(([name, groupOps]) => {
+        const sortedOps = [...groupOps].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        const total = groupOps.reduce((sum, op) => sum + op.amount, 0);
+        return { name, operations: sortedOps, total };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [operations]);
 
   const formatCurrency = (amount: number) => {
@@ -107,24 +117,29 @@ const OperationsTable: React.FC<OperationsTableProps> = ({
     <div>
       <h4 className={`text-lg font-semibold mb-3 ${titleColor}`}>{title}</h4>
       <div className="space-y-4">
-        {Object.keys(groupedOperations).length > 0 ? (
-          Object.keys(groupedOperations).map((group) => {
-            const ops = groupedOperations[group];
+        {groupedOperations.length > 0 ? (
+          groupedOperations.map((group) => {
+            const { name, operations: ops, total } = group;
             return (
               <div
-                key={group}
+                key={name}
                 className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
               >
                 <div
                   className="bg-gray-50 px-6 py-3 border-b border-gray-200 flex justify-between items-center cursor-pointer select-none hover:bg-gray-100 transition-colors"
-                  onClick={() => toggleGroup(group)}
+                  onClick={() => toggleGroup(name)}
                 >
-                  <h5 className="font-semibold text-gray-700 text-sm uppercase tracking-wider">
-                    {group}
-                  </h5>
+                  <div className="flex items-center space-x-2">
+                    <h5 className="font-semibold text-gray-700 text-sm uppercase tracking-wider">
+                      {name}
+                    </h5>
+                    <span className={`text-xs font-medium ${titleColor}`}>
+                      • {formatCurrency(total)}
+                    </span>
+                  </div>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className={`h-5 w-5 text-gray-400 transform transition-transform duration-200 ${collapsedGroups[group] ? '-rotate-90' : 'rotate-0'}`}
+                    className={`h-5 w-5 text-gray-400 transform transition-transform duration-200 ${collapsedGroups[name] ? '-rotate-90' : 'rotate-0'}`}
                     viewBox="0 0 20 20"
                     fill="currentColor"
                   >
@@ -135,7 +150,7 @@ const OperationsTable: React.FC<OperationsTableProps> = ({
                     />
                   </svg>
                 </div>
-                {!collapsedGroups[group] && (
+                {!collapsedGroups[name] && (
                   <div className="divide-y divide-gray-100">
                     {ops.map((op) => (
                       <div
