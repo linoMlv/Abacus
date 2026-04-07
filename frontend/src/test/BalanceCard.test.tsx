@@ -24,17 +24,13 @@ describe('BalanceCard', () => {
     },
   ];
 
-  it('displays the passed currentBalance prop regardless of operations', () => {
-    // We pass a currentBalance that is DIFFERENT from what (initial + operations) would yield
-    // initial (1000) + income (2000) would be 3000.
-    // But we pass 5000 to simulate that there are other operations outside this period.
-    const passedBalance = 5000;
-
+  it('displays end balance computed from startBalance + operations', () => {
+    // startBalance = 3000, income = 2000 => endBalance = 5000
     render(
       <BalanceCard
         balance={mockBalance}
         operations={mockOperations}
-        currentBalance={passedBalance}
+        startBalance={3000}
         isSelected={false}
         onClick={vi.fn()}
         onEdit={vi.fn()}
@@ -42,18 +38,16 @@ describe('BalanceCard', () => {
       />
     );
 
-    // The display should show the formatted currency of the passed balance
-    // 5000 EUR -> "5 000,00 €" or similar depending on locale, but checking for the number 5000 is safe if we look for text content
-    // We can just check that it does NOT display 3000 (the calculated one)
+    // endBalance = 3000 + 2000 = 5000
     expect(screen.getByText(/5\s?000/)).toBeInTheDocument();
   });
 
-  it('displays income and expenses based on passed operations', () => {
+  it('displays start balance, income and expenses based on passed operations', () => {
     render(
       <BalanceCard
         balance={mockBalance}
         operations={mockOperations}
-        currentBalance={5000}
+        startBalance={3000}
         isSelected={false}
         onClick={vi.fn()}
         onEdit={vi.fn()}
@@ -61,6 +55,8 @@ describe('BalanceCard', () => {
       />
     );
 
+    // Start balance should be 3000
+    expect(screen.getByText(/3\s?000/)).toBeInTheDocument();
     // Income should be 2000
     expect(screen.getByText(/2\s?000/)).toBeInTheDocument();
   });

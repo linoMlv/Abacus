@@ -5,7 +5,7 @@ import { Balance, Operation, OperationType } from '../types';
 interface BalanceCardProps {
   balance: Balance;
   operations: Operation[];
-  currentBalance: number;
+  startBalance: number;
   isSelected: boolean;
   onClick: () => void;
   onEdit: (balance: Balance) => void;
@@ -15,13 +15,13 @@ interface BalanceCardProps {
 const BalanceCard: React.FC<BalanceCardProps> = ({
   balance,
   operations,
-  currentBalance,
+  startBalance,
   isSelected,
   onClick,
   onEdit,
   onDelete,
 }) => {
-  const { totalIncome, totalExpenses } = useMemo(() => {
+  const { totalIncome, totalExpenses, endBalance } = useMemo(() => {
     const totalIncome = operations
       .filter((op) => op.type === OperationType.INCOME)
       .reduce((sum, op) => sum + op.amount, 0);
@@ -30,8 +30,8 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
       .filter((op) => op.type === OperationType.EXPENSE)
       .reduce((sum, op) => sum + op.amount, 0);
 
-    return { totalIncome, totalExpenses };
-  }, [operations]);
+    return { totalIncome, totalExpenses, endBalance: startBalance + totalIncome - totalExpenses };
+  }, [operations, startBalance]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount);
@@ -105,12 +105,18 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
         </button>
       </div>
 
-      <p className="text-4xl font-bold mt-2 truncate">{formatCurrency(currentBalance)}</p>
+      <p className="text-4xl font-bold mt-2 truncate">{formatCurrency(endBalance)}</p>
       <div className="flex justify-between items-center mt-6">
+        <div className="text-center">
+          <p className={`text-sm ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>Start</p>
+          <p className={`font-semibold ${isSelected ? 'text-gray-300' : 'text-gray-700'}`}>
+            {formatCurrency(startBalance)}
+          </p>
+        </div>
         <div className="text-center">
           <p className={`text-sm ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>Income</p>
           <p
-            className={`font-semibold text-green-500 ${isSelected ? 'text-green-400' : 'text-green-600'}`}
+            className={`font-semibold ${isSelected ? 'text-green-400' : 'text-green-600'}`}
           >
             {formatCurrency(totalIncome)}
           </p>
@@ -118,7 +124,7 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
         <div className="text-center">
           <p className={`text-sm ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>Expenses</p>
           <p
-            className={`font-semibold text-red-500 ${isSelected ? 'text-red-400' : 'text-red-600'}`}
+            className={`font-semibold ${isSelected ? 'text-red-400' : 'text-red-600'}`}
           >
             {formatCurrency(totalExpenses)}
           </p>

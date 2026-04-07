@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Association, Balance, Operation, OperationType } from '../types';
 import { startOfMonth, endOfMonth } from 'date-fns';
-import { useDeleteBalance, useDeleteOperation, useOperationsByDate, useOperationsByBalance, useReorderBalances, useAllOperationsUntilEnd } from '../hooks/useAbacusData';
+import { useDeleteBalance, useDeleteOperation, useOperationsByDate, useReorderBalances, useAllOperationsUntilEnd } from '../hooks/useAbacusData';
 
 // Components
 import Header from './Header';
@@ -76,8 +76,6 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
     dateRange.end.toISOString()
   );
 
-  const { data: balanceOperations = [] } = useOperationsByBalance(selectedBalanceId);
-
   const { data: allOpsUntilEnd = [] } = useAllOperationsUntilEnd(
     dateRange.end.toISOString()
   );
@@ -90,7 +88,9 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
     return (association.balances || []).find((b) => b.id === selectedBalanceId) ?? null;
   }, [association.balances, selectedBalanceId]);
 
-  const operationsForSelectedBalance = balanceOperations;
+  const operationsForSelectedBalance = useMemo(() => {
+    return dateOperations.filter((op) => op.balanceId === selectedBalanceId);
+  }, [dateOperations, selectedBalanceId]);
 
   const incomesForSelectedBalance = operationsForSelectedBalance.filter(
     (op) => op.type === OperationType.INCOME
@@ -281,13 +281,18 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
                 const balanceOpsUntilEnd = operationsUntilEndOfPeriod.filter(
                   (op) => op.balanceId === balance.id
                 );
-                const totalIncome = balanceOpsUntilEnd
+                const opsBeforeStart = balanceOpsUntilEnd.filter(
+                  (op) => new Date(op.date) < dateRange.start
+                );
+                const startIncome = opsBeforeStart
                   .filter((op) => op.type === OperationType.INCOME)
                   .reduce((sum, op) => sum + op.amount, 0);
-                const totalExpenses = balanceOpsUntilEnd
+                const startExpenses = opsBeforeStart
                   .filter((op) => op.type === OperationType.EXPENSE)
                   .reduce((sum, op) => sum + op.amount, 0);
-                const currentBalance = balance.initialAmount + totalIncome - totalExpenses;
+                const startBalance = balance.initialAmount + startIncome - startExpenses;
+
+                const periodOps = filteredOperations.filter((op) => op.balanceId === balance.id);
 
                 return (
                   <div
@@ -300,8 +305,8 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
                   >
                     <BalanceCard
                       balance={balance}
-                      operations={filteredOperations.filter((op) => op.balanceId === balance.id)}
-                      currentBalance={currentBalance}
+                      operations={periodOps}
+                      startBalance={startBalance}
                       isSelected={selectedBalanceId === balance.id}
                       onClick={() => setSelectedBalanceId(balance.id)}
                       onEdit={handleEditBalance}

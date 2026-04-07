@@ -3,7 +3,7 @@ import { format, parseISO } from 'date-fns';
 
 import { Operation, Balance } from '../types';
 import ExportButton from './ExportButton';
-import ErrorBoundary from './ErrorBoundary';
+
 
 interface HeaderProps {
   associationName: string;
@@ -72,21 +72,12 @@ const Header: React.FC<HeaderProps> = ({
                 className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-gray-800"
               />
             </div>
-            <ErrorBoundary
-              fallback={<span className="text-red-500 text-sm">Export Unavailable</span>}
-              resetKey={operations.length}
-            >
-              {operations.length > 0 ? (
-                <ExportButton
-                  operations={operations}
-                  balances={balances}
-                  dateRange={dateRange}
-                  associationName={associationName}
-                />
-              ) : (
-                <span className="text-gray-400 text-sm">Loading...</span>
-              )}
-            </ErrorBoundary>
+            <ExportButton
+              operations={operations}
+              balances={balances}
+              dateRange={dateRange}
+              associationName={associationName}
+            />
 
             {/* Profile dropdown */}
             <div className="relative" ref={dropdownRef}>

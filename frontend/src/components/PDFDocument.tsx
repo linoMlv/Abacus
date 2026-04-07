@@ -126,6 +126,30 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1F2937',
   },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 4,
+    borderLeftWidth: 3,
+    borderLeftColor: '#6B7280',
+  },
+  groupName: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  groupTotal: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   emptyMessage: {
     fontSize: 11,
     color: '#9CA3AF',
@@ -255,136 +279,134 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({
         const incomes = data.periodOps.filter((op) => op.type === OperationType.INCOME);
         const expenses = data.periodOps.filter((op) => op.type === OperationType.EXPENSE);
 
-        return (
-          <Page key={data.balance.id} size="A4" style={styles.page}>
-            <View style={styles.balanceSection}>
-              <Text style={styles.balanceTitle}>{data.balance.name} - Details</Text>
+        const groupOps = (ops: Operation[]) => {
+          const grouped = ops.reduce(
+            (acc, op) => {
+              (acc[op.group] = acc[op.group] || []).push(op);
+              return acc;
+            },
+            {} as Record<string, Operation[]>
+          );
+          return Object.entries(grouped)
+            .map(([name, groupOps]) => ({
+              name,
+              operations: [...groupOps].sort(
+                (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+              ),
+              total: groupOps.reduce((sum, op) => sum + op.amount, 0),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        };
 
-              {incomes.length > 0 && (
-                <>
+        const incomeGroups = groupOps(incomes);
+        const expenseGroups = groupOps(expenses);
+
+        const renderGroupedTable = (
+          groups: { name: string; operations: Operation[]; total: number }[],
+          type: 'income' | 'expense'
+        ) => (
+          <>
+            {groups.map((group) => (
+              <View key={group.name} wrap={false}>
+                <View
+                  style={{
+                    ...styles.groupHeader,
+                    borderLeftColor: type === 'income' ? '#059669' : '#DC2626',
+                  }}
+                >
+                  <Text style={styles.groupName}>{group.name}</Text>
                   <Text
                     style={{
-                      ...styles.balanceTitle,
-                      fontSize: 14,
-                      backgroundColor: 'transparent',
-                      borderLeftWidth: 0,
-                      paddingLeft: 0,
-                      marginTop: 10,
-                      marginBottom: 5,
+                      ...styles.groupTotal,
+                      color: type === 'income' ? '#059669' : '#DC2626',
                     }}
                   >
-                    Income
+                    {type === 'income' ? '+' : '-'}
+                    {group.total.toFixed(2)} €
                   </Text>
-                  <View style={styles.table}>
-                    <View style={styles.tableRow} wrap={false}>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Date</Text>
+                </View>
+                <View style={styles.table}>
+                  <View style={styles.tableRow}>
+                    <View style={styles.tableColHeader}>
+                      <Text style={styles.tableCellHeader}>Date</Text>
+                    </View>
+                    <View style={styles.tableColHeader}>
+                      <Text style={styles.tableCellHeader}>Name</Text>
+                    </View>
+                    <View style={styles.tableColHeader}>
+                      <Text style={styles.tableCellHeader}>Description</Text>
+                    </View>
+                    <View style={styles.tableColHeader}>
+                      <Text style={styles.tableCellHeader}>Amount</Text>
+                    </View>
+                  </View>
+                  {group.operations.map((op) => (
+                    <View style={styles.tableRow} key={op.id} wrap={false}>
+                      <View style={styles.tableCol}>
+                        <Text style={styles.tableCell}>
+                          {(() => {
+                            try {
+                              return format(new Date(op.date), 'MMM dd, yyyy');
+                            } catch {
+                              return 'Invalid Date';
+                            }
+                          })()}
+                        </Text>
                       </View>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Name</Text>
+                      <View style={styles.tableCol}>
+                        <Text style={styles.tableCell}>{op.name}</Text>
                       </View>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Description</Text>
+                      <View style={styles.tableCol}>
+                        <Text style={styles.tableCell}>{op.description || '-'}</Text>
                       </View>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Amount</Text>
+                      <View style={styles.tableCol}>
+                        <Text
+                          style={
+                            type === 'income' ? styles.tableCellIncome : styles.tableCellExpense
+                          }
+                        >
+                          {type === 'income' ? '+' : '-'}
+                          {op.amount.toFixed(2)} €
+                        </Text>
                       </View>
                     </View>
-                    {incomes.map((op) => (
-                      <View style={styles.tableRow} key={op.id} wrap={false}>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCell}>
-                            {(() => {
-                              try {
-                                return format(new Date(op.date), 'MMM dd, yyyy');
-                              } catch {
-                                return 'Invalid Date';
-                              }
-                            })()}
-                          </Text>
-                        </View>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCell}>{op.name}</Text>
-                        </View>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCell}>{op.description || '-'}</Text>
-                        </View>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCellIncome}>+{op.amount.toFixed(2)} €</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {expenses.length > 0 && (
-                <>
-                  <Text
-                    style={{
-                      ...styles.balanceTitle,
-                      fontSize: 14,
-                      backgroundColor: 'transparent',
-                      borderLeftWidth: 0,
-                      paddingLeft: 0,
-                      marginTop: 20,
-                      marginBottom: 5,
-                    }}
-                  >
-                    Expenses
-                  </Text>
-                  <View style={styles.table}>
-                    <View style={styles.tableRow} wrap={false}>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Date</Text>
-                      </View>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Name</Text>
-                      </View>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Description</Text>
-                      </View>
-                      <View style={styles.tableColHeader}>
-                        <Text style={styles.tableCellHeader}>Amount</Text>
-                      </View>
-                    </View>
-                    {expenses.map((op) => (
-                      <View style={styles.tableRow} key={op.id} wrap={false}>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCell}>
-                            {(() => {
-                              try {
-                                return format(new Date(op.date), 'MMM dd, yyyy');
-                              } catch {
-                                return 'Invalid Date';
-                              }
-                            })()}
-                          </Text>
-                        </View>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCell}>{op.name}</Text>
-                        </View>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCell}>{op.description || '-'}</Text>
-                        </View>
-                        <View style={styles.tableCol}>
-                          <Text style={styles.tableCellExpense}>-{op.amount.toFixed(2)} €</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {data.periodOps.length === 0 && (
-                <Text style={styles.emptyMessage}>No operations for this period.</Text>
-              )}
-
-              <View style={styles.totalRow}>
-                <Text style={styles.totalText}>End Balance: {data.endBalance.toFixed(2)} €</Text>
+                  ))}
+                </View>
               </View>
-            </View>
-          </Page>
+            ))}
+          </>
+        );
+
+        return (
+          <React.Fragment key={data.balance.id}>
+            <Page size="A4" style={styles.page}>
+              <View style={styles.balanceSection}>
+                <Text style={styles.balanceTitle}>{data.balance.name} - Income</Text>
+
+                {incomeGroups.length > 0 ? (
+                  renderGroupedTable(incomeGroups, 'income')
+                ) : (
+                  <Text style={styles.emptyMessage}>No income for this period.</Text>
+                )}
+              </View>
+            </Page>
+
+            <Page size="A4" style={styles.page}>
+              <View style={styles.balanceSection}>
+                <Text style={styles.balanceTitle}>{data.balance.name} - Expenses</Text>
+
+                {expenseGroups.length > 0 ? (
+                  renderGroupedTable(expenseGroups, 'expense')
+                ) : (
+                  <Text style={styles.emptyMessage}>No expenses for this period.</Text>
+                )}
+
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalText}>End Balance: {data.endBalance.toFixed(2)} €</Text>
+                </View>
+              </View>
+            </Page>
+          </React.Fragment>
         );
       })}
     </Document>
