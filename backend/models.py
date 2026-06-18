@@ -111,7 +111,7 @@ class LogEntry(SQLModel, table=True):
     __tablename__ = "log_entry"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC), index=True)
     method: str
     path: str
     status_code: int = 0
