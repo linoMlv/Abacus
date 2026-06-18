@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import LoggingMiddleware
 from routers import account, api_keys, associations, auth, balances, logs, operations

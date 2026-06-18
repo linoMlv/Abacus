@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 
 from database import get_session
 from dependencies import get_current_association
-from models import Association, AssociationRead, Balance
+from models import Association, AssociationRead
 
 router = APIRouter(prefix="/api/associations", tags=["associations"])
 

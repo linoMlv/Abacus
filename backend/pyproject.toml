@@ -1,10 +1,17 @@
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+# Alembic migrations are auto-generated; don't lint their style.
+extend-exclude = ["alembic", "venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP"]
 ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Inline HTML email template: long style/content lines cannot be wrapped
+# without altering the rendered markup.
+"email_service.py" = ["E501"]
 
 [tool.ruff.format]
 quote-style = "double"

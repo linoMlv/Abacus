@@ -1,10 +1,9 @@
+import logging
 import os
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
 from jose import jwt
-
-import logging
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 SECRET_KEY = os.getenv("SECRET_KEY", "default_insecure_key_for_dev_only")
