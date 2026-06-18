@@ -119,12 +119,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200">
             {forgotSent ? (
               <div className="text-center space-y-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-12 w-12 mx-auto text-green-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
-                <p className="text-gray-600">If an account with this email exists, a reset link has been sent.</p>
+                <p className="text-gray-600">
+                  If an account with this email exists, a reset link has been sent.
+                </p>
                 <button
-                  onClick={() => { setShowForgotPassword(false); setForgotSent(false); setForgotEmail(''); }}
+                  onClick={() => {
+                    setShowForgotPassword(false);
+                    setForgotSent(false);
+                    setForgotEmail('');
+                  }}
                   className="text-sm font-semibold text-gray-700 hover:underline"
                 >
                   Back to login
@@ -133,7 +150,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             ) : (
               <div className="space-y-6">
                 <h2 className="text-2xl font-semibold text-center">Reset Password</h2>
-                <p className="text-sm text-gray-500 text-center">Enter the email address associated with your account.</p>
+                <p className="text-sm text-gray-500 text-center">
+                  Enter the email address associated with your account.
+                </p>
                 <input
                   type="email"
                   placeholder="Email"
@@ -150,7 +169,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 </button>
                 <p className="text-center">
                   <button
-                    onClick={() => { setShowForgotPassword(false); setError(''); }}
+                    onClick={() => {
+                      setShowForgotPassword(false);
+                      setError('');
+                    }}
                     className="text-sm font-semibold text-gray-700 hover:underline"
                   >
                     Back to login
@@ -165,7 +187,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   }
 
   return (
-    <div className="flex items-center justify-center bg-gray-50 px-4"> {/* min-h-screen */}
+    <div className="flex items-center justify-center bg-gray-50 px-4">
+      {' '}
+      {/* min-h-screen */}
       <div className="w-full max-w-md">
         <img src="/abacus.svg" alt="Abacus Logo" className="h-20 w-auto mx-auto mb-6" />
         <p className="text-center text-gray-500 mb-8">
@@ -267,7 +291,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           {isLoginView && (
             <p className="text-center text-sm text-gray-400 mt-4">
               <button
-                onClick={() => { setShowForgotPassword(true); setError(''); }}
+                onClick={() => {
+                  setShowForgotPassword(true);
+                  setError('');
+                }}
                 className="hover:text-gray-600 hover:underline transition"
               >
                 Forgot your password?

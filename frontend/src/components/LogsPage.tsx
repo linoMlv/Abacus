@@ -36,24 +36,21 @@ const LogsPage: React.FC = () => {
   const intervalRef = useRef<number | null>(null);
   const credsRef = useRef('');
 
-  const fetchLogs = useCallback(
-    async (skip: number, currentFilters: Filters) => {
-      const params = new URLSearchParams({
-        skip: String(skip),
-        limit: String(PAGE_SIZE),
-      });
-      if (currentFilters.eventType) params.append('event_type', currentFilters.eventType);
-      if (currentFilters.user) params.append('user', currentFilters.user);
-      if (currentFilters.search) params.append('search', currentFilters.search);
+  const fetchLogs = useCallback(async (skip: number, currentFilters: Filters) => {
+    const params = new URLSearchParams({
+      skip: String(skip),
+      limit: String(PAGE_SIZE),
+    });
+    if (currentFilters.eventType) params.append('event_type', currentFilters.eventType);
+    if (currentFilters.user) params.append('user', currentFilters.user);
+    if (currentFilters.search) params.append('search', currentFilters.search);
 
-      const res = await fetch(`/api/logs?${params}`, {
-        headers: { Authorization: `Basic ${credsRef.current}` },
-      });
-      if (!res.ok) throw new Error('Unauthorized');
-      return res.json();
-    },
-    []
-  );
+    const res = await fetch(`/api/logs?${params}`, {
+      headers: { Authorization: `Basic ${credsRef.current}` },
+    });
+    if (!res.ok) throw new Error('Unauthorized');
+    return res.json();
+  }, []);
 
   const fetchCount = useCallback(async (currentFilters: Filters) => {
     const params = new URLSearchParams();
@@ -281,9 +278,7 @@ const LogsPage: React.FC = () => {
                       <td className="px-4 py-2">
                         <MethodBadge method={log.method} />
                       </td>
-                      <td className="px-4 py-2 font-mono text-xs max-w-xs truncate">
-                        {log.path}
-                      </td>
+                      <td className="px-4 py-2 font-mono text-xs max-w-xs truncate">{log.path}</td>
                       <td className="px-4 py-2">{log.user || '-'}</td>
                       <td className="px-4 py-2 font-mono text-xs">{log.ip_address || '-'}</td>
                       <td className="px-4 py-2">
@@ -382,9 +377,7 @@ const StatusBadge: React.FC<{ code: number }> = ({ code }) => {
   if (code >= 200 && code < 300) color = 'bg-green-100 text-green-800';
   else if (code >= 400 && code < 500) color = 'bg-yellow-100 text-yellow-800';
   else if (code >= 500) color = 'bg-red-100 text-red-800';
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>{code}</span>
-  );
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>{code}</span>;
 };
 
 export default LogsPage;
