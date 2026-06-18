@@ -5,11 +5,35 @@ from jose import JWTError, jwt
 from sqlmodel import Session
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from database import engine
 from models import LogEntry
 from security import ALGORITHM, SECRET_KEY
+
+
+class OriginValidationMiddleware(BaseHTTPMiddleware):
+    """Reject state-changing browser requests from an unexpected origin.
+
+    A defense-in-depth measure against CSRF on cookie-authenticated requests.
+    Only enforced when an Origin header is present, so non-browser clients
+    (e.g. API-key callers, which send no Origin) are unaffected.
+    """
+
+    UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+    def __init__(self, app, allowed_origins):
+        super().__init__(app)
+        self.allowed_origins = set(allowed_origins)
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if request.method in self.UNSAFE_METHODS:
+            origin = request.headers.get("origin")
+            if origin and origin not in self.allowed_origins:
+                return JSONResponse(
+                    status_code=403, content={"detail": "Origin not allowed"}
+                )
+        return await call_next(request)
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,9 +7,23 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from mcp_server import get_session_manager, mcp_asgi_app
-from middleware import LoggingMiddleware
+from middleware import LoggingMiddleware, OriginValidationMiddleware
 from rate_limit import limiter
 from routers import account, api_keys, associations, auth, balances, logs, operations
+
+DEFAULT_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:9873",
+]
+
+
+def _allowed_origins() -> list[str]:
+    """Allowed browser origins, from CORS_ORIGINS (comma-separated) or dev defaults."""
+    raw = os.getenv("CORS_ORIGINS")
+    if raw:
+        return [o.strip() for o in raw.split(",") if o.strip()]
+    return DEFAULT_ORIGINS
 
 
 @asynccontextmanager
@@ -24,11 +39,7 @@ _fastapi_app = FastAPI(lifespan=lifespan)
 _fastapi_app.state.limiter = limiter
 _fastapi_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-origins = [
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://localhost:9873",
-]
+origins = _allowed_origins()
 
 _fastapi_app.add_middleware(
     CORSMiddleware,
@@ -37,6 +48,9 @@ _fastapi_app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+# Reject cross-origin state-changing browser requests (CSRF defense in depth).
+_fastapi_app.add_middleware(OriginValidationMiddleware, allowed_origins=origins)
 
 # Logging middleware
 _fastapi_app.add_middleware(LoggingMiddleware)
