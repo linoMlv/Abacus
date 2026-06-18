@@ -1,11 +1,10 @@
-import os
 from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
-from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
+from sqlmodel import Session, select
 
 from database import get_session
 from dependencies import get_current_association
@@ -17,11 +16,11 @@ from models import (
 )
 from security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    ALGORITHM,
+    SECRET_KEY,
     create_access_token,
     get_password_hash,
     verify_password,
-    SECRET_KEY,
-    ALGORITHM,
 )
 
 
@@ -74,7 +73,9 @@ def signup(request: SignupRequest, session: Session = Depends(get_session)):
         raise HTTPException(status_code=400, detail="Email already in use")
 
     hashed_password = get_password_hash(request.password)
-    association = Association(name=request.name, email=request.email, password=hashed_password)
+    association = Association(
+        name=request.name, email=request.email, password=hashed_password
+    )
     session.add(association)
     session.commit()
     session.refresh(association)
@@ -112,6 +113,7 @@ def login(
     )
 
     from security import ENVIRONMENT
+
     is_secure = ENVIRONMENT == "production"
 
     response.set_cookie(
@@ -143,28 +145,44 @@ def read_users_me(current_association: Association = Depends(get_current_associa
 
 
 @router.post("/forgot-password")
-def forgot_password(request: ForgotPasswordRequest, session: Session = Depends(get_session)):
+def forgot_password(
+    request: ForgotPasswordRequest, session: Session = Depends(get_session)
+):
     statement = select(Association).where(Association.email == request.email)
     association = session.exec(statement).first()
     # Always return success to prevent email enumeration
     if not association:
-        return {"message": "If an account with this email exists, a reset link has been sent."}
+        return {
+            "message": (
+                "If an account with this email exists, a reset link has been sent."
+            )
+        }
 
-    from jose import jwt as jose_jwt
     from datetime import UTC, datetime
 
+    from jose import jwt as jose_jwt
+
     token = jose_jwt.encode(
-        {"sub": association.name, "purpose": "reset", "exp": datetime.now(UTC) + timedelta(minutes=15)},
+        {
+            "sub": association.name,
+            "purpose": "reset",
+            "exp": datetime.now(UTC) + timedelta(minutes=15),
+        },
         SECRET_KEY,
         algorithm=ALGORITHM,
     )
     send_password_reset_email(association.email, token)
-    return {"message": "If an account with this email exists, a reset link has been sent."}
+    return {
+        "message": "If an account with this email exists, a reset link has been sent."
+    }
 
 
 @router.post("/reset-password")
-def reset_password(request: ResetPasswordRequest, session: Session = Depends(get_session)):
-    from jose import jwt as jose_jwt, JWTError
+def reset_password(
+    request: ResetPasswordRequest, session: Session = Depends(get_session)
+):
+    from jose import JWTError
+    from jose import jwt as jose_jwt
 
     try:
         payload = jose_jwt.decode(request.token, SECRET_KEY, algorithms=[ALGORITHM])

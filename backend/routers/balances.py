@@ -27,6 +27,7 @@ class BalanceReorderItem(BaseModel):
     id: str
     position: int
 
+
 class BalanceReorderRequest(BaseModel):
     balances: list[BalanceReorderItem]
 
@@ -79,7 +80,11 @@ def delete_balance(
 
     if balance.operations:
         raise HTTPException(
-            status_code=400, detail="Cannot delete a balance containing operations. Please delete or move them first."
+            status_code=400,
+            detail=(
+                "Cannot delete a balance containing operations. "
+                "Please delete or move them first."
+            ),
         )
 
     session.delete(balance)
@@ -123,9 +128,17 @@ def get_balance_operations(
 ):
     balance = session.get(Balance, balance_id)
     if not balance or balance.association_id != current_association.id:
-        raise HTTPException(status_code=403, detail="Not authorized to view this balance")
+        raise HTTPException(
+            status_code=403, detail="Not authorized to view this balance"
+        )
 
-    statement = select(Operation).where(Operation.balance_id == balance_id).order_by(Operation.date.desc()).offset(skip).limit(limit)
+    statement = (
+        select(Operation)
+        .where(Operation.balance_id == balance_id)
+        .order_by(Operation.date.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     return session.exec(statement).all()
 
 

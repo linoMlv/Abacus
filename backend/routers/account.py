@@ -31,7 +31,9 @@ def update_account(
             select(Association).where(Association.name == request.name)
         ).first()
         if existing:
-            raise HTTPException(status_code=400, detail="Association name already taken")
+            raise HTTPException(
+                status_code=400, detail="Association name already taken"
+            )
         current_association.name = request.name
 
     if request.email is not None and request.email != current_association.email:

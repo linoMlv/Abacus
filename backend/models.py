@@ -28,7 +28,8 @@ class Balance(SQLModel, table=True):
 
     association: Association | None = Relationship(back_populates="balances")
     operations: list["Operation"] = Relationship(
-        back_populates="balance", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+        back_populates="balance",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     position: int = Field(default=0)
 
@@ -121,4 +122,3 @@ class LogEntryRead(SQLModel):
     duration_ms: float | None
     event_type: str | None
     detail: str | None
-

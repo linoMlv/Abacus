@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
+from sqlmodel import Session, select
 
 from database import get_session
 from models import ApiKey, Association
@@ -70,9 +70,8 @@ async def get_current_association(
 def _authenticate_api_key(raw_key: str, session: Session) -> Association:
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
-    statement = (
-        select(ApiKey)
-        .where(ApiKey.key_hash == key_hash, ApiKey.is_active == True)
+    statement = select(ApiKey).where(
+        ApiKey.key_hash == key_hash, ApiKey.is_active.is_(True)
     )
     api_key = session.exec(statement).first()
     if not api_key:

@@ -11,6 +11,7 @@ from models import Association, Balance, Operation, OperationType
 
 router = APIRouter(prefix="/api/operations", tags=["operations"])
 
+
 @router.get("")
 def get_operations(
     start_date: datetime | None = None,
@@ -18,7 +19,11 @@ def get_operations(
     session: Session = Depends(get_session),
     current_association: Association = Depends(get_current_association),
 ):
-    statement = select(Operation).join(Balance).where(Balance.association_id == current_association.id)
+    statement = (
+        select(Operation)
+        .join(Balance)
+        .where(Balance.association_id == current_association.id)
+    )
     if start_date:
         statement = statement.where(Operation.date >= start_date)
     if end_date:
