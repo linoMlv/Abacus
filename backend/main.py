@@ -28,9 +28,26 @@ def _allowed_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _purge_logs_on_startup()
     session_manager = get_session_manager()
     async with session_manager.run():
         yield
+
+
+def _purge_logs_on_startup() -> None:
+    """Best-effort log retention at startup; never block the app on failure."""
+    import logging
+
+    from sqlmodel import Session
+
+    from database import engine
+    from log_retention import purge_old_logs
+
+    try:
+        with Session(engine) as session:
+            purge_old_logs(session)
+    except Exception:
+        logging.getLogger(__name__).warning("Log purge skipped", exc_info=True)
 
 
 _fastapi_app = FastAPI(lifespan=lifespan)
