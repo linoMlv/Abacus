@@ -115,7 +115,7 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 | :----------------------------------------- | :-------------------------------------- |
 | [FastAPI](https://fastapi.tiangolo.com/)   | Framework Python moderne et performant  |
 | [SQLModel](https://sqlmodel.tiangolo.com/) | ORM basé sur SQLAlchemy et Pydantic     |
-| [MySQL](https://www.mysql.com/)            | Base de données relationnelle           |
+| [PostgreSQL](https://www.postgresql.org/)  | Base de données relationnelle           |
 | [Pytest](https://docs.pytest.org/)         | Framework de test Python standard       |
 | [Alembic](https://alembic.sqlalchemy.org/)  | Migrations de base de données           |
 | [MCP SDK](https://modelcontextprotocol.io/) | Serveur Model Context Protocol          |
@@ -129,7 +129,7 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 
 - **Node.js** (v18 ou supérieur)
 - **Python** (v3.11 ou supérieur)
-- **MySQL** (ou MariaDB)
+- **PostgreSQL** (v14 ou supérieur)
 - **Jaspe** ([https://github.com/linoMlv/jaspe](https://github.com/linoMlv/jaspe))
 
 ### 1️⃣ Cloner le projet
