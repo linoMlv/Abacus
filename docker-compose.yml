@@ -25,7 +25,13 @@ services:
         condition: service_healthy
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-abacus}:${POSTGRES_PASSWORD:-abacus}@db:5432/${POSTGRES_DB:-abacus}
+      # The app builds DATABASE_URL from these components (URL.create), which
+      # safely encodes special characters in the password.
+      POSTGRES_USER: ${POSTGRES_USER:-abacus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-abacus}
+      POSTGRES_DB: ${POSTGRES_DB:-abacus}
+      DB_HOST: db
+      DB_PORT: "5432"
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}

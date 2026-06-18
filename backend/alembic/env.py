@@ -1,4 +1,3 @@
-import os
 from logging.config import fileConfig
 
 from dotenv import load_dotenv
@@ -13,13 +12,15 @@ load_dotenv()
 # Ensure all models are imported so their tables are registered on SQLModel.metadata
 from models import Association, Balance, Operation, LogEntry, ApiKey  # noqa: F401
 
+# Resolve the URL the same way the app does (explicit DATABASE_URL or built
+# safely from the POSTGRES_* components).
+from database import DATABASE_URL as database_url  # noqa: E402
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url from environment variable
-# Escape '%' for ConfigParser interpolation
-database_url = os.getenv("DATABASE_URL")
+# Override sqlalchemy.url. Escape '%' for ConfigParser interpolation.
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
