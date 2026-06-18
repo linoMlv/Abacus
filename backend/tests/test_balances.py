@@ -1,6 +1,3 @@
-import pytest
-
-
 def _add_balance(client, association_id, name="Caisse", amount="50.00"):
     return client.post(
         "/api/balances_add",
@@ -90,10 +87,6 @@ def test_balance_isolation_between_associations(auth):
     assert client.delete(f"/api/balances/{victim_balance['id']}").status_code == 403
 
 
-@pytest.mark.xfail(
-    reason="Route /balances/reorder is shadowed by /balances/{balance_id}; "
-    "fixed in the security-hardening phase."
-)
 def test_reorder_balances(auth):
     client, association_id = auth
     b1 = _add_balance(client, association_id, name="B1").json()
@@ -108,3 +101,9 @@ def test_reorder_balances(auth):
         },
     )
     assert response.status_code == 200
+
+    # Positions must be persisted.
+    me = client.get("/api/me").json()
+    positions = {b["id"]: b["position"] for b in me["balances"]}
+    assert positions[b1["id"]] == 1
+    assert positions[b2["id"]] == 0

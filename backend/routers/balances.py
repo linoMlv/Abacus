@@ -63,6 +63,23 @@ def add_balance(
     return balance
 
 
+# Declared before the "/balances/{balance_id}" routes so the static path
+# is matched first; otherwise "reorder" is captured as a balance_id.
+@router.put("/balances/reorder")
+def reorder_balances(
+    request: BalanceReorderRequest,
+    session: Session = Depends(get_session),
+    current_association: Association = Depends(get_current_association),
+):
+    for item in request.balances:
+        balance = session.get(Balance, item.id)
+        if balance and balance.association_id == current_association.id:
+            balance.position = item.position
+            session.add(balance)
+    session.commit()
+    return {"ok": True}
+
+
 @router.delete("/balances/{balance_id}")
 def delete_balance(
     balance_id: str,
@@ -140,18 +157,3 @@ def get_balance_operations(
         .limit(limit)
     )
     return session.exec(statement).all()
-
-
-@router.put("/balances/reorder")
-def reorder_balances(
-    request: BalanceReorderRequest,
-    session: Session = Depends(get_session),
-    current_association: Association = Depends(get_current_association),
-):
-    for item in request.balances:
-        balance = session.get(Balance, item.id)
-        if balance and balance.association_id == current_association.id:
-            balance.position = item.position
-            session.add(balance)
-    session.commit()
-    return {"ok": True}
