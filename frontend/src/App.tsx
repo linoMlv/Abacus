@@ -6,12 +6,20 @@ import Dashboard from './components/Dashboard';
 import LogsPage from './components/LogsPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import SessionExpiredModal from './components/SessionExpiredModal';
+import { setSessionExpiredHandler } from './api';
 import { useQueryClient } from '@tanstack/react-query';
 
 const AppContent: React.FC = () => {
   const { data: activeAssociation, isLoading } = useMe();
   const logoutMutation = useLogout();
   const queryClient = useQueryClient();
+  const [sessionExpired, setSessionExpired] = React.useState(false);
+
+  React.useEffect(() => {
+    setSessionExpiredHandler(() => setSessionExpired(true));
+    return () => setSessionExpiredHandler(null);
+  }, []);
 
   const handleLoginSuccess = () => {
     // When login succeeds, we invalidate 'me' query to fetch user data
@@ -20,6 +28,14 @@ const AppContent: React.FC = () => {
 
   const handleLogout = () => {
     logoutMutation.mutate();
+  };
+
+  const handleSessionExpiredConfirm = () => {
+    setSessionExpired(false);
+    // Drop cached data and re-evaluate auth: getMe now returns null,
+    // so the login screen is shown.
+    queryClient.clear();
+    queryClient.invalidateQueries({ queryKey: ['me'] });
   };
 
   if (isLoading) {
@@ -61,6 +77,7 @@ const AppContent: React.FC = () => {
       ) : (
         <LoginScreen onLogin={handleLoginSuccess} />
       )}
+      {sessionExpired && <SessionExpiredModal onConfirm={handleSessionExpiredConfirm} />}
     </div>
   );
 };
