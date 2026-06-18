@@ -127,10 +127,10 @@ L'application a été pensée pour être **minimaliste**, **rapide** et **access
 
 ### Prérequis
 
-- **Node.js** (v18 ou supérieur)
+- **Node.js** (v20 ou supérieur)
 - **Python** (v3.11 ou supérieur)
 - **PostgreSQL** (v14 ou supérieur)
-- **Jaspe** ([https://github.com/linoMlv/jaspe](https://github.com/linoMlv/jaspe))
+- **Docker** & **Docker Compose** (pour le déploiement)
 
 ### 1️⃣ Cloner le projet
 
@@ -157,15 +157,15 @@ cd abacus
     cp .env.example .env
     ```
 
-3.  **Initialiser la base de données** :
+3.  **Initialiser la base de données** (applique les migrations) :
     ```bash
-    python cli.py setup-db
+    alembic upgrade head
     ```
 
 ### 3️⃣ Configuration du Frontend
 
 ```bash
-# À la racine du projet
+cd frontend
 npm install
 ```
 
@@ -188,6 +188,7 @@ API : `http://localhost:8000/docs`
 #### Terminal 2 : Frontend
 
 ```bash
+cd frontend
 npm run dev
 ```
 
@@ -195,13 +196,26 @@ Application : `http://localhost:9873`
 
 ### Mode production (Docker)
 
-Le moyen le plus simple de lancer en production est d'utiliser Docker Compose :
+Le déploiement repose sur Docker Compose. Les trois services (`db`, `backend`,
+`frontend`) sont construits et lancés ensemble ; le backend applique
+automatiquement les migrations au démarrage.
 
 ```bash
-docker-compose up --build -d
+cp .env.example .env   # puis renseignez SECRET_KEY, mots de passe, CORS_ORIGINS…
+docker compose up --build -d
 ```
 
-L'application sera accessible sur le port **9874**.
+> Le routage HTTP (domaines, TLS, redirection de `/api` et `/mcp` vers le
+> backend) est géré par **Coolify** en amont des conteneurs : aucun reverse
+> proxy n'est défini dans le `docker-compose.yml`. Sous Coolify, pointez le
+> service `frontend` (port 80) sur votre domaine et routez `/api` et `/mcp`
+> vers le service `backend` (port 8000).
+
+#### Migration des données depuis MySQL
+
+Pour reprendre une base MySQL existante, voir
+`backend/scripts/migrate_mysql_to_postgres.py` (installer aussi
+`backend/requirements-migration.txt`).
 
 ---
 
