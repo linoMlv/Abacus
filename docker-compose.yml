@@ -1,6 +1,6 @@
-# Abacus deployment. Routing/TLS/domains are handled by Coolify in front of
-# these services (no reverse proxy is defined here). Coolify should route
-# /api and /mcp to the backend service and everything else to the frontend.
+# Abacus deployment: a single application container (FastAPI serves both the
+# API and the built frontend) plus PostgreSQL. Coolify only needs to point the
+# domain at the "app" service on port 8000 — no path-based routing required.
 services:
   db:
     image: postgres:16
@@ -17,8 +17,8 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
-    build: ./backend
+  app:
+    build: .
     restart: unless-stopped
     depends_on:
       db:
@@ -51,15 +51,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
-      start_period: 20s
-
-  frontend:
-    build: ./frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    expose:
-      - "80"
+      start_period: 30s
 
 volumes:
   pgdata:
