@@ -1,7 +1,7 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 from database import get_session
 from dependencies import get_current_association
 from email_service import send_password_reset_email
+from rate_limit import AUTH_RATE_LIMIT, limiter
 from models import (
     Association,
     AssociationRead,
@@ -95,16 +96,22 @@ def signup(request: SignupRequest, session: Session = Depends(get_session)):
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit(AUTH_RATE_LIMIT)
 def login(
-    response: Response, request: LoginRequest, session: Session = Depends(get_session)
+    request: Request,
+    response: Response,
+    credentials: LoginRequest,
+    session: Session = Depends(get_session),
 ):
     statement = (
         select(Association)
-        .where(Association.name == request.name)
+        .where(Association.name == credentials.name)
         .options(selectinload(Association.balances))
     )
     association = session.exec(statement).first()
-    if not association or not verify_password(request.password, association.password):
+    if not association or not verify_password(
+        credentials.password, association.password
+    ):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -145,10 +152,13 @@ def read_users_me(current_association: Association = Depends(get_current_associa
 
 
 @router.post("/forgot-password")
+@limiter.limit(AUTH_RATE_LIMIT)
 def forgot_password(
-    request: ForgotPasswordRequest, session: Session = Depends(get_session)
+    request: Request,
+    data: ForgotPasswordRequest,
+    session: Session = Depends(get_session),
 ):
-    statement = select(Association).where(Association.email == request.email)
+    statement = select(Association).where(Association.email == data.email)
     association = session.exec(statement).first()
     # Always return success to prevent email enumeration
     if not association:

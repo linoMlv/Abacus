@@ -2,9 +2,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import LoggingMiddleware
+from rate_limit import limiter
 from routers import account, api_keys, associations, auth, balances, logs, operations
 
 
@@ -16,6 +19,10 @@ async def lifespan(app: FastAPI):
 
 
 _fastapi_app = FastAPI(lifespan=lifespan)
+
+# Rate limiting (slowapi): the limiter is shared with the routers.
+_fastapi_app.state.limiter = limiter
+_fastapi_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 origins = [
     "http://localhost:5173",
