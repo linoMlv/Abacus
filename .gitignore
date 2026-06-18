@@ -167,9 +167,6 @@ $RECYCLE.BIN/
 # Miscellaneous
 # ==========================================
 
-# Jaspe
-.jaspe/
-
 # Temporary files
 *.tmp
 *.temp
