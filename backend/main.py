@@ -10,6 +10,7 @@ from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import LoggingMiddleware, OriginValidationMiddleware
 from rate_limit import limiter
 from routers import account, api_keys, associations, auth, balances, logs, operations
+from static_files import mount_frontend
 
 DEFAULT_ORIGINS = [
     "http://localhost:5173",
@@ -85,6 +86,11 @@ _fastapi_app.include_router(api_keys.router)
 @_fastapi_app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+# Serve the built frontend (mounted last so API routes take precedence).
+# Skipped in development when the build directory is absent.
+mount_frontend(_fastapi_app, os.getenv("FRONTEND_DIST", "static"))
 
 
 # Top-level ASGI app: intercepts /mcp before FastAPI's middleware stack,
