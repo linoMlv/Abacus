@@ -1,4 +1,3 @@
-import logging
 import os
 from datetime import UTC, datetime, timedelta
 
@@ -6,9 +5,13 @@ import bcrypt
 from jose import jwt
 
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-SECRET_KEY = os.getenv("SECRET_KEY", "default_insecure_key_for_dev_only")
-if ENVIRONMENT == "production" and SECRET_KEY == "default_insecure_key_for_dev_only":
-    logging.warning("CRITICAL SECURITY RISK: Using default SECRET_KEY in production!")
+DEFAULT_SECRET_KEY = "default_insecure_key_for_dev_only"
+SECRET_KEY = os.getenv("SECRET_KEY", DEFAULT_SECRET_KEY)
+if ENVIRONMENT == "production" and SECRET_KEY == DEFAULT_SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY must be set to a secure random value in production; "
+        "refusing to start with the insecure default."
+    )
 
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
