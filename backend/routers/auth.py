@@ -2,6 +2,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from jose import JWTError
+from jose import jwt as jose_jwt
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
@@ -16,6 +18,7 @@ from models import (
     RefreshSession,
 )
 from rate_limit import AUTH_RATE_LIMIT, limiter
+from request_utils import client_ip
 from security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     ALGORITHM,
@@ -37,13 +40,6 @@ COOKIE_PATH = "/api"
 def _utcnow() -> datetime:
     """Naive UTC, matching how datetimes are stored in the DB."""
     return datetime.now(UTC).replace(tzinfo=None)
-
-
-def _client_ip(request: Request) -> str | None:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else None
 
 
 def _issue_session(
@@ -73,7 +69,7 @@ def _issue_session(
         token_hash=hash_refresh_token(raw_refresh),
         expires_at=_utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
         user_agent=request.headers.get("user-agent"),
-        ip_address=_client_ip(request),
+        ip_address=client_ip(request),
     )
     session.add(refresh_session)
     session.commit()
@@ -298,10 +294,6 @@ def forgot_password(
             )
         }
 
-    from datetime import UTC, datetime
-
-    from jose import jwt as jose_jwt
-
     token = jose_jwt.encode(
         {
             "sub": association.name,
@@ -321,9 +313,6 @@ def forgot_password(
 def reset_password(
     request: ResetPasswordRequest, session: Session = Depends(get_session)
 ):
-    from jose import JWTError
-    from jose import jwt as jose_jwt
-
     try:
         payload = jose_jwt.decode(request.token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("purpose") != "reset":

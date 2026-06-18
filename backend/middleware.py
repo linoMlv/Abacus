@@ -9,6 +9,7 @@ from starlette.responses import JSONResponse, Response
 
 from database import engine
 from models import LogEntry
+from request_utils import client_ip
 from security import ALGORITHM, SECRET_KEY
 
 
@@ -37,36 +38,26 @@ class OriginValidationMiddleware(BaseHTTPMiddleware):
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):
-    EXCLUDED_PREFIXES = ("/api/logs", "/health")
+    # Only /api requests are logged; /api/logs is excluded to avoid noise.
+    EXCLUDED_PREFIXES = ("/api/logs",)
 
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path
 
-        # Skip logging for excluded paths and non-API paths (static files)
-        if any(path.startswith(p) for p in self.EXCLUDED_PREFIXES):
-            return await call_next(request)
-        if not path.startswith("/api"):
+        # Skip non-API paths (static files) and explicitly excluded prefixes.
+        if not path.startswith("/api") or any(
+            path.startswith(p) for p in self.EXCLUDED_PREFIXES
+        ):
             return await call_next(request)
 
         start_time = time.time()
 
-        # Extract user from login request body before it's consumed
-        login_user = None
-        if path == "/api/login" and request.method == "POST":
+        # Extract the submitted username from login/signup bodies before they
+        # are consumed downstream.
+        body_user = None
+        if request.method == "POST" and path in ("/api/login", "/api/signup"):
             try:
-                body = await request.body()
-                data = json.loads(body)
-                login_user = data.get("name")
-            except Exception:
-                pass
-
-        # Extract user for signup
-        signup_user = None
-        if path == "/api/signup" and request.method == "POST":
-            try:
-                body = await request.body()
-                data = json.loads(body)
-                signup_user = data.get("name")
+                body_user = json.loads(await request.body()).get("name")
             except Exception:
                 pass
 
@@ -80,25 +71,23 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         detail = None
 
         if path == "/api/login" and request.method == "POST":
+            user = body_user
             if response.status_code == 200:
                 event_type = "login"
-                user = login_user
             else:
                 event_type = "login_failed"
-                user = login_user
                 detail = f"HTTP {response.status_code}"
         elif path == "/api/logout" and request.method == "POST":
             event_type = "logout"
         elif path == "/api/signup" and request.method == "POST":
+            user = body_user
             if response.status_code == 200:
                 event_type = "signup"
-                user = signup_user
             else:
                 event_type = "signup_failed"
-                user = signup_user
                 detail = f"HTTP {response.status_code}"
 
-        ip_address = _get_client_ip(request)
+        ip_address = client_ip(request)
         user_agent = request.headers.get("user-agent")
 
         log_entry = LogEntry(
@@ -134,15 +123,3 @@ def _extract_user_from_cookie(request: Request) -> str | None:
         return payload.get("sub")
     except JWTError:
         return None
-
-
-def _get_client_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    real_ip = request.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip
-    if request.client:
-        return request.client.host
-    return None
