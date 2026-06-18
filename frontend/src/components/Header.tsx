@@ -84,16 +84,23 @@ const Header: React.FC<HeaderProps> = ({
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-800 text-white text-sm font-semibold hover:bg-gray-900 transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-800"
                 title={associationName}
+                aria-label={`Compte de ${associationName}`}
+                aria-haspopup="menu"
+                aria-expanded={dropdownOpen}
               >
                 {associationName.charAt(0).toUpperCase()}
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                >
                   <div className="px-4 py-2 border-b border-gray-100">
                     <p className="text-sm font-medium text-gray-800 truncate">{associationName}</p>
                   </div>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setDropdownOpen(false);
                       onOpenSettings();
@@ -106,6 +113,7 @@ const Header: React.FC<HeaderProps> = ({
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
@@ -123,6 +131,7 @@ const Header: React.FC<HeaderProps> = ({
                     <span>Settings</span>
                   </button>
                   <button
+                    role="menuitem"
                     onClick={() => {
                       setDropdownOpen(false);
                       onLogout();
@@ -135,6 +144,7 @@ const Header: React.FC<HeaderProps> = ({
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
+                      aria-hidden="true"
                     >
                       <path
                         strokeLinecap="round"
