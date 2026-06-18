@@ -1,4 +1,6 @@
+import hashlib
 import os
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -14,7 +16,10 @@ if ENVIRONMENT == "production" and SECRET_KEY == DEFAULT_SECRET_KEY:
     )
 
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+# Short-lived access token, refreshed silently via the refresh session.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))
+COOKIE_SECURE = ENVIRONMENT == "production"
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -41,3 +46,13 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+def generate_refresh_token() -> str:
+    """Return a new opaque refresh token (stored only as a hash server-side)."""
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash a refresh token for storage/lookup."""
+    return hashlib.sha256(token.encode()).hexdigest()
