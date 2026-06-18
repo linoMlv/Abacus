@@ -1,10 +1,10 @@
 {
   "name": "abacus",
   "private": true,
-  "version": "2025.12.18",
+  "version": "2026.04.02",
   "description": "Abacus is a web application for association accounting.",
   "author": "Coodlab, Mallevaey Lino",
-  "license": "CC BY-NC-SA 4.0",
+  "license": "EUPL-1.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
