@@ -9,13 +9,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 
 const AppContent: React.FC = () => {
-  if (window.location.pathname === '/logs') {
-    return <LogsPage />;
-  }
-  if (window.location.pathname === '/reset-password') {
-    return <ResetPasswordPage />;
-  }
-
   const { data: activeAssociation, isLoading } = useMe();
   const logoutMutation = useLogout();
   const queryClient = useQueryClient();
@@ -73,10 +66,21 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const { pathname } = window.location;
+
+  let content: React.ReactNode;
+  if (pathname === '/logs') {
+    content = <LogsPage />;
+  } else if (pathname === '/reset-password') {
+    content = <ResetPasswordPage />;
+  } else {
+    content = <AppContent />;
+  }
+
   return (
     <div className="flex flex-col min-h-screen font-sans bg-gray-50">
       <div className="flex flex-col flex-grow">
-        <AppContent />
+        {content}
         <Footer />
       </div>
     </div>
