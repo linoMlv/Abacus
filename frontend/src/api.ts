@@ -137,7 +137,11 @@ export const api = {
       throw new Error('Failed to fetch operations by date');
     }
     const data: BackendOperation[] = await response.json();
-    return data.map((op) => ({ ...op, balanceId: op.balance_id, amount: parseFloat(String(op.amount)) }));
+    return data.map((op) => ({
+      ...op,
+      balanceId: op.balance_id,
+      amount: parseFloat(String(op.amount)),
+    }));
   },
 
   async getAllOperationsUntilDate(end: string): Promise<Operation[]> {
@@ -146,16 +150,30 @@ export const api = {
       throw new Error('Failed to fetch all operations until date');
     }
     const data: BackendOperation[] = await response.json();
-    return data.map((op) => ({ ...op, balanceId: op.balance_id, amount: parseFloat(String(op.amount)) }));
+    return data.map((op) => ({
+      ...op,
+      balanceId: op.balance_id,
+      amount: parseFloat(String(op.amount)),
+    }));
   },
 
-  async getOperationsByBalance(balanceId: string, skip: number, limit: number): Promise<Operation[]> {
-    const response = await fetchWithAuth(`${API_URL}/balances/${balanceId}/operations?skip=${skip}&limit=${limit}`);
+  async getOperationsByBalance(
+    balanceId: string,
+    skip: number,
+    limit: number
+  ): Promise<Operation[]> {
+    const response = await fetchWithAuth(
+      `${API_URL}/balances/${balanceId}/operations?skip=${skip}&limit=${limit}`
+    );
     if (!response.ok) {
       throw new Error('Failed to fetch operations for balance');
     }
     const data: BackendOperation[] = await response.json();
-    return data.map((op) => ({ ...op, balanceId: op.balance_id, amount: parseFloat(String(op.amount)) }));
+    return data.map((op) => ({
+      ...op,
+      balanceId: op.balance_id,
+      amount: parseFloat(String(op.amount)),
+    }));
   },
 
   async reorderBalances(balances: { id: string; position: number }[]): Promise<void> {
@@ -313,7 +331,9 @@ export const api = {
     }
   },
 
-  async createApiKey(name: string): Promise<{ id: string; name: string; key: string; key_prefix: string; created_at: string }> {
+  async createApiKey(
+    name: string
+  ): Promise<{ id: string; name: string; key: string; key_prefix: string; created_at: string }> {
     const response = await fetchWithAuth(`${API_URL}/api-keys`, {
       method: 'POST',
       body: JSON.stringify({ name }),
@@ -324,7 +344,16 @@ export const api = {
     return response.json();
   },
 
-  async listApiKeys(): Promise<{ id: string; name: string; key_prefix: string; created_at: string; last_used_at: string | null; is_active: boolean }[]> {
+  async listApiKeys(): Promise<
+    {
+      id: string;
+      name: string;
+      key_prefix: string;
+      created_at: string;
+      last_used_at: string | null;
+      is_active: boolean;
+    }[]
+  > {
     const response = await fetchWithAuth(`${API_URL}/api-keys`);
     if (!response.ok) {
       throw new Error('Failed to list API keys');

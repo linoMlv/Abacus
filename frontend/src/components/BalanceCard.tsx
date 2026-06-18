@@ -115,17 +115,13 @@ const BalanceCard: React.FC<BalanceCardProps> = ({
         </div>
         <div className="text-center">
           <p className={`text-sm ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>Income</p>
-          <p
-            className={`font-semibold ${isSelected ? 'text-green-400' : 'text-green-600'}`}
-          >
+          <p className={`font-semibold ${isSelected ? 'text-green-400' : 'text-green-600'}`}>
             {formatCurrency(totalIncome)}
           </p>
         </div>
         <div className="text-center">
           <p className={`text-sm ${isSelected ? 'text-gray-400' : 'text-gray-500'}`}>Expenses</p>
-          <p
-            className={`font-semibold ${isSelected ? 'text-red-400' : 'text-red-600'}`}
-          >
+          <p className={`font-semibold ${isSelected ? 'text-red-400' : 'text-red-600'}`}>
             {formatCurrency(totalExpenses)}
           </p>
         </div>

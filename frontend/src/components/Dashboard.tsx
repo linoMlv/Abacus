@@ -1,7 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Association, Balance, Operation, OperationType } from '../types';
 import { startOfMonth, endOfMonth } from 'date-fns';
-import { useDeleteBalance, useDeleteOperation, useOperationsByDate, useReorderBalances, useAllOperationsUntilEnd } from '../hooks/useAbacusData';
+import {
+  useDeleteBalance,
+  useDeleteOperation,
+  useOperationsByDate,
+  useReorderBalances,
+  useAllOperationsUntilEnd,
+} from '../hooks/useAbacusData';
 
 // Components
 import Header from './Header';
@@ -76,9 +82,7 @@ const Dashboard: React.FC<DashboardProps> = ({ association, onLogout }) => {
     dateRange.end.toISOString()
   );
 
-  const { data: allOpsUntilEnd = [] } = useAllOperationsUntilEnd(
-    dateRange.end.toISOString()
-  );
+  const { data: allOpsUntilEnd = [] } = useAllOperationsUntilEnd(dateRange.end.toISOString());
 
   // --- Computed Data ---
   const filteredOperations = dateOperations;
