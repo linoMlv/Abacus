@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -9,20 +9,90 @@ from sqlmodel import Session, select
 from database import get_session
 from dependencies import get_current_association
 from email_service import send_password_reset_email
-from rate_limit import AUTH_RATE_LIMIT, limiter
 from models import (
     Association,
     AssociationRead,
     Balance,
+    RefreshSession,
 )
+from rate_limit import AUTH_RATE_LIMIT, limiter
 from security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     ALGORITHM,
+    COOKIE_SECURE,
+    REFRESH_TOKEN_EXPIRE_DAYS,
     SECRET_KEY,
     create_access_token,
+    generate_refresh_token,
     get_password_hash,
+    hash_refresh_token,
     verify_password,
 )
+
+ACCESS_COOKIE = "access_token"
+REFRESH_COOKIE = "refresh_token"
+COOKIE_PATH = "/api"
+
+
+def _utcnow() -> datetime:
+    """Naive UTC, matching how datetimes are stored in the DB."""
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else None
+
+
+def _issue_session(
+    response: Response,
+    association: Association,
+    request: Request,
+    session: Session,
+) -> str:
+    """Set a fresh access cookie and create a refresh session cookie."""
+    access_token = create_access_token(
+        data={"sub": association.name},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    response.set_cookie(
+        key=ACCESS_COOKIE,
+        value=f"Bearer {access_token}",
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+        path=COOKIE_PATH,
+    )
+
+    raw_refresh = generate_refresh_token()
+    refresh_session = RefreshSession(
+        association_id=association.id,
+        token_hash=hash_refresh_token(raw_refresh),
+        expires_at=_utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        user_agent=request.headers.get("user-agent"),
+        ip_address=_client_ip(request),
+    )
+    session.add(refresh_session)
+    session.commit()
+
+    response.set_cookie(
+        key=REFRESH_COOKIE,
+        value=raw_refresh,
+        httponly=True,
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+        path=COOKIE_PATH,
+    )
+    return access_token
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(ACCESS_COOKIE, path=COOKIE_PATH)
+    response.delete_cookie(REFRESH_COOKIE, path=COOKIE_PATH)
 
 
 class BalanceCreate(BaseModel):
@@ -114,24 +184,7 @@ def login(
     ):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": association.name}, expires_delta=access_token_expires
-    )
-
-    from security import ENVIRONMENT
-
-    is_secure = ENVIRONMENT == "production"
-
-    response.set_cookie(
-        key="access_token",
-        value=f"Bearer {access_token}",
-        httponly=True,
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        samesite="lax",
-        secure=is_secure,
-    )
+    access_token = _issue_session(response, association, request, session)
 
     return LoginResponse(
         access_token=access_token,
@@ -140,10 +193,87 @@ def login(
     )
 
 
+@router.post("/refresh", response_model=LoginResponse)
+def refresh(
+    request: Request, response: Response, session: Session = Depends(get_session)
+):
+    raw_refresh = request.cookies.get(REFRESH_COOKIE)
+    invalid = HTTPException(status_code=401, detail="Invalid refresh token")
+    if not raw_refresh:
+        raise invalid
+
+    refresh_session = session.exec(
+        select(RefreshSession).where(
+            RefreshSession.token_hash == hash_refresh_token(raw_refresh)
+        )
+    ).first()
+    now = _utcnow()
+    if (
+        not refresh_session
+        or refresh_session.revoked_at is not None
+        or refresh_session.expires_at < now
+    ):
+        raise invalid
+
+    association = session.exec(
+        select(Association)
+        .where(Association.id == refresh_session.association_id)
+        .options(selectinload(Association.balances))
+    ).first()
+    if not association:
+        raise invalid
+
+    # Rotate: revoke the used token before issuing a new session.
+    refresh_session.revoked_at = now
+    session.add(refresh_session)
+
+    access_token = _issue_session(response, association, request, session)
+    return LoginResponse(
+        access_token=access_token,
+        token_type="bearer",
+        association=association,
+    )
+
+
 @router.post("/logout")
-def logout(response: Response):
-    response.delete_cookie("access_token")
+def logout(
+    request: Request, response: Response, session: Session = Depends(get_session)
+):
+    raw_refresh = request.cookies.get(REFRESH_COOKIE)
+    if raw_refresh:
+        refresh_session = session.exec(
+            select(RefreshSession).where(
+                RefreshSession.token_hash == hash_refresh_token(raw_refresh)
+            )
+        ).first()
+        if refresh_session and refresh_session.revoked_at is None:
+            refresh_session.revoked_at = _utcnow()
+            session.add(refresh_session)
+            session.commit()
+    _clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
+
+
+@router.post("/logout-all")
+def logout_all(
+    response: Response,
+    current_association: Association = Depends(get_current_association),
+    session: Session = Depends(get_session),
+):
+    """Revoke every active refresh session for the current association."""
+    sessions = session.exec(
+        select(RefreshSession).where(
+            RefreshSession.association_id == current_association.id,
+            RefreshSession.revoked_at.is_(None),
+        )
+    ).all()
+    now = _utcnow()
+    for s in sessions:
+        s.revoked_at = now
+        session.add(s)
+    session.commit()
+    _clear_auth_cookies(response)
+    return {"message": "All sessions revoked"}
 
 
 @router.get("/me", response_model=AssociationRead)

@@ -12,6 +12,8 @@ ignore = []
 # Inline HTML email template: long style/content lines cannot be wrapped
 # without altering the rendered markup.
 "email_service.py" = ["E501"]
+# Must set env vars before importing the app under test.
+"tests/conftest.py" = ["E402"]
 
 [tool.ruff.format]
 quote-style = "double"
