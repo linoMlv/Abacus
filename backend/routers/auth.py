@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from jose import JWTError
 from jose import jwt as jose_jwt
 from pydantic import BaseModel
+from sqlalchemy import update
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
@@ -89,6 +90,26 @@ def _issue_session(
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(ACCESS_COOKIE, path=COOKIE_PATH)
     response.delete_cookie(REFRESH_COOKIE, path=COOKIE_PATH)
+
+
+def _session_by_token(session: Session, raw_refresh: str) -> RefreshSession | None:
+    return session.exec(
+        select(RefreshSession).where(
+            RefreshSession.token_hash == hash_refresh_token(raw_refresh)
+        )
+    ).first()
+
+
+def _revoke_active_sessions(session: Session, association_id: str) -> None:
+    """Revoke every active refresh session for an association (no commit)."""
+    session.exec(
+        update(RefreshSession)
+        .where(
+            RefreshSession.association_id == association_id,
+            RefreshSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=_utcnow())
+    )
 
 
 class BalanceCreate(BaseModel):
@@ -198,11 +219,7 @@ def refresh(
     if not raw_refresh:
         raise invalid
 
-    refresh_session = session.exec(
-        select(RefreshSession).where(
-            RefreshSession.token_hash == hash_refresh_token(raw_refresh)
-        )
-    ).first()
+    refresh_session = _session_by_token(session, raw_refresh)
     now = _utcnow()
     if (
         not refresh_session
@@ -237,11 +254,7 @@ def logout(
 ):
     raw_refresh = request.cookies.get(REFRESH_COOKIE)
     if raw_refresh:
-        refresh_session = session.exec(
-            select(RefreshSession).where(
-                RefreshSession.token_hash == hash_refresh_token(raw_refresh)
-            )
-        ).first()
+        refresh_session = _session_by_token(session, raw_refresh)
         if refresh_session and refresh_session.revoked_at is None:
             refresh_session.revoked_at = _utcnow()
             session.add(refresh_session)
@@ -257,16 +270,7 @@ def logout_all(
     session: Session = Depends(get_session),
 ):
     """Revoke every active refresh session for the current association."""
-    sessions = session.exec(
-        select(RefreshSession).where(
-            RefreshSession.association_id == current_association.id,
-            RefreshSession.revoked_at.is_(None),
-        )
-    ).all()
-    now = _utcnow()
-    for s in sessions:
-        s.revoked_at = now
-        session.add(s)
+    _revoke_active_sessions(session, current_association.id)
     session.commit()
     _clear_auth_cookies(response)
     return {"message": "All sessions revoked"}
@@ -328,5 +332,7 @@ def reset_password(
 
     association.password = get_password_hash(request.password)
     session.add(association)
+    # Revoke existing refresh sessions so a reset locks out any active intruder.
+    _revoke_active_sessions(session, association.id)
     session.commit()
     return {"message": "Password has been reset successfully"}

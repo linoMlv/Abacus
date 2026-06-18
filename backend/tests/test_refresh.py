@@ -56,3 +56,25 @@ def test_logout_all_revokes_every_session(auth):
 
     client.cookies.set("refresh_token", refresh)
     assert client.post("/api/refresh").status_code == 401
+
+
+def test_password_reset_revokes_refresh_sessions(auth):
+    from jose import jwt
+
+    from security import ALGORITHM, SECRET_KEY
+
+    client, _ = auth
+    refresh = client.cookies.get("refresh_token")
+
+    reset_token = jwt.encode(
+        {"sub": "AuthAsso", "purpose": "reset"}, SECRET_KEY, algorithm=ALGORITHM
+    )
+    response = client.post(
+        "/api/reset-password",
+        json={"token": reset_token, "password": "brand-new-password"},
+    )
+    assert response.status_code == 200
+
+    # A refresh token issued before the reset must no longer be usable.
+    client.cookies.set("refresh_token", refresh)
+    assert client.post("/api/refresh").status_code == 401
