@@ -14,6 +14,7 @@ from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import LoggingMiddleware, OriginValidationMiddleware
 from rate_limit import limiter
 from routers import account, api_keys, associations, auth, balances, logs, operations
+from security import ENVIRONMENT
 from static_files import mount_frontend
 
 DEFAULT_ORIGINS = [
@@ -28,6 +29,13 @@ def _allowed_origins() -> list[str]:
     raw = os.getenv("CORS_ORIGINS")
     if raw:
         return [o.strip() for o in raw.split(",") if o.strip()]
+    if ENVIRONMENT == "production":
+        logging.warning(
+            "CORS_ORIGINS is not set in production; falling back to localhost "
+            "origins. Browser POST/PUT/DELETE from the real domain will be "
+            "rejected with 403 by the origin check. Set CORS_ORIGINS to your "
+            "public URL (e.g. https://abacus.example.com)."
+        )
     return DEFAULT_ORIGINS
 
 
