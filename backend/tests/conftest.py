@@ -1,7 +1,16 @@
 import os
 
-# Disable rate limiting for the suite before the app is imported; the
-# dedicated rate-limit test re-enables the limiter explicitly.
+# Pin the test environment before the app is imported, so an ambient .env
+# (e.g. a deployment file picked up by load_dotenv) cannot change behavior:
+# load_dotenv runs with override=False and won't clobber these.
+# - development: cookies are not Secure, so the http TestClient keeps them.
+# - fixed CORS origins: deterministic origin-validation tests.
+# - rate limiting off: the dedicated test re-enables the limiter explicitly.
+os.environ.setdefault("ENVIRONMENT", "development")
+os.environ.setdefault(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://localhost:9873",
+)
 os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
 
 import pytest
