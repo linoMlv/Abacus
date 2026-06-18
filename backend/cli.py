@@ -51,5 +51,19 @@ def reset_db():
     setup_db()
 
 
+@app.command()
+def purge_logs(days: int = typer.Option(None, help="Override LOG_RETENTION_DAYS.")):
+    """
+    Delete log entries older than the retention window.
+    """
+    from sqlmodel import Session
+
+    from log_retention import purge_old_logs
+
+    with Session(engine) as session:
+        deleted = purge_old_logs(session, retention_days=days)
+    console.print(f"[bold green]Purged {deleted} log entries.[/bold green]")
+
+
 if __name__ == "__main__":
     app()
