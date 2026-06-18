@@ -41,13 +41,18 @@ const AppContent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center flex-grow bg-gray-50">
+      <div
+        className="flex items-center justify-center flex-grow bg-gray-50"
+        role="status"
+        aria-live="polite"
+      >
         <div className="flex flex-col items-center gap-4">
           <svg
             className="animate-spin h-10 w-10 text-gray-800"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <circle
               className="opacity-25"
