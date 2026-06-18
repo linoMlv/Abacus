@@ -35,6 +35,7 @@ from starlette.responses import JSONResponse
 
 from database import engine
 from models import ApiKey, Association, Balance, LogEntry, Operation, OperationType
+from request_utils import client_ip
 
 # ContextVar to pass the authenticated association to tool handlers
 _current_association: ContextVar[Association | None] = ContextVar(
@@ -505,11 +506,7 @@ async def mcp_asgi_app(scope, receive, send):
     request = Request(scope, receive)
 
     # Extract client info for logging
-    ip_address = (
-        (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-        or request.headers.get("x-real-ip")
-        or (request.client.host if request.client else None)
-    )
+    ip_address = client_ip(request)
     user_agent = request.headers.get("user-agent")
 
     # Extract API key from header
