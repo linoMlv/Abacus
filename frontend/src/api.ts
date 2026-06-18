@@ -44,17 +44,58 @@ const mapAssociationData = (data: BackendAssociation): Association => {
   };
 };
 
+// Called when the session can no longer be refreshed (truly expired).
+// The app registers a handler that surfaces a modal and returns to login.
+type SessionExpiredHandler = () => void;
+let sessionExpiredHandler: SessionExpiredHandler | null = null;
+
+export function setSessionExpiredHandler(handler: SessionExpiredHandler | null): void {
+  sessionExpiredHandler = handler;
+}
+
+// Dedupe concurrent refreshes: many requests may 401 at once.
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_URL}/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then((r) => r.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+interface FetchOptions extends RequestInit {
+  // Bypass 401 handling entirely (auth endpoints: login, signup, refresh...).
+  skipAuthRefresh?: boolean;
+  // Try to refresh on 401, but do not surface the session-expired modal
+  // (used for the initial /me probe of a possibly-anonymous visitor).
+  silentAuthFailure?: boolean;
+  // Internal: marks the single retry after a successful refresh.
+  _retried?: boolean;
+}
+
 /**
- * Generic fetch wrapper to handle credentials and common headers.
+ * Generic fetch wrapper: sends cookies, sets headers, and transparently
+ * refreshes the access token once on 401 before giving up.
  */
-async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+async function fetchWithAuth(url: string, options: FetchOptions = {}): Promise<Response> {
+  const { skipAuthRefresh, silentAuthFailure, _retried, ...rest } = options;
+
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(rest.headers || {}),
   };
 
   const config: RequestInit = {
-    ...options,
+    ...rest,
     headers,
     credentials: 'include', // Tells the browser to send cookies with the request
     cache: 'no-store', // Prevent aggressive browser caching of API responses
@@ -62,9 +103,15 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
 
   const response = await fetch(url, config);
 
-  // Note: 401 handling is done per-caller (e.g. getMe returns null).
-  // Do NOT redirect globally here — it causes an infinite reload loop
-  // on the login page since /api/me always returns 401 when unauthenticated.
+  if (response.status === 401 && !skipAuthRefresh && !_retried) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return fetchWithAuth(url, { ...options, _retried: true });
+    }
+    if (!silentAuthFailure) {
+      sessionExpiredHandler?.();
+    }
+  }
 
   return response;
 }
@@ -79,6 +126,7 @@ export const api = {
     const response = await fetchWithAuth(`${API_URL}/signup`, {
       method: 'POST',
       body: JSON.stringify({ name, email, password, balances }),
+      skipAuthRefresh: true,
     });
     if (!response.ok) {
       const error = await response.json();
@@ -92,6 +140,7 @@ export const api = {
     const response = await fetchWithAuth(`${API_URL}/login`, {
       method: 'POST',
       body: JSON.stringify({ name, password }),
+      skipAuthRefresh: true,
     });
     if (!response.ok) {
       const error = await response.json();
@@ -103,7 +152,11 @@ export const api = {
   },
 
   async getMe(): Promise<Association | null> {
-    const response = await fetchWithAuth(`${API_URL}/me`);
+    // Attempt a silent refresh on 401 (returning visitor with an expired
+    // access token), but never show the session-expired modal here.
+    const response = await fetchWithAuth(`${API_URL}/me`, {
+      silentAuthFailure: true,
+    });
     if (!response.ok) {
       return null;
     }
@@ -114,6 +167,7 @@ export const api = {
   async logout(): Promise<void> {
     await fetchWithAuth(`${API_URL}/logout`, {
       method: 'POST',
+      skipAuthRefresh: true,
     });
     // Can optionally clear local client state here if needed
   },
@@ -314,6 +368,7 @@ export const api = {
     const response = await fetchWithAuth(`${API_URL}/forgot-password`, {
       method: 'POST',
       body: JSON.stringify({ email }),
+      skipAuthRefresh: true,
     });
     if (!response.ok) {
       throw new Error('Failed to send reset email');
@@ -324,6 +379,7 @@ export const api = {
     const response = await fetchWithAuth(`${API_URL}/reset-password`, {
       method: 'POST',
       body: JSON.stringify({ token, password }),
+      skipAuthRefresh: true,
     });
     if (!response.ok) {
       const error = await response.json();
