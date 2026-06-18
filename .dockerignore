@@ -1,0 +1,17 @@
+# Build context is the repo root (single image builds both front and back).
+**/node_modules/
+**/dist/
+backend/venv/
+backend/.venv/
+**/__pycache__/
+**/*.pyc
+backend/.pytest_cache/
+backend/.ruff_cache/
+**/.env
+**/.env.*
+!**/.env.example
+.git/
+.github/
+backend/tests/
+backend/requirements-migration.txt
+ROADMAP.local.md

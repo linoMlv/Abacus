@@ -196,20 +196,22 @@ Application : `http://localhost:9873`
 
 ### Mode production (Docker)
 
-Le déploiement repose sur Docker Compose. Les trois services (`db`, `backend`,
-`frontend`) sont construits et lancés ensemble ; le backend applique
-automatiquement les migrations au démarrage.
+Le déploiement repose sur Docker Compose et **un unique conteneur applicatif** :
+le frontend est buildé puis servi directement par FastAPI (avec fallback SPA),
+aux côtés de l'API et du serveur MCP. Seuls deux services tournent : `db`
+(PostgreSQL) et `app`. Les migrations sont appliquées automatiquement au
+démarrage.
 
 ```bash
 cp .env.example .env   # puis renseignez SECRET_KEY, mots de passe, CORS_ORIGINS…
 docker compose up --build -d
 ```
 
-> Le routage HTTP (domaines, TLS, redirection de `/api` et `/mcp` vers le
-> backend) est géré par **Coolify** en amont des conteneurs : aucun reverse
-> proxy n'est défini dans le `docker-compose.yml`. Sous Coolify, pointez le
-> service `frontend` (port 80) sur votre domaine et routez `/api` et `/mcp`
-> vers le service `backend` (port 8000).
+> Le routage HTTP (domaine, TLS) est géré par **Coolify** en amont : aucun
+> reverse proxy n'est défini dans le `docker-compose.yml`. Comme le service
+> `app` sert à la fois le front et l'API sur le port **8000**, il suffit de
+> pointer votre domaine dessus — **aucun routage de chemins n'est nécessaire**.
+> Renseignez `CORS_ORIGINS` (et `APP_URL`) avec l'URL publique.
 
 #### Migration des données depuis MySQL
 
