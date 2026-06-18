@@ -36,10 +36,23 @@ class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
       return (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded relative">
-          <strong className="font-bold">Something went wrong.</strong>
-          <span className="block sm:inline"> Please refresh the page.</span>
-        </div>
+        <main
+          role="alert"
+          className="flex flex-grow flex-col items-center justify-center bg-gray-50 px-4 text-center"
+        >
+          <img src="/abacus.svg" alt="Abacus" className="mb-6 h-16 w-auto" />
+          <h1 className="text-xl font-semibold text-gray-800">Une erreur est survenue</h1>
+          <p className="mt-2 max-w-sm text-gray-500">
+            Quelque chose s'est mal passé. Veuillez réessayer.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-8 rounded-lg bg-gray-900 px-6 py-2.5 font-medium text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+          >
+            Recharger la page
+          </button>
+        </main>
       );
     }
 

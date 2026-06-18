@@ -6,6 +6,7 @@ import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import LogsPage from './components/LogsPage';
 import ResetPasswordPage from './components/ResetPasswordPage';
+import NotFoundPage from './components/NotFoundPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import SessionExpiredModal from './components/SessionExpiredModal';
 import { setSessionExpiredHandler } from './api';
@@ -93,9 +94,10 @@ const App: React.FC = () => {
     <div className="flex flex-col min-h-screen font-sans bg-gray-50">
       <div className="flex flex-col flex-grow">
         <Routes>
+          <Route path="/" element={<AppContent />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="*" element={<AppContent />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <Footer />
       </div>
