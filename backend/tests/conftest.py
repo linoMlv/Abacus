@@ -1,5 +1,9 @@
 import os
 
+# Disable rate limiting for the suite before the app is imported; the
+# dedicated rate-limit test re-enables the limiter explicitly.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
