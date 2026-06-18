@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 
 const ResetPasswordPage: React.FC = () => {
@@ -7,7 +8,8 @@ const ResetPasswordPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  const token = new URLSearchParams(window.location.search).get('token') || '';
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') || '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,12 +53,12 @@ const ResetPasswordPage: React.FC = () => {
                 />
               </svg>
               <p className="text-gray-600">Your password has been reset successfully.</p>
-              <a
-                href="/"
+              <Link
+                to="/"
                 className="inline-block px-6 py-2 bg-gray-800 text-white rounded-lg font-semibold hover:bg-gray-900 transition"
               >
                 Back to Login
-              </a>
+              </Link>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -89,9 +91,9 @@ const ResetPasswordPage: React.FC = () => {
                 Reset Password
               </button>
               <p className="text-center">
-                <a href="/" className="text-sm font-semibold text-gray-700 hover:underline">
+                <Link to="/" className="text-sm font-semibold text-gray-700 hover:underline">
                   Back to login
-                </a>
+                </Link>
               </p>
             </form>
           )}

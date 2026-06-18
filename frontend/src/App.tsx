@@ -1,4 +1,5 @@
 import React from 'react';
+import { Route, Routes } from 'react-router-dom';
 import Footer from './components/Footer';
 import { useMe, useLogout } from './hooks/useAbacusData';
 import LoginScreen from './components/LoginScreen';
@@ -83,21 +84,14 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const { pathname } = window.location;
-
-  let content: React.ReactNode;
-  if (pathname === '/logs') {
-    content = <LogsPage />;
-  } else if (pathname === '/reset-password') {
-    content = <ResetPasswordPage />;
-  } else {
-    content = <AppContent />;
-  }
-
   return (
     <div className="flex flex-col min-h-screen font-sans bg-gray-50">
       <div className="flex flex-col flex-grow">
-        {content}
+        <Routes>
+          <Route path="/logs" element={<LogsPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="*" element={<AppContent />} />
+        </Routes>
         <Footer />
       </div>
     </div>
