@@ -288,6 +288,38 @@ unique et **refuse une base cible non vide**.
 - [ ] Connexion / création d'opération fonctionnelles
 - [ ] Identifiants `LOGS_USER` / `LOGS_PASS` changés
 
+#### 🛑 Arrêt, sauvegarde et mise à jour (sans perdre les données)
+
+Les données vivent dans le **volume Docker nommé `pgdata`**, indépendant des
+conteneurs. Arrêter ou recréer les conteneurs ne supprime **pas** ce volume.
+
+```bash
+# Arrêt en conservant les données (les plus sûrs)
+docker compose stop          # arrête les conteneurs, tout est conservé
+docker compose down          # supprime les conteneurs MAIS conserve le volume pgdata
+
+# Redémarrage / mise à jour (le volume et donc les données sont conservés)
+git pull && docker compose up --build -d   # les migrations s'appliquent au démarrage
+```
+
+> ⚠️ **Ne jamais utiliser `docker compose down -v` en production** : le flag `-v`
+> **supprime le volume `pgdata` et détruit toutes les données**.
+
+**Sauvegarde / restauration** (recommandé avant toute maintenance) :
+
+```bash
+# Sauvegarde (dump SQL horodaté)
+docker compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup_$(date +%F).sql
+
+# Restauration dans une base vide
+cat backup_AAAA-MM-JJ.sql | docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+> Sous **Coolify** : « Stop » et les redéploiements conservent le volume.
+> Ne supprimez la ressource (ou son volume) que si vous voulez effacer les
+> données — faites une sauvegarde `pg_dump` au préalable. Coolify permet aussi
+> de planifier des sauvegardes automatiques de la base.
+
 ---
 
 ## 🧪 Développement & Qualité
