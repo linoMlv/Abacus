@@ -94,6 +94,19 @@ class ApiKeyCreated(SQLModel):
     created_at: datetime
 
 
+class RefreshSession(SQLModel, table=True):
+    __tablename__ = "refresh_session"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id")
+    token_hash: str = Field(unique=True, index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    expires_at: datetime
+    revoked_at: datetime | None = None
+    user_agent: str | None = None
+    ip_address: str | None = None
+
+
 class LogEntry(SQLModel, table=True):
     __tablename__ = "log_entry"
 
