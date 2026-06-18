@@ -196,28 +196,97 @@ Application : `http://localhost:9873`
 
 ### Mode production (Docker)
 
-Le déploiement repose sur Docker Compose et **un unique conteneur applicatif** :
-le frontend est buildé puis servi directement par FastAPI (avec fallback SPA),
-aux côtés de l'API et du serveur MCP. Seuls deux services tournent : `db`
-(PostgreSQL) et `app`. Les migrations sont appliquées automatiquement au
-démarrage.
+Le déploiement repose sur **Docker Compose** et **un unique conteneur
+applicatif**. Une image multi-stage build le frontend (Node), puis FastAPI sert
+les fichiers statiques (avec fallback SPA) **aux côtés de l'API et du serveur
+MCP, sur le même port 8000**. Seuls deux services tournent :
+
+| Service | Rôle | Port |
+| :------ | :--- | :--- |
+| `db`    | PostgreSQL 16 (volume persistant `pgdata`) | interne |
+| `app`   | FastAPI : front + `/api` + `/mcp` | **8000** |
+
+Les **migrations Alembic sont appliquées automatiquement** au démarrage du
+conteneur `app` (`alembic upgrade head`).
+
+#### 1️⃣ Configuration (`.env`)
+
+Copiez le modèle et renseignez vos valeurs :
 
 ```bash
-cp .env.example .env   # puis renseignez SECRET_KEY, mots de passe, CORS_ORIGINS…
+cp .env.example .env
+```
+
+Variables principales :
+
+| Variable | Obligatoire | Description |
+| :------- | :---------- | :---------- |
+| `ENVIRONMENT` | ✅ | Mettre `production` : impose un `SECRET_KEY` non-défaut et les cookies `Secure`. |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | ✅ | Identifiants de la base. |
+| `SECRET_KEY` | ✅ | Clé de signature des JWT. **L'app refuse de démarrer en production avec la valeur par défaut.** Générez-la : `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `CORS_ORIGINS` | ✅ | URL(s) publiques autorisées (séparées par virgule), ex. `https://abacus.example.com`. **Si absente, toutes les écritures (POST/PUT/DELETE) sont rejetées en 403** — un warning est loggé au démarrage. |
+| `APP_URL` | ✅ | URL publique (utilisée dans les liens d'e-mail de réinitialisation). |
+| `LOGS_USER` / `LOGS_PASS` | ✅ | Identifiants HTTP Basic de la page `/logs`. |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | — | Durée de l'access token (défaut 15). |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | — | Durée du refresh token (défaut 30). |
+| `AUTH_RATE_LIMIT` | — | Limite sur login/forgot-password (défaut `5/minute`). |
+| `LOG_RETENTION_DAYS` | — | Purge des logs plus vieux que N jours (défaut 90, `0` désactive). |
+| `SMTP_*` | — | SMTP pour les e-mails de réinitialisation (sinon désactivé). |
+
+#### 2️⃣ Déploiement via Docker Compose (serveur manuel)
+
+```bash
+git clone <url-du-repo> && cd abacus
+cp .env.example .env        # éditez les valeurs ci-dessus
 docker compose up --build -d
 ```
 
-> Le routage HTTP (domaine, TLS) est géré par **Coolify** en amont : aucun
-> reverse proxy n'est défini dans le `docker-compose.yml`. Comme le service
-> `app` sert à la fois le front et l'API sur le port **8000**, il suffit de
-> pointer votre domaine dessus — **aucun routage de chemins n'est nécessaire**.
-> Renseignez `CORS_ORIGINS` (et `APP_URL`) avec l'URL publique.
+L'application écoute sur le port `8000` du conteneur `app`. Vérifiez la santé :
 
-#### Migration des données depuis MySQL
+```bash
+curl http://localhost:8000/health   # -> {"status":"ok"}
+```
 
-Pour reprendre une base MySQL existante, voir
-`backend/scripts/migrate_mysql_to_postgres.py` (installer aussi
-`backend/requirements-migration.txt`).
+Placez un reverse proxy (Nginx, Caddy, Traefik…) devant `app:8000` pour le
+domaine et le TLS — **aucun routage de chemins n'est nécessaire**, le service
+sert déjà le front et l'API ensemble.
+
+#### 3️⃣ Déploiement via Coolify (recommandé)
+
+1. Créez une ressource **Docker Compose** pointant sur ce dépôt.
+2. Renseignez les **variables d'environnement** (mêmes que le `.env` ci-dessus)
+   dans l'interface Coolify.
+3. Attachez votre **domaine au service `app` (port 8000)**. Coolify gère le
+   domaine et le TLS ; **aucun reverse proxy n'est défini dans le
+   `docker-compose.yml`** et aucun routage `/api` / `/mcp` n'est à configurer.
+4. Mettez `CORS_ORIGINS` et `APP_URL` à votre **URL publique** (ex.
+   `https://abacus.example.com`).
+
+#### 4️⃣ Reprise d'une base MySQL existante (optionnel)
+
+Pour migrer les données depuis une ancienne instance MySQL vers PostgreSQL :
+
+```bash
+# Le schéma PostgreSQL doit déjà exister (migrations appliquées au démarrage).
+pip install -r backend/requirements.txt -r backend/requirements-migration.txt
+
+SOURCE_DATABASE_URL="mysql+pymysql://user:pass@ancien-hote:3306/abacus" \
+DATABASE_URL="postgresql+psycopg://user:pass@nouveau-hote:5432/abacus" \
+python backend/scripts/migrate_mysql_to_postgres.py --dry-run   # validation
+# puis sans --dry-run pour valider la copie (comptages + totaux vérifiés)
+```
+
+Le script copie chaque table dans l'ordre des dépendances, **valide par
+comptages de lignes et sommes monétaires**, s'exécute dans une transaction
+unique et **refuse une base cible non vide**.
+
+#### ✅ Checklist post-déploiement
+
+- [ ] `SECRET_KEY` défini (sinon l'app refuse de démarrer en production)
+- [ ] `CORS_ORIGINS` = URL publique (sinon 403 sur toutes les écritures ; un warning apparaît dans les logs)
+- [ ] `GET /health` renvoie `{"status":"ok"}`
+- [ ] Connexion / création d'opération fonctionnelles
+- [ ] Identifiants `LOGS_USER` / `LOGS_PASS` changés
 
 ---
 
