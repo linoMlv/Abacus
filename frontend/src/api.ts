@@ -44,6 +44,13 @@ const mapAssociationData = (data: BackendAssociation): Association => {
   };
 };
 
+const mapOperations = (data: BackendOperation[]): Operation[] =>
+  data.map((op) => ({
+    ...op,
+    balanceId: op.balance_id,
+    amount: parseFloat(String(op.amount)),
+  }));
+
 // Called when the session can no longer be refreshed (truly expired).
 // The app registers a handler that surfaces a modal and returns to login.
 type SessionExpiredHandler = () => void;
@@ -190,12 +197,7 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to fetch operations by date');
     }
-    const data: BackendOperation[] = await response.json();
-    return data.map((op) => ({
-      ...op,
-      balanceId: op.balance_id,
-      amount: parseFloat(String(op.amount)),
-    }));
+    return mapOperations(await response.json());
   },
 
   async getAllOperationsUntilDate(end: string): Promise<Operation[]> {
@@ -203,12 +205,7 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to fetch all operations until date');
     }
-    const data: BackendOperation[] = await response.json();
-    return data.map((op) => ({
-      ...op,
-      balanceId: op.balance_id,
-      amount: parseFloat(String(op.amount)),
-    }));
+    return mapOperations(await response.json());
   },
 
   async getOperationsByBalance(
@@ -222,12 +219,7 @@ export const api = {
     if (!response.ok) {
       throw new Error('Failed to fetch operations for balance');
     }
-    const data: BackendOperation[] = await response.json();
-    return data.map((op) => ({
-      ...op,
-      balanceId: op.balance_id,
-      amount: parseFloat(String(op.amount)),
-    }));
+    return mapOperations(await response.json());
   },
 
   async reorderBalances(balances: { id: string; position: number }[]): Promise<void> {
