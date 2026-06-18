@@ -93,7 +93,9 @@ mount_frontend(_fastapi_app, os.getenv("FRONTEND_DIST", "static"))
 # Top-level ASGI app: intercepts /mcp before FastAPI's middleware stack,
 # which would otherwise buffer SSE streaming responses.
 async def app(scope, receive, send):
-    if scope["type"] == "http" and scope["path"] == "/mcp":
+    if scope["type"] == "http" and (
+        scope["path"] == "/mcp" or scope["path"].startswith("/mcp/")
+    ):
         await mcp_asgi_app(scope, receive, send)
     else:
         await _fastapi_app(scope, receive, send)  # lifespan events also go here

@@ -11,11 +11,14 @@ import os
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
+RESERVED_PREFIXES = ("api", "health", "mcp")
+
 
 def _should_fallback(path: str) -> bool:
-    # Never mask API/health/mcp 404s, nor missing files (paths with an
-    # extension), with the SPA shell.
-    if path.startswith("api") or path in ("health", "mcp"):
+    # Never mask backend 404s, nor missing files (paths with an extension),
+    # with the SPA shell. Match the first path segment so a client route like
+    # "apikeys" is not mistaken for the "api" prefix.
+    if path.split("/", 1)[0] in RESERVED_PREFIXES:
         return False
     last_segment = path.rsplit("/", 1)[-1]
     return "." not in last_segment
