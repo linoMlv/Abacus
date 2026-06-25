@@ -8,10 +8,13 @@ strangler migration:
                               by :func:`auth_context.get_active_membership`.
 """
 
+import hashlib
+import os
 import secrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import update
 from sqlmodel import Session, select
@@ -25,8 +28,10 @@ from auth_context import (
 )
 from authz import Permission
 from database import get_session
+from email_service import send_invitation_email
 from models import (
     Association,
+    Invitation,
     Membership,
     MembershipStatus,
     RefreshSession,
@@ -37,8 +42,10 @@ from rate_limit import AUTH_RATE_LIMIT, limiter
 from request_utils import client_ip
 from security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    ALGORITHM,
     COOKIE_SECURE,
     REFRESH_TOKEN_EXPIRE_DAYS,
+    SECRET_KEY,
     create_access_token,
     generate_refresh_token,
     get_password_hash,
@@ -49,11 +56,16 @@ from security import (
 ACCESS_COOKIE = "access_token"
 REFRESH_COOKIE = "refresh_token"
 COOKIE_PATH = "/api"
+INVITATION_EXPIRE_DAYS = int(os.getenv("INVITATION_EXPIRE_DAYS", "7"))
 
 
 def _utcnow() -> datetime:
     """Naive UTC, matching how datetimes are stored in the DB."""
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 router = APIRouter(tags=["identity"])
@@ -113,6 +125,32 @@ class MemberRead(BaseModel):
 class UpdateMemberRequest(BaseModel):
     role: Role | None = None
     status: MembershipStatus | None = None
+
+
+class CreateInvitationRequest(BaseModel):
+    email: str
+    role: Role
+
+
+class InvitationRead(BaseModel):
+    id: str
+    email: str
+    role: Role
+    created_at: datetime
+    expires_at: datetime
+    accepted_at: datetime | None
+
+
+class InvitationCreated(InvitationRead):
+    # The raw token is returned once, to the inviting admin, so a link can be
+    # shared directly in addition to the e-mail.
+    token: str
+
+
+class AcceptInvitationRequest(BaseModel):
+    token: str
+    name: str | None = None
+    password: str | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -176,6 +214,29 @@ def _user_session_by_token(session: Session, raw_refresh: str) -> RefreshSession
             RefreshSession.user_id.is_not(None),
         )
     ).first()
+
+
+def _optional_current_user(request: Request, session: Session) -> User | None:
+    """Resolve the authenticated user if any, without raising (for accept flow)."""
+    raw = request.cookies.get(ACCESS_COOKIE)
+    if not raw:
+        header = request.headers.get("authorization")
+        if header and header.lower().startswith("bearer "):
+            raw = header
+    if not raw:
+        return None
+    token = raw.split(" ", 1)[1] if raw.startswith("Bearer ") else raw
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("type") != USER_TOKEN_TYPE:
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    user = session.get(User, user_id)
+    return user if user and user.is_active else None
 
 
 def _get_membership(
@@ -483,3 +544,174 @@ def remove_member(
     session.delete(membership)
     session.commit()
     return {"message": "Member removed"}
+
+
+# --------------------------------------------------------------------------- #
+# Invitations
+# --------------------------------------------------------------------------- #
+def _invitation_read(invitation: Invitation) -> InvitationRead:
+    return InvitationRead(
+        id=invitation.id,
+        email=invitation.email,
+        role=invitation.role,
+        created_at=invitation.created_at,
+        expires_at=invitation.expires_at,
+        accepted_at=invitation.accepted_at,
+    )
+
+
+@router.post(
+    "/api/asso/{association_id}/invitations",
+    response_model=InvitationCreated,
+    status_code=201,
+)
+def create_invitation(
+    request: CreateInvitationRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    email = _normalize_email(request.email)
+
+    # Reject inviting someone who is already a member of this association.
+    existing_user = session.exec(select(User).where(User.email == email)).first()
+    if existing_user and _get_membership(session, ctx.association_id, existing_user.id):
+        raise HTTPException(status_code=400, detail="This person is already a member")
+
+    # Keep a single live invitation per (association, email): drop prior ones.
+    prior = session.exec(
+        select(Invitation).where(
+            Invitation.association_id == ctx.association_id,
+            Invitation.email == email,
+            Invitation.accepted_at.is_(None),
+        )
+    ).all()
+    for old in prior:
+        session.delete(old)
+
+    raw_token = secrets.token_urlsafe(32)
+    invitation = Invitation(
+        association_id=ctx.association_id,
+        email=email,
+        role=request.role,
+        token_hash=_hash_token(raw_token),
+        invited_by=ctx.user.id,
+        expires_at=_utcnow() + timedelta(days=INVITATION_EXPIRE_DAYS),
+    )
+    session.add(invitation)
+    session.commit()
+    session.refresh(invitation)
+
+    association = session.get(Association, ctx.association_id)
+    send_invitation_email(email, association.name, raw_token)
+
+    return InvitationCreated(
+        **_invitation_read(invitation).model_dump(), token=raw_token
+    )
+
+
+@router.get(
+    "/api/asso/{association_id}/invitations",
+    response_model=list[InvitationRead],
+)
+def list_invitations(
+    ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    invitations = session.exec(
+        select(Invitation).where(
+            Invitation.association_id == ctx.association_id,
+            Invitation.accepted_at.is_(None),
+        )
+    ).all()
+    return [_invitation_read(inv) for inv in invitations]
+
+
+@router.delete("/api/asso/{association_id}/invitations/{invitation_id}")
+def revoke_invitation(
+    invitation_id: str,
+    ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    invitation = session.get(Invitation, invitation_id)
+    # Scope check: never reveal/affect another association's invitations.
+    if invitation is None or invitation.association_id != ctx.association_id:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+    session.delete(invitation)
+    session.commit()
+    return {"message": "Invitation revoked"}
+
+
+@router.post("/api/auth/invitations/accept", response_model=SessionResponse)
+def accept_invitation(
+    request: Request,
+    response: Response,
+    body: AcceptInvitationRequest,
+    session: Session = Depends(get_session),
+):
+    invitation = session.exec(
+        select(Invitation).where(Invitation.token_hash == _hash_token(body.token))
+    ).first()
+    now = _utcnow()
+    invalid = HTTPException(status_code=400, detail="Invalid or expired invitation")
+    if (
+        not invitation
+        or invitation.accepted_at is not None
+        or invitation.expires_at < now
+    ):
+        raise invalid
+
+    email = invitation.email
+    user = session.exec(select(User).where(User.email == email)).first()
+    current = _optional_current_user(request, session)
+    issue_session = False
+
+    if user is not None:
+        # The invitation targets an existing account; the caller must be it.
+        if current is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Please log in as the invited account to accept",
+            )
+        if current.id != user.id:
+            raise HTTPException(
+                status_code=403, detail="This invitation is for another account"
+            )
+        acting = user
+    else:
+        # No account yet: create one on the fly from the invitation email.
+        if not body.name or not body.password:
+            raise HTTPException(
+                status_code=400,
+                detail="Account creation requires name and password",
+            )
+        acting = User(
+            email=email,
+            password=get_password_hash(body.password),
+            name=body.name,
+        )
+        session.add(acting)
+        session.commit()
+        session.refresh(acting)
+        issue_session = True
+
+    if _get_membership(session, invitation.association_id, acting.id) is None:
+        session.add(
+            Membership(
+                user_id=acting.id,
+                association_id=invitation.association_id,
+                role=invitation.role,
+                invited_by=invitation.invited_by,
+            )
+        )
+    invitation.accepted_at = now
+    session.add(invitation)
+    session.commit()
+
+    if issue_session:
+        _issue_user_session(response, acting, request, session)
+
+    return SessionResponse(
+        user=UserRead(id=acting.id, email=acting.email, name=acting.name),
+        associations=_associations_for(session, acting),
+    )

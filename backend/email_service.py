@@ -56,3 +56,26 @@ def send_password_reset_email(to: str, token: str) -> bool:
     </div>
     """
     return _send_email(to, "Abacus - Password Reset", html)
+
+
+def send_invitation_email(to: str, association_name: str, token: str) -> bool:
+    accept_url = f"{APP_URL}/invitation?token={token}"
+    html = f"""
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="color: #1f2937;">Abacus — Invitation</h2>
+        <p style="color: #4b5563;">
+            Vous avez été invité·e à rejoindre l'association
+            <strong>{association_name}</strong> sur Abacus.
+        </p>
+        <a href="{accept_url}"
+           style="display: inline-block; padding: 12px 24px; background: #1f2937; color: #fff;
+                  text-decoration: none; border-radius: 8px; font-weight: 600; margin: 16px 0;">
+            Accepter l'invitation
+        </a>
+        <p style="color: #9ca3af; font-size: 14px;">
+            Ce lien expire prochainement.<br>
+            Si vous n'attendiez pas cette invitation, vous pouvez ignorer cet e-mail.
+        </p>
+    </div>
+    """
+    return _send_email(to, "Abacus — Invitation", html)
