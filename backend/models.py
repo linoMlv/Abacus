@@ -103,7 +103,9 @@ class RefreshSession(SQLModel, table=True):
     __tablename__ = "refresh_session"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    association_id: str = Field(foreign_key="association.id")
+    # Exactly one of association_id (legacy) / user_id (V3) identifies the owner.
+    association_id: str | None = Field(default=None, foreign_key="association.id")
+    user_id: str | None = Field(default=None, foreign_key="user.id", index=True)
     token_hash: str = Field(unique=True, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     expires_at: datetime
