@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
 
@@ -226,3 +226,93 @@ class MembershipRead(SQLModel):
     association_id: str
     role: Role
     status: MembershipStatus
+
+
+# ---------------------------------------------------------------------------
+# Accounting referential (V3 — plan comptable associatif ANC 2018-06)
+#
+# Each association owns its own chart of accounts (Compte), journals (Journal)
+# and fiscal years (Exercice), seeded at creation. Everything is tenant-scoped
+# by association_id; see ``accounting_seed.py`` for the default data.
+# ---------------------------------------------------------------------------
+
+
+class CompteType(str, Enum):
+    """Balance-sheet vs. income-statement nature of an account.
+
+    Drives the bilan / compte de résultat classification. Stable strings.
+    """
+
+    ACTIF = "actif"
+    PASSIF = "passif"
+    CHARGE = "charge"
+    PRODUIT = "produit"
+
+
+class ExerciceStatut(str, Enum):
+    OUVERT = "ouvert"
+    CLOTURE = "cloture"
+
+
+class Compte(SQLModel, table=True):
+    __tablename__ = "compte"
+    # An account number is unique within an association's chart of accounts.
+    __table_args__ = (
+        UniqueConstraint("association_id", "numero", name="uq_compte_assoc_numero"),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    numero: str = Field(index=True)  # e.g. "512", "756"
+    libelle: str
+    classe: int  # 1..8 (= int(numero[0]))
+    type: CompteType
+    is_active: bool = Field(default=True)
+
+
+class Journal(SQLModel, table=True):
+    __tablename__ = "journal"
+    __table_args__ = (
+        UniqueConstraint("association_id", "code", name="uq_journal_assoc_code"),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    code: str  # BQ, CA, AC, VE, OD
+    libelle: str
+
+
+class Exercice(SQLModel, table=True):
+    __tablename__ = "exercice"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    libelle: str  # e.g. "2026"
+    date_debut: date
+    date_fin: date
+    statut: ExerciceStatut = Field(default=ExerciceStatut.OUVERT)
+    report_a_nouveau_genere: bool = Field(default=False)
+
+
+class CompteRead(SQLModel):
+    id: str
+    numero: str
+    libelle: str
+    classe: int
+    type: CompteType
+    is_active: bool
+
+
+class JournalRead(SQLModel):
+    id: str
+    code: str
+    libelle: str
+
+
+class ExerciceRead(SQLModel):
+    id: str
+    libelle: str
+    date_debut: date
+    date_fin: date
+    statut: ExerciceStatut
+    report_a_nouveau_genere: bool

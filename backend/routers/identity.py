@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import update
 from sqlmodel import Session, select
 
+from accounting_seed import seed_association_accounting
 from auth_context import (
     USER_TOKEN_TYPE,
     AccessContext,
@@ -447,6 +448,8 @@ def create_association(
         user_id=user.id, association_id=association.id, role=Role.ADMIN
     )
     session.add(membership)
+    # Seed the default chart of accounts, journals and current fiscal year.
+    seed_association_accounting(session, association.id)
     session.commit()
 
     return AssociationSummary(
