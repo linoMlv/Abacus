@@ -15,6 +15,7 @@ from middleware import LoggingMiddleware, OriginValidationMiddleware
 from rate_limit import limiter
 from routers import (
     account,
+    accounting,
     api_keys,
     associations,
     auth,
@@ -89,6 +90,7 @@ _fastapi_app.add_middleware(LoggingMiddleware)
 
 # Include routers
 _fastapi_app.include_router(identity.router)
+_fastapi_app.include_router(accounting.router)
 _fastapi_app.include_router(auth.router)
 _fastapi_app.include_router(associations.router)
 _fastapi_app.include_router(operations.router)
