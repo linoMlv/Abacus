@@ -3,7 +3,12 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 class OperationType(str, Enum):
@@ -135,3 +140,82 @@ class LogEntryRead(SQLModel):
     duration_ms: float | None
     event_type: str | None
     detail: str | None
+
+
+# ---------------------------------------------------------------------------
+# Identity & access (V3 multi-association, RBAC)
+#
+# A User is a physical person with a single global identity. Access to an
+# association is granted exclusively through a Membership, which also carries
+# the Role. The same person can therefore hold different roles across several
+# associations. The role/permission mapping lives in ``authz.py``.
+# ---------------------------------------------------------------------------
+
+
+class Role(str, Enum):
+    """Role held by a user *within a given association* (carried by Membership).
+
+    Values are stable strings: they are persisted and may appear in audit
+    trails and exports — do not rename them.
+    """
+
+    ADMIN = "admin"  # administre l'asso : membres, paramètres, logs (superset)
+    ACCOUNTANT = "accountant"  # expert-comptable : saisie manuelle, validation, clôture
+    TREASURER = "treasurer"  # trésorier : saisie assistée, banque, dons, budget
+    VIEWER = "viewer"  # président / CA : consultation seule
+
+
+class MembershipStatus(str, Enum):
+    ACTIVE = "active"
+    SUSPENDED = "suspended"  # accès gelé sans suppression (révocable)
+
+
+class User(SQLModel, table=True):
+    __tablename__ = "user"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    # Stored normalized (lowercased) by the auth layer; unique identity key.
+    email: str = Field(unique=True, index=True)
+    password: str
+    name: str
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class Membership(SQLModel, table=True):
+    __tablename__ = "membership"
+    # A user holds at most one membership (and thus one role) per association.
+    __table_args__ = (
+        UniqueConstraint("user_id", "association_id", name="uq_membership_user_assoc"),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id", index=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    role: Role
+    status: MembershipStatus = Field(default=MembershipStatus.ACTIVE)
+    invited_by: str | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class Invitation(SQLModel, table=True):
+    __tablename__ = "invitation"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    # Normalized (lowercased) target email; a User may not exist yet.
+    email: str = Field(index=True)
+    role: Role
+    # Only the hash of the invitation token is stored, never the raw token.
+    token_hash: str = Field(unique=True, index=True)
+    invited_by: str = Field(foreign_key="user.id")
+    created_at: datetime = Field(default_factory=_utcnow)
+    expires_at: datetime
+    accepted_at: datetime | None = None
+
+
+class MembershipRead(SQLModel):
+    id: str
+    association_id: str
+    role: Role
+    status: MembershipStatus

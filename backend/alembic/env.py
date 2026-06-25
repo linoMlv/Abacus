@@ -10,7 +10,17 @@ from alembic import context
 load_dotenv()
 
 # Ensure all models are imported so their tables are registered on SQLModel.metadata
-from models import Association, Balance, Operation, LogEntry, ApiKey  # noqa: F401
+from models import (  # noqa: F401
+    ApiKey,
+    Association,
+    Balance,
+    Invitation,
+    LogEntry,
+    Membership,
+    Operation,
+    RefreshSession,
+    User,
+)
 
 # Resolve the URL the same way the app does (explicit DATABASE_URL or built
 # safely from the POSTGRES_* components).
