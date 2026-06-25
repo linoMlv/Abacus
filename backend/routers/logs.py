@@ -6,6 +6,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import func
 from sqlmodel import Session, desc, select
 
+from auth_context import AccessContext, require_permission
+from authz import Permission
 from database import get_session
 from models import LogEntry, LogEntryRead
 
@@ -68,3 +70,26 @@ def get_logs_count(
         statement = statement.where(LogEntry.path.contains(search))
     count = session.exec(statement).one()
     return {"count": count}
+
+
+@router.get("/asso/{association_id}/logs", response_model=list[LogEntryRead])
+def get_association_logs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    event_type: str | None = None,
+    search: str | None = None,
+    ctx: AccessContext = Depends(require_permission(Permission.LOGS_VIEW)),
+    session: Session = Depends(get_session),
+):
+    """Diagnostic logs scoped to the admin's own association."""
+    statement = (
+        select(LogEntry)
+        .where(LogEntry.association_id == ctx.association_id)
+        .order_by(desc(LogEntry.timestamp))
+    )
+    if event_type:
+        statement = statement.where(LogEntry.event_type == event_type)
+    if search:
+        statement = statement.where(LogEntry.path.contains(search))
+    statement = statement.offset(skip).limit(limit)
+    return session.exec(statement).all()

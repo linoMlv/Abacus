@@ -125,6 +125,10 @@ class LogEntry(SQLModel, table=True):
     ip_address: str | None = None
     user_agent: str | None = None
     user: str | None = None
+    # Association targeted by the request (parsed from /api/asso/{id}/...), so
+    # an admin can read the logs scoped to their own association. Plain string
+    # (no FK): logging must never fail on an arbitrary/garbage path id.
+    association_id: str | None = Field(default=None, index=True)
     duration_ms: float | None = None
     event_type: str | None = None
     detail: str | None = None
@@ -139,6 +143,7 @@ class LogEntryRead(SQLModel):
     ip_address: str | None
     user_agent: str | None
     user: str | None
+    association_id: str | None
     duration_ms: float | None
     event_type: str | None
     detail: str | None

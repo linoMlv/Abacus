@@ -97,6 +97,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             ip_address=ip_address,
             user_agent=user_agent,
             user=user,
+            association_id=_association_id_from_path(path),
             duration_ms=round(duration_ms, 2),
             event_type=event_type,
             detail=detail,
@@ -110,6 +111,19 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             pass  # Don't let logging failures break the app
 
         return response
+
+
+def _association_id_from_path(path: str) -> str | None:
+    """Return the association id of a tenant-scoped path /api/asso/{id}/...
+
+    Recorded for any such request (even 403/404), giving an admin visibility on
+    access attempts against their association. Never leaks across tenants: the
+    logs endpoint filters on the reader's own association id.
+    """
+    parts = path.split("/")
+    if len(parts) >= 4 and parts[1] == "api" and parts[2] == "asso" and parts[3]:
+        return parts[3]
+    return None
 
 
 def _extract_user_from_cookie(request: Request) -> str | None:
