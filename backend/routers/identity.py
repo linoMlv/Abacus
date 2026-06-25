@@ -110,6 +110,11 @@ class MemberRead(BaseModel):
     status: MembershipStatus
 
 
+class UpdateMemberRequest(BaseModel):
+    role: Role | None = None
+    status: MembershipStatus | None = None
+
+
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
@@ -171,6 +176,36 @@ def _user_session_by_token(session: Session, raw_refresh: str) -> RefreshSession
             RefreshSession.user_id.is_not(None),
         )
     ).first()
+
+
+def _get_membership(
+    session: Session, association_id: str, user_id: str
+) -> Membership | None:
+    return session.exec(
+        select(Membership).where(
+            Membership.association_id == association_id,
+            Membership.user_id == user_id,
+        )
+    ).first()
+
+
+def _is_last_active_admin(session: Session, membership: Membership) -> bool:
+    """True if ``membership`` is the only active admin of its association.
+
+    Used to forbid demoting/suspending/removing the last administrator, which
+    would leave the association without anyone able to manage it.
+    """
+    if membership.role != Role.ADMIN or membership.status != MembershipStatus.ACTIVE:
+        return False
+    other_admin = session.exec(
+        select(Membership).where(
+            Membership.association_id == membership.association_id,
+            Membership.role == Role.ADMIN,
+            Membership.status == MembershipStatus.ACTIVE,
+            Membership.user_id != membership.user_id,
+        )
+    ).first()
+    return other_admin is None
 
 
 def _associations_for(session: Session, user: User) -> list[AssociationSummary]:
@@ -391,3 +426,60 @@ def list_members(
         )
         for m, user in rows
     ]
+
+
+@router.patch("/api/asso/{association_id}/members/{user_id}", response_model=MemberRead)
+def update_member(
+    user_id: str,
+    request: UpdateMemberRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    membership = _get_membership(session, ctx.association_id, user_id)
+    if membership is None:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    new_role = request.role if request.role is not None else membership.role
+    new_status = request.status if request.status is not None else membership.status
+
+    # Never strand an association without an administrator.
+    leaves_admin = new_role != Role.ADMIN or new_status != MembershipStatus.ACTIVE
+    if leaves_admin and _is_last_active_admin(session, membership):
+        raise HTTPException(
+            status_code=400, detail="Cannot remove the last administrator"
+        )
+
+    membership.role = new_role
+    membership.status = new_status
+    session.add(membership)
+    session.commit()
+    session.refresh(membership)
+
+    user = session.get(User, user_id)
+    return MemberRead(
+        user_id=user.id,
+        email=user.email,
+        name=user.name,
+        role=membership.role,
+        status=membership.status,
+    )
+
+
+@router.delete("/api/asso/{association_id}/members/{user_id}")
+def remove_member(
+    user_id: str,
+    ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    membership = _get_membership(session, ctx.association_id, user_id)
+    if membership is None:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    if _is_last_active_admin(session, membership):
+        raise HTTPException(
+            status_code=400, detail="Cannot remove the last administrator"
+        )
+
+    session.delete(membership)
+    session.commit()
+    return {"message": "Member removed"}
