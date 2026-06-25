@@ -13,7 +13,16 @@ from log_retention import purge_old_logs
 from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import LoggingMiddleware, OriginValidationMiddleware
 from rate_limit import limiter
-from routers import account, api_keys, associations, auth, balances, logs, operations
+from routers import (
+    account,
+    api_keys,
+    associations,
+    auth,
+    balances,
+    identity,
+    logs,
+    operations,
+)
 from security import ENVIRONMENT
 from static_files import mount_frontend
 
@@ -79,6 +88,7 @@ _fastapi_app.add_middleware(OriginValidationMiddleware, allowed_origins=origins)
 _fastapi_app.add_middleware(LoggingMiddleware)
 
 # Include routers
+_fastapi_app.include_router(identity.router)
 _fastapi_app.include_router(auth.router)
 _fastapi_app.include_router(associations.router)
 _fastapi_app.include_router(operations.router)
