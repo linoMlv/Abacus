@@ -294,6 +294,79 @@ class Exercice(SQLModel, table=True):
     report_a_nouveau_genere: bool = Field(default=False)
 
 
+# ---------------------------------------------------------------------------
+# Double-entry bookkeeping (V3 — partie double)
+#
+# An Ecriture is an accounting voucher (pièce comptable) belonging to one
+# association, fiscal year (Exercice) and journal. It carries two or more
+# LigneEcriture rows whose debits and credits must balance exactly
+# (Σ débit = Σ crédit). Validated entries become immutable and closed fiscal
+# years are locked — those guarantees are enforced by the service/endpoint
+# layers; the balance invariant itself lives in ``accounting_engine.py``.
+# ---------------------------------------------------------------------------
+
+
+class EcritureStatut(str, Enum):
+    """Lifecycle of an accounting entry. Stable strings (persisted, audited)."""
+
+    BROUILLON = "brouillon"  # éditable
+    VALIDEE = "validee"  # immuable ; modification via contre-passation seulement
+
+
+class EcritureOrigine(str, Enum):
+    """How an entry was produced. Stable strings (persisted, audited)."""
+
+    SAISIE_SIMPLE = "saisie_simple"  # via le moteur recette/dépense assisté
+    MANUELLE = "manuelle"  # saisie expert multi-lignes
+    IMPORT = "import"  # rapprochement bancaire
+    RECURRENCE = "recurrence"  # générée par une Recurrence
+
+
+class Ecriture(SQLModel, table=True):
+    __tablename__ = "ecriture"
+    # Voucher numbers are unique and gapless per association (FEC requirement);
+    # uniqueness is enforced here, gaplessness by the sequential generator.
+    __table_args__ = (
+        UniqueConstraint(
+            "association_id", "numero_piece", name="uq_ecriture_assoc_piece"
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    exercice_id: str = Field(foreign_key="exercice.id", index=True)
+    journal_id: str = Field(foreign_key="journal.id", index=True)
+    date: date
+    numero_piece: int  # séquentiel sans trou par association
+    libelle: str
+    statut: EcritureStatut = Field(default=EcritureStatut.BROUILLON)
+    origine: EcritureOrigine
+    created_by: str | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(default_factory=_utcnow)
+    validated_by: str | None = Field(default=None, foreign_key="user.id")
+    validated_at: datetime | None = None
+
+    lignes: list["LigneEcriture"] = Relationship(
+        back_populates="ecriture",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class LigneEcriture(SQLModel, table=True):
+    __tablename__ = "ligne_ecriture"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    ecriture_id: str = Field(foreign_key="ecriture.id", index=True)
+    compte_id: str = Field(foreign_key="compte.id", index=True)
+    libelle: str
+    # Each line carries an amount on exactly one side; both are non-negative and
+    # exactly one is strictly positive (validated in ``accounting_engine.py``).
+    debit: Decimal = Field(default=0, max_digits=10, decimal_places=2)
+    credit: Decimal = Field(default=0, max_digits=10, decimal_places=2)
+
+    ecriture: Ecriture | None = Relationship(back_populates="lignes")
+
+
 class CompteRead(SQLModel):
     id: str
     numero: str
