@@ -9,8 +9,8 @@ booked into an *open* fiscal year covering their date.
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, SQLModel, select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel import Session, SQLModel, desc, select
 
 from accounting_engine import (
     EntryError,
@@ -27,6 +27,7 @@ from models import (
     Ecriture,
     EcritureDetailRead,
     EcritureOrigine,
+    EcritureRead,
     EcritureStatut,
     Exercice,
     ExerciceStatut,
@@ -230,6 +231,40 @@ def creer_saisie_manuelle(
 
 
 # --- Read & lifecycle -----------------------------------------------------
+
+
+@router.get("/ecritures", response_model=list[EcritureRead])
+def list_ecritures(
+    exercice_id: str | None = None,
+    journal_id: str | None = None,
+    statut: EcritureStatut | None = None,
+    q: str | None = None,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    ctx: AccessContext = Depends(get_active_membership),
+    session: Session = Depends(get_session),
+):
+    """The journal: entries of the active association, newest first.
+
+    The optional ``exercice_id`` / ``journal_id`` are plain filters applied on
+    top of the mandatory ``association_id`` scope — an id from another tenant
+    simply matches nothing, it never widens access.
+    """
+    statement = select(Ecriture).where(Ecriture.association_id == ctx.association_id)
+    if exercice_id is not None:
+        statement = statement.where(Ecriture.exercice_id == exercice_id)
+    if journal_id is not None:
+        statement = statement.where(Ecriture.journal_id == journal_id)
+    if statut is not None:
+        statement = statement.where(Ecriture.statut == statut)
+    if q:
+        statement = statement.where(Ecriture.libelle.ilike(f"%{q}%"))
+    statement = (
+        statement.order_by(desc(Ecriture.date), desc(Ecriture.numero_piece))
+        .limit(limit)
+        .offset(offset)
+    )
+    return session.exec(statement).all()
 
 
 @router.get("/ecritures/{ecriture_id}", response_model=EcritureDetailRead)

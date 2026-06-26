@@ -460,3 +460,27 @@ class EcritureRead(SQLModel):
 
 class EcritureDetailRead(EcritureRead):
     lignes: list[LigneEcritureRead] = []
+
+
+class BalanceCompteRead(SQLModel):
+    """One row of the trial balance (balance des comptes)."""
+
+    compte_id: str
+    numero: str
+    libelle: str
+    total_debit: Decimal
+    total_credit: Decimal
+    solde: Decimal  # débit - crédit (positif = solde débiteur)
+
+
+class GrandLivreLigneRead(SQLModel):
+    """One movement of an account's ledger (grand livre), with running balance."""
+
+    ecriture_id: str
+    date: date
+    numero_piece: int
+    journal_id: str
+    libelle: str
+    debit: Decimal
+    credit: Decimal
+    solde: Decimal  # cumul débit - crédit jusqu'à cette ligne
