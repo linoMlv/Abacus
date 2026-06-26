@@ -367,6 +367,42 @@ class LigneEcriture(SQLModel, table=True):
     ecriture: Ecriture | None = Relationship(back_populates="lignes")
 
 
+# ---------------------------------------------------------------------------
+# Assisted entry (saisie simple → partie double)
+#
+# A CategorieSaisie is the bridge between the plain "recette / dépense" wording
+# a volunteer understands and the underlying chart of accounts. It pins the
+# produit (recette) or charge (dépense) account and a default journal; the
+# counterpart cash account (512 banque / 531 caisse) is chosen per entry by the
+# user. Seeded at association creation; see ``accounting_seed.py``.
+# ---------------------------------------------------------------------------
+
+
+class SensCategorie(str, Enum):
+    """Direction of an assisted entry. Stable strings (persisted, audited)."""
+
+    RECETTE = "recette"
+    DEPENSE = "depense"
+
+
+class CategorieSaisie(SQLModel, table=True):
+    __tablename__ = "categorie_saisie"
+    __table_args__ = (
+        UniqueConstraint(
+            "association_id", "libelle", name="uq_categorie_assoc_libelle"
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    sens: SensCategorie
+    libelle: str  # parlant : "Cotisations", "Achats de fournitures", "Dons"
+    compte_id: str = Field(foreign_key="compte.id")  # produit (recette) / charge
+    journal_id: str = Field(foreign_key="journal.id")  # journal par défaut
+    is_active: bool = Field(default=True)
+    ordre: int = Field(default=0)  # ordre d'affichage dans l'écran de saisie
+
+
 class CompteRead(SQLModel):
     id: str
     numero: str
@@ -389,3 +425,13 @@ class ExerciceRead(SQLModel):
     date_fin: date
     statut: ExerciceStatut
     report_a_nouveau_genere: bool
+
+
+class CategorieSaisieRead(SQLModel):
+    id: str
+    sens: SensCategorie
+    libelle: str
+    compte_id: str
+    journal_id: str
+    is_active: bool
+    ordre: int

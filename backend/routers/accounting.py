@@ -11,12 +11,15 @@ from sqlmodel import Session, asc, desc, select
 from auth_context import AccessContext, get_active_membership
 from database import get_session
 from models import (
+    CategorieSaisie,
+    CategorieSaisieRead,
     Compte,
     CompteRead,
     Exercice,
     ExerciceRead,
     Journal,
     JournalRead,
+    SensCategorie,
 )
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["accounting"])
@@ -67,4 +70,22 @@ def list_exercices(
         .where(Exercice.association_id == ctx.association_id)
         .order_by(desc(Exercice.date_debut))
     )
+    return session.exec(statement).all()
+
+
+@router.get("/categories", response_model=list[CategorieSaisieRead])
+def list_categories(
+    sens: SensCategorie | None = None,
+    include_inactive: bool = False,
+    ctx: AccessContext = Depends(get_active_membership),
+    session: Session = Depends(get_session),
+):
+    statement = select(CategorieSaisie).where(
+        CategorieSaisie.association_id == ctx.association_id
+    )
+    if sens is not None:
+        statement = statement.where(CategorieSaisie.sens == sens)
+    if not include_inactive:
+        statement = statement.where(CategorieSaisie.is_active.is_(True))
+    statement = statement.order_by(asc(CategorieSaisie.ordre))
     return session.exec(statement).all()

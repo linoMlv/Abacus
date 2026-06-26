@@ -13,11 +13,13 @@ to start being possible later; here they all seed active.
 from datetime import date
 
 from models import (
+    CategorieSaisie,
     Compte,
     CompteType,
     Exercice,
     ExerciceStatut,
     Journal,
+    SensCategorie,
 )
 
 A = CompteType.ACTIF
@@ -109,28 +111,73 @@ PLAN_COMPTABLE_ANC: list[tuple[str, str, CompteType]] = [
     ("875", "Bénévolat", R),
 ]
 
+RECETTE = SensCategorie.RECETTE
+DEPENSE = SensCategorie.DEPENSE
+
+# Plain-language entry categories for the assisted "saisie simple" screen.
+# Each maps to its produit/charge account and a default journal; the journal is
+# nature-based (recettes -> VE, dépenses -> AC), the counterpart cash account
+# (512/531) being chosen per entry. (sens, libellé, compte numéro, journal code).
+DEFAULT_CATEGORIES: list[tuple[SensCategorie, str, str, str]] = [
+    # Recettes
+    (RECETTE, "Cotisations", "756", "VE"),
+    (RECETTE, "Dons manuels", "7541", "VE"),
+    (RECETTE, "Subventions", "740", "VE"),
+    (RECETTE, "Prestations de services", "706", "VE"),
+    (RECETTE, "Ventes de marchandises", "707", "VE"),
+    (RECETTE, "Produits divers", "758", "VE"),
+    # Dépenses
+    (DEPENSE, "Fournitures administratives", "6064", "AC"),
+    (DEPENSE, "Petit équipement et entretien", "6063", "AC"),
+    (DEPENSE, "Locations", "613", "AC"),
+    (DEPENSE, "Assurances", "616", "AC"),
+    (DEPENSE, "Honoraires", "622", "AC"),
+    (DEPENSE, "Déplacements et réceptions", "625", "AC"),
+    (DEPENSE, "Frais postaux et télécommunications", "626", "AC"),
+    (DEPENSE, "Frais bancaires", "627", "AC"),
+    (DEPENSE, "Autres achats", "6068", "AC"),
+    (DEPENSE, "Charges diverses", "658", "AC"),
+]
+
 
 def seed_association_accounting(
     session, association_id: str, year: int | None = None
 ) -> None:
-    """Create the default journals, chart of accounts and current fiscal year.
+    """Create the default journals, chart of accounts, fiscal year and the
+    plain-language entry categories.
 
     Does not commit: the caller commits as part of the association creation
     transaction.
     """
     year = year or date.today().year
 
+    journaux: dict[str, Journal] = {}
     for code, libelle in DEFAULT_JOURNALS:
-        session.add(Journal(association_id=association_id, code=code, libelle=libelle))
+        journal = Journal(association_id=association_id, code=code, libelle=libelle)
+        journaux[code] = journal
+        session.add(journal)
 
+    comptes: dict[str, Compte] = {}
     for numero, libelle, nature in PLAN_COMPTABLE_ANC:
+        compte = Compte(
+            association_id=association_id,
+            numero=numero,
+            libelle=libelle,
+            classe=int(numero[0]),
+            type=nature,
+        )
+        comptes[numero] = compte
+        session.add(compte)
+
+    for ordre, (sens, libelle, numero, code) in enumerate(DEFAULT_CATEGORIES):
         session.add(
-            Compte(
+            CategorieSaisie(
                 association_id=association_id,
-                numero=numero,
+                sens=sens,
                 libelle=libelle,
-                classe=int(numero[0]),
-                type=nature,
+                compte_id=comptes[numero].id,
+                journal_id=journaux[code].id,
+                ordre=ordre,
             )
         )
 
