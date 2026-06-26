@@ -1,6 +1,76 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/* Self-hosted IBM Plex (served from /assets, so the strict CSP font-src 'self'
+   is respected — no Google Fonts CDN at runtime). Only the latin / latin-ext
+   subsets are pulled in: enough for French, and lighter. */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-sans/latin-700.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-400.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-500.css';
+@import '@fontsource/ibm-plex-sans/latin-ext-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
+
+/*
+  Abacus design system — sober corporate fintech (Qonto/Pennylane direction).
+  Neutral slate canvas + ink text, a single blue trust accent, and discreet
+  emerald/red semantics for recette/dépense. Amounts are set in IBM Plex Mono
+  for true ledger-style tabular alignment (the signature of the product).
+  Tokens declared here become utilities (e.g. `bg-canvas`, `text-accent`).
+*/
+@theme {
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* Neutral surfaces & text */
+  --color-canvas: #f8fafc; /* app background */
+  --color-surface: #ffffff; /* cards, panels, sidebar */
+  --color-ink: #0f172a; /* primary text / ink buttons */
+  --color-ink-soft: #334155; /* secondary headings */
+  --color-muted: #64748b; /* secondary text, captions */
+  --color-faint: #94a3b8; /* placeholders, disabled text */
+  --color-hairline: #e2e8f0; /* borders, dividers */
+  --color-hover: #f1f5f9; /* subtle row/control hover */
+
+  /* Blue trust accent (links, active nav, focus) */
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-accent-soft: #eff6ff;
+
+  /* Semantic recette / dépense (discreet) */
+  --color-recette: #047857;
+  --color-recette-soft: #ecfdf5;
+  --color-depense: #dc2626;
+  --color-depense-soft: #fef2f2;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-warning: #b45309;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Amounts and codes: monospaced, tabular, never reflowing on digit change. */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+}
 
 /* Respect users who prefer reduced motion (spinners, transitions). */
 @media (prefers-reduced-motion: reduce) {
