@@ -83,6 +83,11 @@ class RegisterRequest(BaseModel):
     name: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -206,6 +211,18 @@ def _issue_user_session(
         samesite="lax",
         secure=COOKIE_SECURE,
         path=COOKIE_PATH,
+    )
+
+
+def _revoke_user_sessions(session: Session, user_id: str) -> None:
+    """Revoke every active refresh session of a user (no commit)."""
+    session.exec(
+        update(RefreshSession)
+        .where(
+            RefreshSession.user_id == user_id,
+            RefreshSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=_utcnow())
     )
 
 
@@ -399,18 +416,39 @@ def logout_all(
     session: Session = Depends(get_session),
 ):
     """Revoke every active refresh session for the current user (all devices)."""
-    session.exec(
-        update(RefreshSession)
-        .where(
-            RefreshSession.user_id == user.id,
-            RefreshSession.revoked_at.is_(None),
-        )
-        .values(revoked_at=_utcnow())
-    )
+    _revoke_user_sessions(session, user.id)
     session.commit()
     response.delete_cookie(ACCESS_COOKIE, path=COOKIE_PATH)
     response.delete_cookie(REFRESH_COOKIE, path=COOKIE_PATH)
     return {"message": "All sessions revoked"}
+
+
+@router.post("/api/auth/change-password")
+def change_password(
+    request: Request,
+    response: Response,
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Change the current user's password and revoke all other sessions.
+
+    Requires the current password. On success the stored hash is updated and
+    *every* refresh session is revoked (locking out a thief on another device);
+    a fresh session is then issued for the current device so the caller stays
+    signed in here.
+    """
+    if not verify_password(body.current_password, user.password):
+        raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect.")
+    _check_password_strength(body.new_password)
+
+    user.password = get_password_hash(body.new_password)
+    session.add(user)
+    _revoke_user_sessions(session, user.id)
+    session.commit()
+
+    _issue_user_session(response, user, request, session)
+    return {"message": "Password changed"}
 
 
 @router.get("/api/auth/session", response_model=SessionResponse)
