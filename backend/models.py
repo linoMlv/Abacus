@@ -435,3 +435,28 @@ class CategorieSaisieRead(SQLModel):
     journal_id: str
     is_active: bool
     ordre: int
+
+
+class LigneEcritureRead(SQLModel):
+    id: str
+    compte_id: str
+    libelle: str
+    debit: Decimal
+    credit: Decimal
+
+
+class EcritureRead(SQLModel):
+    id: str
+    exercice_id: str
+    journal_id: str
+    date: date
+    numero_piece: int
+    libelle: str
+    statut: EcritureStatut
+    origine: EcritureOrigine
+    created_at: datetime
+    validated_at: datetime | None
+
+
+class EcritureDetailRead(EcritureRead):
+    lignes: list[LigneEcritureRead] = []

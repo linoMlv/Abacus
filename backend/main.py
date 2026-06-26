@@ -20,6 +20,7 @@ from routers import (
     associations,
     auth,
     balances,
+    ecritures,
     identity,
     logs,
     operations,
@@ -91,6 +92,7 @@ _fastapi_app.add_middleware(LoggingMiddleware)
 # Include routers
 _fastapi_app.include_router(identity.router)
 _fastapi_app.include_router(accounting.router)
+_fastapi_app.include_router(ecritures.router)
 _fastapi_app.include_router(auth.router)
 _fastapi_app.include_router(associations.router)
 _fastapi_app.include_router(operations.router)
