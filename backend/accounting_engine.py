@@ -10,9 +10,18 @@ import, recurrence) so no entry can ever be persisted unbalanced.
 """
 
 from collections.abc import Sequence
+from datetime import date
 from decimal import Decimal
 
-from models import LigneEcriture
+from sqlalchemy import func
+from sqlmodel import Session, select
+
+from models import (
+    Ecriture,
+    EcritureOrigine,
+    LigneEcriture,
+    SensCategorie,
+)
 
 CENTS = Decimal("0.01")
 ZERO = Decimal("0.00")
@@ -67,3 +76,72 @@ def _as_amount(value: Decimal | int | str, side: str) -> Decimal:
     if amount < ZERO:
         raise EntryError(f"Le montant au {side} ne peut pas être négatif.")
     return amount
+
+
+def next_numero_piece(session: Session, association_id: str) -> int:
+    """Return the next sequential voucher number for ``association_id``.
+
+    Numbering is per association and continuous (``max + 1``). The
+    ``(association_id, numero_piece)`` unique constraint guards against a
+    concurrent collision (one writer fails and retries).
+    """
+    current_max = session.exec(
+        select(func.max(Ecriture.numero_piece)).where(
+            Ecriture.association_id == association_id
+        )
+    ).one()
+    return (current_max or 0) + 1
+
+
+def build_ecriture_simple(
+    *,
+    association_id: str,
+    exercice_id: str,
+    journal_id: str,
+    compte_tresorerie_id: str,
+    compte_categorie_id: str,
+    sens: SensCategorie,
+    montant: Decimal | int | str,
+    date_ecriture: date,
+    libelle: str,
+    numero_piece: int,
+    created_by: str | None = None,
+    origine: EcritureOrigine = EcritureOrigine.SAISIE_SIMPLE,
+) -> Ecriture:
+    """Turn a plain recette/dépense into a balanced two-line entry.
+
+    * **Recette** — money in: D cash account / C produit account.
+    * **Dépense** — money out: D charge account / C cash account.
+
+    The category supplies the produit/charge account
+    (``compte_categorie_id``); the cash account (``compte_tresorerie_id``,
+    512/531) is the one the money actually moved on. The result is validated
+    against the balance invariant before being returned (unsaved, so the caller
+    owns the transaction).
+    """
+    montant = _as_amount(montant, "montant")
+    if montant == ZERO:
+        raise EntryError("Le montant doit être strictement positif.")
+
+    if sens == SensCategorie.RECETTE:
+        debit_compte, credit_compte = compte_tresorerie_id, compte_categorie_id
+    else:
+        debit_compte, credit_compte = compte_categorie_id, compte_tresorerie_id
+
+    lignes = [
+        LigneEcriture(compte_id=debit_compte, libelle=libelle, debit=montant),
+        LigneEcriture(compte_id=credit_compte, libelle=libelle, credit=montant),
+    ]
+    validate_lignes(lignes)
+
+    return Ecriture(
+        association_id=association_id,
+        exercice_id=exercice_id,
+        journal_id=journal_id,
+        date=date_ecriture,
+        numero_piece=numero_piece,
+        libelle=libelle,
+        origine=origine,
+        created_by=created_by,
+        lignes=lignes,
+    )
