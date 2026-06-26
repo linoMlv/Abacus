@@ -149,6 +149,38 @@ class LogEntryRead(SQLModel):
     detail: str | None
 
 
+class AuditLog(SQLModel, table=True):
+    """Tamper-evidence trail of sensitive actions (who did what, when).
+
+    Distinct from the HTTP ``LogEntry``: this records business actions (entry
+    created/validated/deleted, …) for accounting integrity (plan §10). Scoped by
+    ``association_id`` so an admin only ever reads their own tenant's trail.
+    """
+
+    __tablename__ = "audit_log"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    timestamp: datetime = Field(default_factory=_utcnow, index=True)
+    association_id: str | None = Field(
+        default=None, foreign_key="association.id", index=True
+    )
+    actor_user_id: str | None = Field(default=None, foreign_key="user.id")
+    action: str = Field(index=True)  # e.g. "ecriture.validate"
+    target_type: str | None = None  # e.g. "ecriture"
+    target_id: str | None = None
+    detail: str | None = None
+
+
+class AuditLogRead(SQLModel):
+    id: str
+    timestamp: datetime
+    actor_user_id: str | None
+    action: str
+    target_type: str | None
+    target_id: str | None
+    detail: str | None
+
+
 # ---------------------------------------------------------------------------
 # Identity & access (V3 multi-association, RBAC)
 #

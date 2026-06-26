@@ -9,7 +9,7 @@ from sqlmodel import Session, desc, select
 from auth_context import AccessContext, require_permission
 from authz import Permission
 from database import get_session
-from models import LogEntry, LogEntryRead
+from models import AuditLog, AuditLogRead, LogEntry, LogEntryRead
 
 router = APIRouter(prefix="/api", tags=["logs"])
 security = HTTPBasic()
@@ -91,5 +91,25 @@ def get_association_logs(
         statement = statement.where(LogEntry.event_type == event_type)
     if search:
         statement = statement.where(LogEntry.path.contains(search))
+    statement = statement.offset(skip).limit(limit)
+    return session.exec(statement).all()
+
+
+@router.get("/asso/{association_id}/audit", response_model=list[AuditLogRead])
+def get_association_audit(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    action: str | None = None,
+    ctx: AccessContext = Depends(require_permission(Permission.LOGS_VIEW)),
+    session: Session = Depends(get_session),
+):
+    """Business audit trail scoped to the admin's own association."""
+    statement = (
+        select(AuditLog)
+        .where(AuditLog.association_id == ctx.association_id)
+        .order_by(desc(AuditLog.timestamp))
+    )
+    if action:
+        statement = statement.where(AuditLog.action == action)
     statement = statement.offset(skip).limit(limit)
     return session.exec(statement).all()

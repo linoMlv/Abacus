@@ -18,6 +18,7 @@ from accounting_engine import (
     next_numero_piece,
     validate_lignes,
 )
+from audit import AuditAction, record_audit
 from auth_context import AccessContext, get_active_membership, require_permission
 from authz import Permission
 from database import get_session
@@ -178,6 +179,15 @@ def creer_saisie_simple(
         raise _bad_request(str(exc))
 
     session.add(ecriture)
+    record_audit(
+        session,
+        association_id=ctx.association_id,
+        actor_user_id=ctx.user.id,
+        action=AuditAction.ECRITURE_CREATE_SIMPLE,
+        target_type="ecriture",
+        target_id=ecriture.id,
+        detail=f"pièce {ecriture.numero_piece}",
+    )
     session.commit()
     session.refresh(ecriture)
     return ecriture
@@ -225,6 +235,15 @@ def creer_saisie_manuelle(
         lignes=lignes,
     )
     session.add(ecriture)
+    record_audit(
+        session,
+        association_id=ctx.association_id,
+        actor_user_id=ctx.user.id,
+        action=AuditAction.ECRITURE_CREATE_MANUAL,
+        target_type="ecriture",
+        target_id=ecriture.id,
+        detail=f"pièce {ecriture.numero_piece}",
+    )
     session.commit()
     session.refresh(ecriture)
     return ecriture
@@ -292,6 +311,15 @@ def valider_ecriture(
     ecriture.validated_by = ctx.user.id
     ecriture.validated_at = datetime.now(UTC)
     session.add(ecriture)
+    record_audit(
+        session,
+        association_id=ctx.association_id,
+        actor_user_id=ctx.user.id,
+        action=AuditAction.ECRITURE_VALIDATE,
+        target_type="ecriture",
+        target_id=ecriture.id,
+        detail=f"pièce {ecriture.numero_piece}",
+    )
     session.commit()
     session.refresh(ecriture)
     return ecriture
@@ -312,5 +340,14 @@ def supprimer_ecriture(
                 "(contre-passation requise)."
             ),
         )
+    record_audit(
+        session,
+        association_id=ctx.association_id,
+        actor_user_id=ctx.user.id,
+        action=AuditAction.ECRITURE_DELETE,
+        target_type="ecriture",
+        target_id=ecriture.id,
+        detail=f"pièce {ecriture.numero_piece}",
+    )
     session.delete(ecriture)
     session.commit()
