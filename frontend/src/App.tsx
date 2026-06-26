@@ -1,108 +1,45 @@
-import React from 'react';
-import { Route, Routes } from 'react-router-dom';
-import Footer from './components/Footer';
-import { useMe, useLogout } from './hooks/useAbacusData';
-import LoginScreen from './components/LoginScreen';
-import Dashboard from './components/Dashboard';
-import LogsPage from './components/LogsPage';
-import ResetPasswordPage from './components/ResetPasswordPage';
-import NotFoundPage from './components/NotFoundPage';
-import ErrorBoundary from './components/ErrorBoundary';
-import SessionExpiredModal from './components/SessionExpiredModal';
-import { setSessionExpiredHandler } from './api';
-import { useQueryClient } from '@tanstack/react-query';
+import { Navigate, Route, Routes } from 'react-router-dom';
 
-const AppContent: React.FC = () => {
-  const { data: activeAssociation, isLoading } = useMe();
-  const logoutMutation = useLogout();
-  const queryClient = useQueryClient();
-  const [sessionExpired, setSessionExpired] = React.useState(false);
+import { AuthProvider } from '@/auth/AuthProvider';
+import { useAuth } from '@/auth/useAuth';
+import { AppShell } from '@/components/layout/AppShell';
+import { RequireAuth } from '@/components/RequireAuth';
+import { ALL_NAV_ITEMS } from '@/lib/nav';
+import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
+import { PlaceholderPage } from '@/pages/PlaceholderPage';
+import { SynthesePage } from '@/pages/SynthesePage';
+import { LoginPage } from '@/pages/auth/LoginPage';
+import { RegisterPage } from '@/pages/auth/RegisterPage';
 
-  React.useEffect(() => {
-    setSessionExpiredHandler(() => setSessionExpired(true));
-    return () => setSessionExpiredHandler(null);
-  }, []);
+/** Send a signed-in user to their first association, or to onboarding. */
+function HomeRedirect() {
+  const { session } = useAuth();
+  const first = session?.associations[0];
+  return <Navigate to={first ? `/asso/${first.id}/synthese` : '/associations/nouvelle'} replace />;
+}
 
-  const handleLoginSuccess = () => {
-    // When login succeeds, we invalidate 'me' query to fetch user data
-    queryClient.invalidateQueries({ queryKey: ['me'] });
-  };
-
-  const handleLogout = () => {
-    logoutMutation.mutate();
-  };
-
-  const handleSessionExpiredConfirm = () => {
-    setSessionExpired(false);
-    // Drop cached data and re-evaluate auth: getMe now returns null,
-    // so the login screen is shown.
-    queryClient.clear();
-    queryClient.invalidateQueries({ queryKey: ['me'] });
-  };
-
-  if (isLoading) {
-    return (
-      <div
-        className="flex items-center justify-center flex-grow bg-gray-50"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="flex flex-col items-center gap-4">
-          <svg
-            className="animate-spin h-10 w-10 text-gray-800"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          <div className="text-xl font-medium text-gray-600">Loading Abacus...</div>
-        </div>
-      </div>
-    );
-  }
-
+export default function App() {
   return (
-    <div className="justify-center bg-gray-50 text-gray-800 font-sans flex flex-col flex-grow">
-      {activeAssociation ? (
-        <ErrorBoundary>
-          <Dashboard association={activeAssociation} onLogout={handleLogout} />
-        </ErrorBoundary>
-      ) : (
-        <LoginScreen onLogin={handleLoginSuccess} />
-      )}
-      {sessionExpired && <SessionExpiredModal onConfirm={handleSessionExpiredConfirm} />}
-    </div>
-  );
-};
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
 
-const App: React.FC = () => {
-  return (
-    <div className="flex flex-col min-h-screen font-sans bg-gray-50">
-      <div className="flex flex-col flex-grow">
-        <Routes>
-          <Route path="/" element={<AppContent />} />
-          <Route path="/logs" element={<LogsPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-        <Footer />
-      </div>
-    </div>
-  );
-};
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="/associations/nouvelle" element={<CreateAssociationPage />} />
 
-export default App;
+          <Route path="/asso/:associationId" element={<AppShell />}>
+            <Route index element={<Navigate to="synthese" replace />} />
+            <Route path="synthese" element={<SynthesePage />} />
+            {ALL_NAV_ITEMS.filter((item) => item.segment !== 'synthese').map((item) => (
+              <Route key={item.segment} path={item.segment} element={<PlaceholderPage />} />
+            ))}
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
+  );
+}
