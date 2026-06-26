@@ -11,7 +11,11 @@ from sqlmodel import Session
 from database import engine
 from log_retention import purge_old_logs
 from mcp_server import get_session_manager, mcp_asgi_app
-from middleware import LoggingMiddleware, OriginValidationMiddleware
+from middleware import (
+    LoggingMiddleware,
+    OriginValidationMiddleware,
+    SecurityHeadersMiddleware,
+)
 from rate_limit import limiter
 from routers import (
     account,
@@ -88,6 +92,9 @@ _fastapi_app.add_middleware(OriginValidationMiddleware, allowed_origins=origins)
 
 # Logging middleware
 _fastapi_app.add_middleware(LoggingMiddleware)
+
+# Security headers (CSP, HSTS in prod, nosniff, framing/referrer protections).
+_fastapi_app.add_middleware(SecurityHeadersMiddleware, hsts=ENVIRONMENT == "production")
 
 # Include routers
 _fastapi_app.include_router(identity.router)

@@ -13,6 +13,70 @@ from request_utils import client_ip
 from security import ALGORITHM, SECRET_KEY
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Attach defense-in-depth security headers to every response.
+
+    A strict Content-Security-Policy is applied to the SPA and the API; the
+    interactive API docs (Swagger/ReDoc) need their CDN assets, so the few docs
+    paths get a dedicated, slightly looser policy. ``setdefault`` is used so a
+    route may override a header deliberately. HSTS is only emitted in production
+    (it must never be sent over plain HTTP in development).
+    """
+
+    # SPA: external bundled JS only; inline styles are allowed because Radix/
+    # shadcn inject style attributes at runtime.
+    _SPA_CSP = "; ".join(
+        [
+            "default-src 'self'",
+            "base-uri 'self'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "font-src 'self' data:",
+            "connect-src 'self'",
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+            "form-action 'self'",
+        ]
+    )
+    # Swagger UI / ReDoc load scripts and styles from jsDelivr.
+    _DOCS_CSP = "; ".join(
+        [
+            "default-src 'self'",
+            "base-uri 'self'",
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+            "img-src 'self' data: https://cdn.jsdelivr.net https://fastapi.tiangolo.com",
+            "worker-src 'self' blob:",
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+        ]
+    )
+    _DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+    def __init__(self, app, hsts: bool):
+        super().__init__(app)
+        self.hsts = hsts
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        is_docs = request.url.path.startswith(self._DOCS_PATHS)
+        response.headers.setdefault(
+            "Content-Security-Policy", self._DOCS_CSP if is_docs else self._SPA_CSP
+        )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault(
+            "Referrer-Policy", "strict-origin-when-cross-origin"
+        )
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        if self.hsts:
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=63072000; includeSubDomains",
+            )
+        return response
+
+
 class OriginValidationMiddleware(BaseHTTPMiddleware):
     """Reject state-changing browser requests from an unexpected origin.
 
