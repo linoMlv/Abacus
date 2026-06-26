@@ -51,6 +51,8 @@ from security import (
     generate_refresh_token,
     get_password_hash,
     hash_refresh_token,
+    password_needs_rehash,
+    validate_password_strength,
     verify_password,
 )
 
@@ -285,8 +287,17 @@ def _associations_for(session: Session, user: User) -> list[AssociationSummary]:
 # --------------------------------------------------------------------------- #
 # Account & session
 # --------------------------------------------------------------------------- #
+def _check_password_strength(password: str) -> None:
+    """Enforce the password policy, surfacing a 400 on a weak password."""
+    try:
+        validate_password_strength(password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.post("/api/auth/register", response_model=UserRead, status_code=201)
 def register(request: RegisterRequest, session: Session = Depends(get_session)):
+    _check_password_strength(request.password)
     email = _normalize_email(request.email)
     existing = session.exec(select(User).where(User.email == email)).first()
     if existing:
@@ -318,6 +329,12 @@ def login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Transparently upgrade a legacy/outdated hash now that we have the plaintext.
+    if password_needs_rehash(user.password):
+        user.password = get_password_hash(credentials.password)
+        session.add(user)
+        session.commit()
 
     _issue_user_session(response, user, request, session)
     return SessionResponse(
@@ -688,6 +705,7 @@ def accept_invitation(
                 status_code=400,
                 detail="Account creation requires name and password",
             )
+        _check_password_strength(body.password)
         acting = User(
             email=email,
             password=get_password_hash(body.password),
