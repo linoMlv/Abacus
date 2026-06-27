@@ -1,18 +1,11 @@
 @import 'tailwindcss';
 
-/* Self-hosted IBM Plex (served from /assets, so the strict CSP font-src 'self'
-   is respected — no Google Fonts CDN at runtime). Only the latin / latin-ext
-   subsets are pulled in: enough for French, and lighter. */
-@import '@fontsource/ibm-plex-sans/latin-400.css';
-@import '@fontsource/ibm-plex-sans/latin-500.css';
-@import '@fontsource/ibm-plex-sans/latin-600.css';
-@import '@fontsource/ibm-plex-sans/latin-700.css';
-@import '@fontsource/ibm-plex-sans/latin-ext-400.css';
-@import '@fontsource/ibm-plex-sans/latin-ext-500.css';
-@import '@fontsource/ibm-plex-sans/latin-ext-600.css';
-@import '@fontsource/ibm-plex-mono/latin-400.css';
-@import '@fontsource/ibm-plex-mono/latin-500.css';
-@import '@fontsource/ibm-plex-mono/latin-600.css';
+/* Self-hosted IBM Plex is imported from the JS entry (`index.tsx`), not via CSS
+   `@import` here: Tailwind v4 inlines CSS `@import`s through its own engine
+   without rebasing the `url(./files/*.woff2)` references, so Vite never emits
+   the font files (→ 404 at runtime). Importing them from JS routes each font
+   through Vite's asset pipeline, which hashes and emits them under /assets.
+   The strict CSP `font-src 'self'` is still satisfied (no CDN at runtime). */
 
 /*
   Abacus design system — sober corporate fintech (Qonto/Pennylane direction).
