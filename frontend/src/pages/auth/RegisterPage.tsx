@@ -3,7 +3,7 @@ import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { authApi } from '@/api/auth';
-import { ApiError } from '@/api/client';
+import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/useAuth';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -43,13 +43,7 @@ export function RegisterPage() {
     register.mutate();
   };
 
-  const error =
-    localError ??
-    (register.error instanceof ApiError
-      ? register.error.message
-      : register.isError
-        ? 'Création du compte impossible.'
-        : null);
+  const error = localError ?? apiErrorMessage(register, 'Création du compte impossible.');
 
   return (
     <AuthLayout

@@ -3,7 +3,7 @@ import { type FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { authApi } from '@/api/auth';
-import { ApiError } from '@/api/client';
+import { apiErrorMessage } from '@/api/client';
 import { useAuth } from '@/auth/useAuth';
 import { BrandWordmark } from '@/components/Brand';
 import { Alert } from '@/components/ui/alert';
@@ -33,12 +33,7 @@ export function CreateAssociationPage() {
     create.mutate();
   };
 
-  const error =
-    create.error instanceof ApiError
-      ? create.error.message
-      : create.isError
-        ? 'Création impossible.'
-        : null;
+  const error = apiErrorMessage(create, 'Création impossible.');
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">

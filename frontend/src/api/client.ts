@@ -43,6 +43,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+/**
+ * Message to show for a react-query mutation: the server's detail when the
+ * failure is an {@link ApiError}, otherwise a caller-provided fallback (and
+ * `null` while the mutation has not errored).
+ */
+export function apiErrorMessage(
+  mutation: { error: unknown; isError: boolean },
+  fallback: string
+): string | null {
+  if (mutation.error instanceof ApiError) return mutation.error.message;
+  return mutation.isError ? fallback : null;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
