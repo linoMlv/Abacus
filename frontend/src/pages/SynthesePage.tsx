@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Wallet } from 'lucide-react';
+import { ArrowRight, Pencil, Plus, Wallet } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import { accountingApi, type CompteTresorerie, TYPE_TRESORERIE_LABELS } from '@/api/accounting';
+import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 import { formatEUR } from '@/lib/format';
+import { canManageTresorerie } from '@/lib/roles';
 
 function StatTile({
   label,
@@ -30,7 +33,7 @@ function StatTile({
   );
 }
 
-function TreasuryCard({ compte }: { compte: CompteTresorerie }) {
+function TreasuryCard({ compte, onEdit }: { compte: CompteTresorerie; onEdit?: () => void }) {
   return (
     <Card className="flex items-center gap-4 p-4">
       <span
@@ -48,6 +51,16 @@ function TreasuryCard({ compte }: { compte: CompteTresorerie }) {
         <p className="text-xs text-muted">{TYPE_TRESORERIE_LABELS[compte.type_tresorerie]}</p>
       </div>
       <p className="tabular shrink-0 text-base font-semibold text-ink">{formatEUR(compte.solde)}</p>
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Modifier ${compte.libelle}`}
+          className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
+      )}
     </Card>
   );
 }
@@ -60,6 +73,10 @@ export function SynthesePage() {
   const { associationId } = useParams() as { associationId: string };
   const navigate = useNavigate();
   const association = useActiveAssociation();
+  const canManage = association ? canManageTresorerie(association.role) : false;
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<CompteTresorerie | null>(null);
 
   const tresorerieQuery = useQuery({
     queryKey: ['tresorerie', associationId],
@@ -67,6 +84,16 @@ export function SynthesePage() {
   });
   const comptes = tresorerieQuery.data ?? [];
   const total = sumSoldes(comptes);
+
+  function openCreate() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(compte: CompteTresorerie) {
+    setEditing(compte);
+    setDialogOpen(true);
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-7">
@@ -89,17 +116,31 @@ export function SynthesePage() {
       </div>
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-ink-soft">Comptes de trésorerie</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-ink-soft">Comptes de trésorerie</h3>
+          {canManage && (
+            <Button variant="outline" size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4" aria-hidden />
+              Nouveau compte
+            </Button>
+          )}
+        </div>
         {tresorerieQuery.isError ? (
           <Card className="p-5 text-sm text-muted">
             Impossible de charger les comptes de trésorerie.
           </Card>
         ) : comptes.length === 0 && !tresorerieQuery.isLoading ? (
-          <Card className="p-5 text-sm text-muted">Aucun compte de trésorerie.</Card>
+          <Card className="p-5 text-sm text-muted">
+            Aucun compte de trésorerie{canManage ? ' — créez-en un pour démarrer.' : '.'}
+          </Card>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {comptes.map((compte) => (
-              <TreasuryCard key={compte.id} compte={compte} />
+              <TreasuryCard
+                key={compte.id}
+                compte={compte}
+                onEdit={canManage ? () => openEdit(compte) : undefined}
+              />
             ))}
           </div>
         )}
@@ -118,6 +159,15 @@ export function SynthesePage() {
           <ArrowRight className="h-4 w-4" aria-hidden />
         </Button>
       </Card>
+
+      {canManage && (
+        <TreasuryAccountDialog
+          associationId={associationId}
+          compte={editing}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
+      )}
     </div>
   );
 }

@@ -1,15 +1,22 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listTresorerie = vi.fn();
+const creerCompteTresorerie = vi.fn();
+const modifierCompteTresorerie = vi.fn();
 
 vi.mock('@/api/accounting', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/accounting')>();
   return {
     ...actual,
-    accountingApi: { listTresorerie: (...args: unknown[]) => listTresorerie(...args) },
+    accountingApi: {
+      listTresorerie: (...args: unknown[]) => listTresorerie(...args),
+      creerCompteTresorerie: (...args: unknown[]) => creerCompteTresorerie(...args),
+      modifierCompteTresorerie: (...args: unknown[]) => modifierCompteTresorerie(...args),
+    },
   };
 });
 
@@ -60,6 +67,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   listTresorerie.mockResolvedValue(TRESORERIE);
+  creerCompteTresorerie.mockResolvedValue({ ...TRESORERIE[0], id: 'new' });
 });
 
 describe('SynthesePage', () => {
@@ -79,6 +87,24 @@ describe('SynthesePage', () => {
   it('shows an empty state when there is no treasury account', async () => {
     listTresorerie.mockResolvedValue([]);
     renderPage();
-    expect(await screen.findByText('Aucun compte de trésorerie.')).toBeInTheDocument();
+    expect(await screen.findByText(/Aucun compte de trésorerie/)).toBeInTheDocument();
+  });
+
+  it('creates a treasury account through the dialog', async () => {
+    renderPage();
+    await screen.findByText('Compte courant');
+
+    await userEvent.click(screen.getByRole('button', { name: /Nouveau compte/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Nom'), 'Caisse fête');
+    await userEvent.type(screen.getByLabelText(/Solde initial/), '300,00');
+    await userEvent.click(screen.getByRole('button', { name: /Créer le compte/ }));
+
+    await waitFor(() => expect(creerCompteTresorerie).toHaveBeenCalledTimes(1));
+    const [associationId, input] = creerCompteTresorerie.mock.calls[0];
+    expect(associationId).toBe('A');
+    expect(input).toMatchObject({ nom: 'Caisse fête', solde_initial: '300.00' });
   });
 });
