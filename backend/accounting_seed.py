@@ -20,6 +20,7 @@ from models import (
     ExerciceStatut,
     Journal,
     SensCategorie,
+    TypeTresorerie,
 )
 
 A = CompteType.ACTIF
@@ -114,6 +115,14 @@ PLAN_COMPTABLE_ANC: list[tuple[str, str, CompteType]] = [
 RECETTE = SensCategorie.RECETTE
 DEPENSE = SensCategorie.DEPENSE
 
+# Generic class-5 accounts promoted to named treasury accounts at creation, so a
+# fresh association can record and track money straight away (§15.4). Users rename
+# them, set opening balances and add more. (compte numéro -> type de trésorerie).
+DEFAULT_TRESORERIE: list[tuple[str, TypeTresorerie]] = [
+    ("512", TypeTresorerie.BANQUE),
+    ("531", TypeTresorerie.CAISSE),
+]
+
 # Plain-language entry categories for the assisted "saisie simple" screen.
 # Each maps to its produit/charge account and a default journal; the journal is
 # nature-based (recettes -> VE, dépenses -> AC), the counterpart cash account
@@ -168,6 +177,11 @@ def seed_association_accounting(
         )
         comptes[numero] = compte
         session.add(compte)
+
+    # Promote the generic bank/cash accounts to named treasury accounts.
+    for ordre, (numero, type_tresorerie) in enumerate(DEFAULT_TRESORERIE):
+        comptes[numero].type_tresorerie = type_tresorerie
+        comptes[numero].ordre = ordre
 
     # Persist accounts and journals before the categories that reference them.
     # Their FK columns alone do not order the unit-of-work flush (no ORM

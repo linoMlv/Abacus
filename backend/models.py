@@ -286,6 +286,22 @@ class ExerciceStatut(str, Enum):
     CLOTURE = "cloture"
 
 
+class TypeTresorerie(str, Enum):
+    """Kind of a *named treasury account* (§15.4), surfaced to the treasurer.
+
+    Drives the default ANC account prefix (caisse -> 531x, otherwise -> 512x)
+    and the grouping/icon in the UI. A ``Compte`` carries this only when it is a
+    treasury account; ordinary chart-of-accounts lines leave it null. Stable
+    strings (persisted).
+    """
+
+    BANQUE = "banque"
+    CAISSE = "caisse"
+    EN_LIGNE = "en_ligne"  # HelloAsso, Cagnotte…
+    EPARGNE = "epargne"
+    AUTRE = "autre"
+
+
 class Compte(SQLModel, table=True):
     __tablename__ = "compte"
     # An account number is unique within an association's chart of accounts.
@@ -300,6 +316,13 @@ class Compte(SQLModel, table=True):
     classe: int  # 1..8 (= int(numero[0]))
     type: CompteType
     is_active: bool = Field(default=True)
+    # Treasury metadata — set only on named treasury accounts (§15.4); a null
+    # ``type_tresorerie`` marks an ordinary chart-of-accounts line. The current
+    # balance is never stored: it is computed from the ledger (grand livre).
+    type_tresorerie: TypeTresorerie | None = Field(default=None, index=True)
+    iban: str | None = None  # IBAN (banque) or platform identifier (en_ligne)
+    couleur: str | None = None  # UI accent, e.g. "#2563EB"
+    ordre: int = Field(default=0)  # display order among treasury accounts
 
 
 class Journal(SQLModel, table=True):
@@ -352,6 +375,7 @@ class EcritureOrigine(str, Enum):
     MANUELLE = "manuelle"  # saisie expert multi-lignes
     IMPORT = "import"  # rapprochement bancaire
     RECURRENCE = "recurrence"  # générée par une Recurrence
+    A_NOUVEAU = "a_nouveau"  # solde initial d'un compte de trésorerie (§15.4)
 
 
 class Ecriture(SQLModel, table=True):
@@ -442,6 +466,20 @@ class CompteRead(SQLModel):
     classe: int
     type: CompteType
     is_active: bool
+
+
+class CompteTresorerieRead(SQLModel):
+    """A named treasury account with its current balance (computed from the ledger)."""
+
+    id: str
+    numero: str
+    libelle: str
+    type_tresorerie: TypeTresorerie
+    iban: str | None
+    couleur: str | None
+    ordre: int
+    is_active: bool
+    solde: Decimal  # débit − crédit cumulé (positif = disponibilités)
 
 
 class JournalRead(SQLModel):
