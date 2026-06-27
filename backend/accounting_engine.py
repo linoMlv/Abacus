@@ -20,6 +20,8 @@ from models import (
     Association,
     Ecriture,
     EcritureOrigine,
+    Exercice,
+    ExerciceStatut,
     LigneEcriture,
     SensCategorie,
 )
@@ -99,6 +101,74 @@ def next_numero_piece(session: Session, association_id: str) -> int:
         )
     ).one()
     return (current_max or 0) + 1
+
+
+def find_open_exercice(
+    session: Session, association_id: str, jour: date
+) -> Exercice | None:
+    """Return the *open* fiscal year of ``association_id`` covering ``jour``.
+
+    Shared by every write path so an entry is always booked into a single open
+    exercice derived from its date (never trusted from the client). Returns
+    ``None`` when no open exercice covers the date — the caller maps that to a
+    user-facing error.
+    """
+    return session.exec(
+        select(Exercice).where(
+            Exercice.association_id == association_id,
+            Exercice.date_debut <= jour,
+            Exercice.date_fin >= jour,
+            Exercice.statut == ExerciceStatut.OUVERT,
+        )
+    ).first()
+
+
+def build_ecriture_a_nouveau(
+    *,
+    association_id: str,
+    exercice_id: str,
+    journal_id: str,
+    compte_tresorerie_id: str,
+    compte_report_id: str,
+    montant: Decimal | int | str,
+    date_ecriture: date,
+    libelle: str,
+    numero_piece: int,
+    created_by: str | None = None,
+) -> Ecriture:
+    """Opening balance of a treasury account as a balanced à-nouveau entry.
+
+    A positive balance books D treasury / C report à nouveau (110); a negative
+    balance (overdraft) reverses it. The result is validated against the balance
+    invariant before being returned (unsaved — the caller owns the transaction).
+    """
+    montant = Decimal(montant).quantize(CENTS)
+    if montant == ZERO:
+        raise EntryError("Le solde initial doit être différent de zéro.")
+
+    amount = abs(montant)
+    if montant > ZERO:
+        debit_compte, credit_compte = compte_tresorerie_id, compte_report_id
+    else:
+        debit_compte, credit_compte = compte_report_id, compte_tresorerie_id
+
+    lignes = [
+        LigneEcriture(compte_id=debit_compte, libelle=libelle, debit=amount),
+        LigneEcriture(compte_id=credit_compte, libelle=libelle, credit=amount),
+    ]
+    validate_lignes(lignes)
+
+    return Ecriture(
+        association_id=association_id,
+        exercice_id=exercice_id,
+        journal_id=journal_id,
+        date=date_ecriture,
+        numero_piece=numero_piece,
+        libelle=libelle,
+        origine=EcritureOrigine.A_NOUVEAU,
+        created_by=created_by,
+        lignes=lignes,
+    )
 
 
 def build_ecriture_simple(

@@ -28,6 +28,7 @@ from routers import (
     identity,
     logs,
     operations,
+    tresorerie,
 )
 from security import ENVIRONMENT
 from static_files import mount_frontend
@@ -100,6 +101,7 @@ _fastapi_app.add_middleware(SecurityHeadersMiddleware, hsts=ENVIRONMENT == "prod
 _fastapi_app.include_router(identity.router)
 _fastapi_app.include_router(accounting.router)
 _fastapi_app.include_router(ecritures.router)
+_fastapi_app.include_router(tresorerie.router)
 _fastapi_app.include_router(auth.router)
 _fastapi_app.include_router(associations.router)
 _fastapi_app.include_router(operations.router)

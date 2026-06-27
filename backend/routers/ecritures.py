@@ -16,6 +16,7 @@ from sqlmodel import Session, SQLModel, desc, select
 from accounting_engine import (
     EntryError,
     build_ecriture_simple,
+    find_open_exercice,
     next_numero_piece,
     validate_lignes,
 )
@@ -37,7 +38,6 @@ from models import (
     EcritureOrigine,
     EcritureStatut,
     Exercice,
-    ExerciceStatut,
     Journal,
     LigneEcriture,
 )
@@ -80,14 +80,7 @@ def _bad_request(detail: str) -> HTTPException:
 
 
 def _open_exercice(session: Session, association_id: str, jour: date) -> Exercice:
-    exercice = session.exec(
-        select(Exercice).where(
-            Exercice.association_id == association_id,
-            Exercice.date_debut <= jour,
-            Exercice.date_fin >= jour,
-            Exercice.statut == ExerciceStatut.OUVERT,
-        )
-    ).first()
+    exercice = find_open_exercice(session, association_id, jour)
     if exercice is None:
         raise _bad_request("Aucun exercice ouvert ne couvre cette date.")
     return exercice
@@ -274,6 +267,7 @@ def creer_saisie_manuelle(
 def list_ecritures(
     exercice_id: str | None = None,
     journal_id: str | None = None,
+    compte_id: str | None = None,
     statut: EcritureStatut | None = None,
     q: str | None = None,
     limit: int = Query(100, ge=1, le=500),
@@ -283,16 +277,26 @@ def list_ecritures(
 ):
     """The journal: entries of the active association, newest first.
 
-    The optional ``exercice_id`` / ``journal_id`` are plain filters applied on
-    top of the mandatory ``association_id`` scope — an id from another tenant
-    simply matches nothing, it never widens access. Each row carries its total
-    amount and journal code so the listing needs no per-row follow-up.
+    The optional ``exercice_id`` / ``journal_id`` / ``compte_id`` (filter by
+    treasury account or any account touched) are plain filters applied on top of
+    the mandatory ``association_id`` scope — an id from another tenant simply
+    matches nothing, it never widens access. Each row carries its total amount
+    and journal code so the listing needs no per-row follow-up.
     """
     statement = select(Ecriture).where(Ecriture.association_id == ctx.association_id)
     if exercice_id is not None:
         statement = statement.where(Ecriture.exercice_id == exercice_id)
     if journal_id is not None:
         statement = statement.where(Ecriture.journal_id == journal_id)
+    if compte_id is not None:
+        # Entries with at least one line on this account (e.g. a treasury account).
+        statement = statement.where(
+            Ecriture.id.in_(
+                select(LigneEcriture.ecriture_id).where(
+                    LigneEcriture.compte_id == compte_id
+                )
+            )
+        )
     if statut is not None:
         statement = statement.where(Ecriture.statut == statut)
     if q:

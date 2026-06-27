@@ -43,6 +43,7 @@ class Permission(str, Enum):
     REPORT_EXPORT_FEC = "report:export_fec"
 
     # Périphérie métier
+    TRESORERIE_MANAGE = "tresorerie:manage"  # comptes de trésorerie (création/édition)
     BANK_RECONCILE = "bank:reconcile"
     TIERS_MANAGE = "tiers:manage"
     DONATION_MANAGE = "donation:manage"  # dons & reçus fiscaux
@@ -63,10 +64,13 @@ _VIEWER: frozenset[Permission] = frozenset(
     }
 )
 
-# Day-to-day operational role: trésorier.
+# Day-to-day operational role: trésorier. Manages treasury accounts (incl.
+# on-the-fly quick-add during saisie) so the "douce" UX holds; a finer
+# admin-only-for-durable-edit split is deferred to the per-user override panel (T8).
 _TREASURER: frozenset[Permission] = _VIEWER | {
     Permission.ENTRY_CREATE_SIMPLE,
     Permission.ENTRY_DELETE,
+    Permission.TRESORERIE_MANAGE,
     Permission.BANK_RECONCILE,
     Permission.TIERS_MANAGE,
     Permission.DONATION_MANAGE,
