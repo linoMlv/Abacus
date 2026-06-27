@@ -21,16 +21,18 @@ out/
 
 # Development
 *.local
-*.local.md
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
+# Local dev scratch — assistant working files (plans, session notes, debug
+# logs), grouped in one folder and never versioned.
+.local-dev/
+
 # Logs
 logs/
 *.log
-*_logs.txt
 
 # Cache
 .cache/
