@@ -26,3 +26,8 @@ export function canValidateEntry(role: Role): boolean {
 export function canDeleteEntry(role: Role): boolean {
   return role !== 'viewer';
 }
+
+/** Mirror of `TRESORERIE_MANAGE`: treasurer and up manage treasury accounts. */
+export function canManageTresorerie(role: Role): boolean {
+  return role !== 'viewer';
+}

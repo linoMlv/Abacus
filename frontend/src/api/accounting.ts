@@ -35,6 +35,49 @@ export interface Journal {
   libelle: string;
 }
 
+/** Kind of a named treasury account (where the money is), mirrors the backend. */
+export type TypeTresorerie = 'banque' | 'caisse' | 'en_ligne' | 'epargne' | 'autre';
+
+/** A named treasury account with its current balance (decimal string). */
+export interface CompteTresorerie {
+  id: string;
+  numero: string;
+  libelle: string;
+  type_tresorerie: TypeTresorerie;
+  iban: string | null;
+  couleur: string | null;
+  ordre: number;
+  is_active: boolean;
+  solde: string;
+}
+
+export interface CreateTresorerieInput {
+  nom: string;
+  type_tresorerie: TypeTresorerie;
+  iban?: string;
+  couleur?: string;
+  solde_initial?: string;
+  date_solde_initial?: string;
+}
+
+export interface UpdateTresorerieInput {
+  nom?: string;
+  type_tresorerie?: TypeTresorerie;
+  iban?: string;
+  couleur?: string;
+  ordre?: number;
+  is_active?: boolean;
+}
+
+/** Human labels for the treasury account types. */
+export const TYPE_TRESORERIE_LABELS: Record<TypeTresorerie, string> = {
+  banque: 'Banque',
+  caisse: 'Caisse',
+  en_ligne: 'En ligne',
+  epargne: 'Épargne',
+  autre: 'Autre',
+};
+
 export interface LigneEcriture {
   id: string;
   compte_id: string;
@@ -87,9 +130,6 @@ export interface SaisieSimpleInput {
   libelle?: string;
 }
 
-/** Comptes de trésorerie (classe 5: 512 banque, 531 caisse…) used as counterpart. */
-export const CLASSE_TRESORERIE = 5;
-
 const base = (associationId: string) => `/asso/${associationId}`;
 
 /** Build a query string from defined, non-empty params (else empty). */
@@ -115,4 +155,15 @@ export const accountingApi = {
     api.post<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}/validation`),
   supprimerEcriture: (associationId: string, ecritureId: string) =>
     api.del<void>(`${base(associationId)}/ecritures/${ecritureId}`),
+  listTresorerie: (associationId: string, includeInactive = false) =>
+    api.get<CompteTresorerie[]>(
+      `${base(associationId)}/tresorerie${includeInactive ? '?include_inactive=true' : ''}`
+    ),
+  creerCompteTresorerie: (associationId: string, input: CreateTresorerieInput) =>
+    api.post<CompteTresorerie>(`${base(associationId)}/tresorerie`, input),
+  modifierCompteTresorerie: (
+    associationId: string,
+    compteId: string,
+    input: UpdateTresorerieInput
+  ) => api.patch<CompteTresorerie>(`${base(associationId)}/tresorerie/${compteId}`, input),
 };

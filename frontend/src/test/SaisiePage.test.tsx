@@ -5,14 +5,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listCategories = vi.fn();
-const listComptes = vi.fn();
+const listTresorerie = vi.fn();
 const creerSaisieSimple = vi.fn();
 
 vi.mock('@/api/accounting', () => ({
-  CLASSE_TRESORERIE: 5,
   accountingApi: {
     listCategories: (...args: unknown[]) => listCategories(...args),
-    listComptes: (...args: unknown[]) => listComptes(...args),
+    listTresorerie: (...args: unknown[]) => listTresorerie(...args),
     creerSaisieSimple: (...args: unknown[]) => creerSaisieSimple(...args),
   },
 }));
@@ -44,9 +43,29 @@ const CATEGORIES = [
     ordre: 1,
   },
 ];
-const COMPTES = [
-  { id: 'bq', numero: '512', libelle: 'Banque', classe: 5, type: 'actif', is_active: true },
-  { id: 'ca', numero: '531', libelle: 'Caisse', classe: 5, type: 'actif', is_active: true },
+const TRESORERIE = [
+  {
+    id: 'bq',
+    numero: '512',
+    libelle: 'Banque',
+    type_tresorerie: 'banque',
+    iban: null,
+    couleur: null,
+    ordre: 0,
+    is_active: true,
+    solde: '0.00',
+  },
+  {
+    id: 'ca',
+    numero: '531',
+    libelle: 'Caisse',
+    type_tresorerie: 'caisse',
+    iban: null,
+    couleur: null,
+    ordre: 1,
+    is_active: true,
+    solde: '0.00',
+  },
 ];
 
 function renderPage() {
@@ -65,7 +84,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   listCategories.mockResolvedValue(CATEGORIES);
-  listComptes.mockResolvedValue(COMPTES);
+  listTresorerie.mockResolvedValue(TRESORERIE);
   creerSaisieSimple.mockResolvedValue({ numero_piece: 7 });
 });
 
@@ -73,7 +92,7 @@ describe('SaisiePage', () => {
   it('shows the recette categories and treasury accounts once loaded', async () => {
     renderPage();
     expect(await screen.findByRole('option', { name: 'Cotisations' })).toBeInTheDocument();
-    expect(await screen.findByRole('option', { name: '512 — Banque' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: 'Banque' })).toBeInTheDocument();
     // The depense-only category is filtered out of the default (recette) view.
     expect(screen.queryByRole('option', { name: 'Achats' })).not.toBeInTheDocument();
   });
@@ -91,7 +110,7 @@ describe('SaisiePage', () => {
   it('posts a normalized entry and confirms success on a valid submit', async () => {
     renderPage();
     await screen.findByRole('option', { name: 'Cotisations' });
-    await screen.findByRole('option', { name: '512 — Banque' });
+    await screen.findByRole('option', { name: 'Banque' });
 
     await userEvent.type(screen.getByLabelText('Montant (€)'), '150,00');
     await userEvent.click(screen.getByRole('button', { name: /Enregistrer/ }));

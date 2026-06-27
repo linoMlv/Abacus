@@ -1,9 +1,12 @@
-import { ArrowRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, Wallet } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
+import { accountingApi, type CompteTresorerie, TYPE_TRESORERIE_LABELS } from '@/api/accounting';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { formatEUR } from '@/lib/format';
 
 function StatTile({
   label,
@@ -27,10 +30,43 @@ function StatTile({
   );
 }
 
+function TreasuryCard({ compte }: { compte: CompteTresorerie }) {
+  return (
+    <Card className="flex items-center gap-4 p-4">
+      <span
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+        style={{
+          backgroundColor: compte.couleur ? `${compte.couleur}1a` : 'var(--color-accent-soft)',
+          color: compte.couleur ?? 'var(--color-accent)',
+        }}
+        aria-hidden
+      >
+        <Wallet className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-ink">{compte.libelle}</p>
+        <p className="text-xs text-muted">{TYPE_TRESORERIE_LABELS[compte.type_tresorerie]}</p>
+      </div>
+      <p className="tabular shrink-0 text-base font-semibold text-ink">{formatEUR(compte.solde)}</p>
+    </Card>
+  );
+}
+
+function sumSoldes(comptes: CompteTresorerie[]): number {
+  return comptes.reduce((total, c) => total + Number(c.solde), 0);
+}
+
 export function SynthesePage() {
-  const { associationId } = useParams();
+  const { associationId } = useParams() as { associationId: string };
   const navigate = useNavigate();
   const association = useActiveAssociation();
+
+  const tresorerieQuery = useQuery({
+    queryKey: ['tresorerie', associationId],
+    queryFn: () => accountingApi.listTresorerie(associationId),
+  });
+  const comptes = tresorerieQuery.data ?? [];
+  const total = sumSoldes(comptes);
 
   return (
     <div className="mx-auto max-w-6xl space-y-7">
@@ -42,18 +78,39 @@ export function SynthesePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Trésorerie" value="—" hint="Solde consolidé des comptes" />
+        <StatTile
+          label="Trésorerie"
+          value={tresorerieQuery.isLoading ? '…' : formatEUR(total)}
+          hint="Solde consolidé des comptes"
+        />
         <StatTile label="Résultat" value="—" hint="Exercice en cours" />
         <StatTile label="Recettes" value="—" hint="Cumul de l’exercice" tone="recette" />
         <StatTile label="Dépenses" value="—" hint="Cumul de l’exercice" tone="depense" />
       </div>
 
-      <Card className="flex flex-col items-center gap-4 px-6 py-14 text-center">
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-ink-soft">Comptes de trésorerie</h3>
+        {tresorerieQuery.isError ? (
+          <Card className="p-5 text-sm text-muted">
+            Impossible de charger les comptes de trésorerie.
+          </Card>
+        ) : comptes.length === 0 && !tresorerieQuery.isLoading ? (
+          <Card className="p-5 text-sm text-muted">Aucun compte de trésorerie.</Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {comptes.map((compte) => (
+              <TreasuryCard key={compte.id} compte={compte} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <Card className="flex flex-col items-center gap-4 px-6 py-12 text-center">
         <div>
-          <h3 className="text-base font-semibold text-ink">Aucune écriture pour l’instant</h3>
+          <h3 className="text-base font-semibold text-ink">Enregistrer une opération</h3>
           <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
-            Enregistrez une première recette ou dépense : Abacus génère l’écriture comptable et met
-            la synthèse à jour.
+            Saisissez une recette ou une dépense : Abacus génère l’écriture comptable et met les
+            soldes à jour.
           </p>
         </div>
         <Button onClick={() => navigate(`/asso/${associationId}/saisie`)}>

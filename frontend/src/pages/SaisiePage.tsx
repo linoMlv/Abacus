@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
 
-import { accountingApi, CLASSE_TRESORERIE, type SaisieSimpleInput } from '@/api/accounting';
+import { accountingApi, type SaisieSimpleInput } from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -43,8 +43,8 @@ export function SaisiePage() {
     enabled: canCreate,
   });
   const comptesQuery = useQuery({
-    queryKey: ['comptes', associationId, CLASSE_TRESORERIE],
-    queryFn: () => accountingApi.listComptes(associationId, CLASSE_TRESORERIE),
+    queryKey: ['tresorerie', associationId],
+    queryFn: () => accountingApi.listTresorerie(associationId),
     enabled: canCreate,
   });
 
@@ -98,6 +98,7 @@ export function SaisiePage() {
       form.reset({ ...getValues(), montant: '', libelle: '' });
       queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
       queryClient.invalidateQueries({ queryKey: ['balance', associationId] });
+      queryClient.invalidateQueries({ queryKey: ['tresorerie', associationId] });
     },
   });
 
@@ -202,7 +203,7 @@ export function SaisiePage() {
               {comptes.length === 0 && <option value="">—</option>}
               {comptes.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.numero} — {c.libelle}
+                  {c.libelle}
                 </option>
               ))}
             </Select>
