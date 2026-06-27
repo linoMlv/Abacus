@@ -16,3 +16,13 @@ export const ROLE_LABELS: Record<Role, string> = {
 export function canCreateSimpleEntry(role: Role): boolean {
   return role !== 'viewer';
 }
+
+/** Mirror of `ENTRY_VALIDATE`: only the accountant and admin lock entries. */
+export function canValidateEntry(role: Role): boolean {
+  return role === 'accountant' || role === 'admin';
+}
+
+/** Mirror of `ENTRY_DELETE`: every role except the read-only viewer. */
+export function canDeleteEntry(role: Role): boolean {
+  return role !== 'viewer';
+}
