@@ -21,6 +21,7 @@ Security rules:
 """
 
 from dataclasses import dataclass
+from typing import Protocol, TypeVar
 
 from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
@@ -41,6 +42,27 @@ _CREDENTIALS_EXCEPTION = HTTPException(
 )
 
 
+def decode_user_token(token: str, session: Session) -> User | None:
+    """Resolve the active user a *user* access token identifies, or ``None``.
+
+    The single, non-raising implementation of the token validation core (valid
+    JWT, ``type == "user"`` anti-confusion guard, present subject, active user)
+    shared by the raising dependency and the optional-auth flows. Hardening it
+    here protects every call site at once.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        return None
+    if payload.get("type") != USER_TOKEN_TYPE:
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    user = session.get(User, user_id)
+    return user if user is not None and user.is_active else None
+
+
 async def get_current_user(
     token: str | None = Depends(get_token),
     session: Session = Depends(get_session),
@@ -52,23 +74,39 @@ async def get_current_user(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        raise _CREDENTIALS_EXCEPTION
-
-    # Reject anything that is not a user access token (defense against
-    # confusing a legacy association token for a user identity).
-    if payload.get("type") != USER_TOKEN_TYPE:
-        raise _CREDENTIALS_EXCEPTION
-    user_id = payload.get("sub")
-    if not user_id:
-        raise _CREDENTIALS_EXCEPTION
-
-    user = session.get(User, user_id)
-    if user is None or not user.is_active:
+    user = decode_user_token(token, session)
+    if user is None:
         raise _CREDENTIALS_EXCEPTION
     return user
+
+
+class _TenantOwned(Protocol):
+    """A row that belongs to exactly one association (non-null tenant key)."""
+
+    association_id: str
+
+
+T = TypeVar("T", bound=_TenantOwned)
+
+
+def owned_or_404(
+    session: Session,
+    model: type[T],
+    obj_id: str,
+    association_id: str,
+    detail: str = "Introuvable",
+) -> T:
+    """Fetch ``model`` by id and confirm it belongs to ``association_id``.
+
+    The shared tenant-scoped lookup: an id from the client never authorizes
+    access on its own. An object that does not exist *or* belongs to another
+    association is reported as ``404`` alike, so the response never leaks the
+    existence of another tenant's data.
+    """
+    obj = session.get(model, obj_id)
+    if obj is None or obj.association_id != association_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+    return obj
 
 
 @dataclass(frozen=True)

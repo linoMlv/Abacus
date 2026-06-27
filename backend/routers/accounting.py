@@ -7,11 +7,11 @@ their own permission-gated routes added in later phases.
 
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlmodel import Session, asc, desc, select
 
-from auth_context import AccessContext, get_active_membership
+from auth_context import AccessContext, get_active_membership, owned_or_404
 from database import get_session
 from models import (
     BalanceCompteRead,
@@ -158,15 +158,7 @@ def grand_livre(
     session: Session = Depends(get_session),
 ):
     """Ledger of one account: its movements in date order, with running balance."""
-    compte = session.exec(
-        select(Compte).where(
-            Compte.id == compte_id, Compte.association_id == ctx.association_id
-        )
-    ).first()
-    if compte is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Compte introuvable"
-        )
+    owned_or_404(session, Compte, compte_id, ctx.association_id, "Compte introuvable")
 
     statement = (
         select(LigneEcriture, Ecriture)

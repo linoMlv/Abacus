@@ -19,7 +19,12 @@ from accounting_engine import (
     validate_lignes,
 )
 from audit import AuditAction, record_audit
-from auth_context import AccessContext, get_active_membership, require_permission
+from auth_context import (
+    AccessContext,
+    get_active_membership,
+    owned_or_404,
+    require_permission,
+)
 from authz import Permission
 from database import get_session
 from models import (
@@ -114,17 +119,27 @@ def _owned_journal(session: Session, association_id: str, journal_id: str) -> Jo
 def _owned_ecriture(
     session: Session, association_id: str, ecriture_id: str
 ) -> Ecriture:
-    ecriture = session.exec(
-        select(Ecriture).where(
-            Ecriture.id == ecriture_id,
-            Ecriture.association_id == association_id,
-        )
-    ).first()
-    if ecriture is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Écriture introuvable"
-        )
-    return ecriture
+    return owned_or_404(
+        session, Ecriture, ecriture_id, association_id, "Écriture introuvable"
+    )
+
+
+def _audit_ecriture(
+    session: Session,
+    ctx: AccessContext,
+    action: AuditAction,
+    ecriture: Ecriture,
+) -> None:
+    """Record an audit entry for an action on ``ecriture`` (no commit)."""
+    record_audit(
+        session,
+        association_id=ctx.association_id,
+        actor_user_id=ctx.user.id,
+        action=action,
+        target_type="ecriture",
+        target_id=ecriture.id,
+        detail=f"pièce {ecriture.numero_piece}",
+    )
 
 
 # --- Creation -------------------------------------------------------------
@@ -159,7 +174,7 @@ def creer_saisie_simple(
         )
 
     exercice = _open_exercice(session, ctx.association_id, body.date)
-    libelle = (body.libelle or categorie.libelle).strip() or categorie.libelle
+    libelle = (body.libelle or "").strip() or categorie.libelle.strip()
 
     try:
         ecriture = build_ecriture_simple(
@@ -179,15 +194,7 @@ def creer_saisie_simple(
         raise _bad_request(str(exc))
 
     session.add(ecriture)
-    record_audit(
-        session,
-        association_id=ctx.association_id,
-        actor_user_id=ctx.user.id,
-        action=AuditAction.ECRITURE_CREATE_SIMPLE,
-        target_type="ecriture",
-        target_id=ecriture.id,
-        detail=f"pièce {ecriture.numero_piece}",
-    )
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_SIMPLE, ecriture)
     session.commit()
     session.refresh(ecriture)
     return ecriture
@@ -206,12 +213,30 @@ def creer_saisie_manuelle(
     journal = _owned_journal(session, ctx.association_id, body.journal_id)
     exercice = _open_exercice(session, ctx.association_id, body.date)
 
+    # Resolve every referenced account in one query (vs. one round-trip per line),
+    # then confirm each requested id is an active account of this association.
+    requested_ids = {ligne.compte_id for ligne in body.lignes}
+    valid_ids = (
+        set(
+            session.exec(
+                select(Compte.id).where(
+                    Compte.id.in_(requested_ids),
+                    Compte.association_id == ctx.association_id,
+                    Compte.is_active.is_(True),
+                )
+            ).all()
+        )
+        if requested_ids
+        else set()
+    )
+
     lignes: list[LigneEcriture] = []
     for ligne in body.lignes:
-        compte = _owned_compte(session, ctx.association_id, ligne.compte_id)
+        if ligne.compte_id not in valid_ids:
+            raise _bad_request("Compte introuvable ou inactif.")
         lignes.append(
             LigneEcriture(
-                compte_id=compte.id,
+                compte_id=ligne.compte_id,
                 libelle=(ligne.libelle or body.libelle),
                 debit=ligne.debit,
                 credit=ligne.credit,
@@ -235,15 +260,7 @@ def creer_saisie_manuelle(
         lignes=lignes,
     )
     session.add(ecriture)
-    record_audit(
-        session,
-        association_id=ctx.association_id,
-        actor_user_id=ctx.user.id,
-        action=AuditAction.ECRITURE_CREATE_MANUAL,
-        target_type="ecriture",
-        target_id=ecriture.id,
-        detail=f"pièce {ecriture.numero_piece}",
-    )
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_MANUAL, ecriture)
     session.commit()
     session.refresh(ecriture)
     return ecriture
@@ -311,15 +328,7 @@ def valider_ecriture(
     ecriture.validated_by = ctx.user.id
     ecriture.validated_at = datetime.now(UTC)
     session.add(ecriture)
-    record_audit(
-        session,
-        association_id=ctx.association_id,
-        actor_user_id=ctx.user.id,
-        action=AuditAction.ECRITURE_VALIDATE,
-        target_type="ecriture",
-        target_id=ecriture.id,
-        detail=f"pièce {ecriture.numero_piece}",
-    )
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_VALIDATE, ecriture)
     session.commit()
     session.refresh(ecriture)
     return ecriture
@@ -340,14 +349,6 @@ def supprimer_ecriture(
                 "(contre-passation requise)."
             ),
         )
-    record_audit(
-        session,
-        association_id=ctx.association_id,
-        actor_user_id=ctx.user.id,
-        action=AuditAction.ECRITURE_DELETE,
-        target_type="ecriture",
-        target_id=ecriture.id,
-        detail=f"pièce {ecriture.numero_piece}",
-    )
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_DELETE, ecriture)
     session.delete(ecriture)
     session.commit()

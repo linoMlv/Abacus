@@ -8,13 +8,11 @@ strangler migration:
                               by :func:`auth_context.get_active_membership`.
 """
 
-import hashlib
 import os
 import secrets
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlalchemy import update
 from sqlmodel import Session, select
@@ -23,8 +21,10 @@ from accounting_seed import seed_association_accounting
 from auth_context import (
     USER_TOKEN_TYPE,
     AccessContext,
+    decode_user_token,
     get_active_membership,
     get_current_user,
+    owned_or_404,
     require_permission,
 )
 from authz import Permission
@@ -43,14 +43,13 @@ from rate_limit import AUTH_RATE_LIMIT, limiter
 from request_utils import client_ip
 from security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
-    ALGORITHM,
     COOKIE_SECURE,
     REFRESH_TOKEN_EXPIRE_DAYS,
-    SECRET_KEY,
     create_access_token,
     generate_refresh_token,
     get_password_hash,
     hash_refresh_token,
+    hash_token,
     password_needs_rehash,
     validate_password_strength,
     verify_password,
@@ -65,10 +64,6 @@ INVITATION_EXPIRE_DAYS = int(os.getenv("INVITATION_EXPIRE_DAYS", "7"))
 def _utcnow() -> datetime:
     """Naive UTC, matching how datetimes are stored in the DB."""
     return datetime.now(UTC).replace(tzinfo=None)
-
-
-def _hash_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
 
 
 router = APIRouter(tags=["identity"])
@@ -246,17 +241,7 @@ def _optional_current_user(request: Request, session: Session) -> User | None:
     if not raw:
         return None
     token = raw.split(" ", 1)[1] if raw.startswith("Bearer ") else raw
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        return None
-    if payload.get("type") != USER_TOKEN_TYPE:
-        return None
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
-    user = session.get(User, user_id)
-    return user if user and user.is_active else None
+    return decode_user_token(token, session)
 
 
 def _get_membership(
@@ -299,6 +284,13 @@ def _associations_for(session: Session, user: User) -> list[AssociationSummary]:
         AssociationSummary(id=assoc.id, name=assoc.name, role=m.role, status=m.status)
         for m, assoc in rows
     ]
+
+
+def _session_response(session: Session, user: User) -> SessionResponse:
+    return SessionResponse(
+        user=UserRead(id=user.id, email=user.email, name=user.name),
+        associations=_associations_for(session, user),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -354,10 +346,7 @@ def login(
         session.commit()
 
     _issue_user_session(response, user, request, session)
-    return SessionResponse(
-        user=UserRead(id=user.id, email=user.email, name=user.name),
-        associations=_associations_for(session, user),
-    )
+    return _session_response(session, user)
 
 
 @router.post("/api/auth/refresh", response_model=SessionResponse)
@@ -387,10 +376,7 @@ def refresh(
     session.add(refresh_session)
 
     _issue_user_session(response, user, request, session)
-    return SessionResponse(
-        user=UserRead(id=user.id, email=user.email, name=user.name),
-        associations=_associations_for(session, user),
-    )
+    return _session_response(session, user)
 
 
 @router.post("/api/auth/logout")
@@ -455,10 +441,7 @@ def change_password(
 def session_info(
     user: User = Depends(get_current_user), session: Session = Depends(get_session)
 ):
-    return SessionResponse(
-        user=UserRead(id=user.id, email=user.email, name=user.name),
-        associations=_associations_for(session, user),
-    )
+    return _session_response(session, user)
 
 
 # --------------------------------------------------------------------------- #
@@ -651,7 +634,7 @@ def create_invitation(
         association_id=ctx.association_id,
         email=email,
         role=request.role,
-        token_hash=_hash_token(raw_token),
+        token_hash=hash_token(raw_token),
         invited_by=ctx.user.id,
         expires_at=_utcnow() + timedelta(days=INVITATION_EXPIRE_DAYS),
     )
@@ -690,11 +673,10 @@ def revoke_invitation(
     ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
     session: Session = Depends(get_session),
 ):
-    invitation = session.get(Invitation, invitation_id)
     # Scope check: never reveal/affect another association's invitations.
-    if invitation is None or invitation.association_id != ctx.association_id:
-        raise HTTPException(status_code=404, detail="Invitation not found")
-
+    invitation = owned_or_404(
+        session, Invitation, invitation_id, ctx.association_id, "Invitation not found"
+    )
     session.delete(invitation)
     session.commit()
     return {"message": "Invitation revoked"}
@@ -708,7 +690,7 @@ def accept_invitation(
     session: Session = Depends(get_session),
 ):
     invitation = session.exec(
-        select(Invitation).where(Invitation.token_hash == _hash_token(body.token))
+        select(Invitation).where(Invitation.token_hash == hash_token(body.token))
     ).first()
     now = _utcnow()
     invalid = HTTPException(status_code=400, detail="Invalid or expired invitation")
@@ -770,7 +752,4 @@ def accept_invitation(
     if issue_session:
         _issue_user_session(response, acting, request, session)
 
-    return SessionResponse(
-        user=UserRead(id=acting.id, email=acting.email, name=acting.name),
-        associations=_associations_for(session, acting),
-    )
+    return _session_response(session, acting)
