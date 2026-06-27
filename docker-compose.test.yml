@@ -1,0 +1,12 @@
+# Local prod-simulation override — applied on top of docker-compose.yml by
+# ./scripts/run-test.sh (compose project "abacus-test", isolated volume).
+# NOT used in production: it publishes ports on the host.
+services:
+  app:
+    # Reach the app (API + built SPA + /mcp) from the host.
+    ports:
+      - "8000:8000"
+  db:
+    # Inspect PostgreSQL from the host (psql / DBeaver / TablePlus).
+    ports:
+      - "5432:5432"

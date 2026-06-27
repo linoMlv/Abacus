@@ -112,6 +112,8 @@ celerybeat.pid
 .env
 .env.*
 !.env.example
+# Preconfigured local prod-simulation env (throwaway, non-secret values only).
+!.env.test
 .env.toml
 
 # ==========================================

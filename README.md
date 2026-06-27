@@ -194,6 +194,35 @@ npm run dev
 
 Application : `http://localhost:9873`
 
+### Environnement de test (simulation de prod, en une commande)
+
+Pour lancer **l'image de production** (frontend + backend dans un seul
+conteneur) avec PostgreSQL, les migrations et un compte de démo, sans rien
+configurer :
+
+```bash
+./scripts/run-test.sh        # build + démarrage + données de démo
+```
+
+Puis ouvrez `http://localhost:8000` et connectez-vous :
+
+- **e-mail** : `demo@abacus.test` · **mot de passe** : `demo-password-123`
+- l'association « Association Démo » est déjà créée (plan comptable ANC seedé)
+
+Cet environnement reflète la production (même image, migrations, en-têtes de
+sécurité, CSP, argon2, vérif d'origine/CSRF). Deux réglages sont volontairement
+relâchés pour rester joignable en `http://localhost` : `ENVIRONMENT=staging`
+désactive le flag `Secure` des cookies et l'en-tête HSTS (tous deux exigent
+HTTPS). La config tient dans `.env.test` (valeurs locales jetables, **jamais**
+pour la prod) ; le projet Docker est isolé (`abacus-test`, volume dédié).
+
+```bash
+./scripts/run-test.sh logs    # logs de l'app en direct
+./scripts/run-test.sh down    # arrêt (données conservées)
+./scripts/run-test.sh reset   # arrêt + effacement de la base de test
+./scripts/run-test.sh psql    # shell psql dans le conteneur db
+```
+
 ### Mode production (Docker)
 
 Le déploiement repose sur **Docker Compose** et **un unique conteneur
