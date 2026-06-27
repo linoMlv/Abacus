@@ -1,9 +1,9 @@
 import { ArrowRight } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { useAuth } from '@/auth/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 
 function StatTile({
   label,
@@ -29,9 +29,8 @@ function StatTile({
 
 export function SynthesePage() {
   const { associationId } = useParams();
-  const { session } = useAuth();
   const navigate = useNavigate();
-  const association = session?.associations.find((a) => a.id === associationId);
+  const association = useActiveAssociation();
 
   return (
     <div className="mx-auto max-w-6xl space-y-7">

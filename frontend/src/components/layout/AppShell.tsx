@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Navigate, Outlet, useParams } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 
-import { useAuth } from '@/auth/useAuth';
+import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
@@ -12,12 +12,10 @@ import { Topbar } from './Topbar';
  * (the server independently enforces this on every request).
  */
 export function AppShell() {
-  const { associationId } = useParams();
-  const { session } = useAuth();
+  const association = useActiveAssociation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isMember = session?.associations.some((a) => a.id === associationId);
-  if (!isMember) return <Navigate to="/" replace />;
+  if (!association) return <Navigate to="/" replace />;
 
   return (
     <div className="flex min-h-dvh bg-canvas">
