@@ -2,13 +2,23 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   pull_request:
+
+# Cancel superseded runs on the same ref to save runner minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: CI only needs to read the repo.
+permissions:
+  contents: read
 
 jobs:
   backend:
     name: Backend (lint + tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -27,6 +37,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      # Run the suite on PostgreSQL (FK enforced, Decimal/datetime parity).
       TEST_DATABASE_URL: postgresql+psycopg://abacus:abacus@localhost:5432/abacus_test
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +63,7 @@ jobs:
   migrations:
     name: Migrations (build schema from scratch)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
@@ -83,6 +95,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # The migration chain must build the schema from empty and tear it down
+      # cleanly — guards against model/migration drift.
       - name: alembic upgrade head
         run: alembic upgrade head
 
@@ -92,6 +106,7 @@ jobs:
   frontend:
     name: Frontend (lint + build + tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
