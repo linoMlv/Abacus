@@ -268,6 +268,56 @@ def test_draft_can_be_deleted():
     assert admin.get(f"/api/asso/{assoc}/ecritures/{entry}").status_code == 404
 
 
+# --- Journal (listing) ----------------------------------------------------
+
+
+def test_journal_lists_entries_with_amount_and_journal_code():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    admin.post(
+        f"/api/asso/{assoc}/ecritures/simple",
+        json=_simple_payload(admin, assoc, "Cotisations", "150.00"),
+    )
+
+    rows = admin.get(f"/api/asso/{assoc}/ecritures").json()
+    assert len(rows) == 1
+    row = rows[0]
+    # The list carries the entry total and the human journal code, so the
+    # journal screen needs no per-row follow-up request.
+    assert _dec(row["montant"]) == Decimal("150.00")
+    assert row["journal_code"] == "VE"  # recette -> journal Ventes / Recettes
+    assert row["numero_piece"] == 1
+    assert row["statut"] == "brouillon"
+
+
+def test_journal_orders_newest_first_and_filters_by_statut():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    first = _create_draft(admin, assoc)
+    admin.post(f"/api/asso/{assoc}/ecritures/{first}/validation")
+    _create_draft(admin, assoc)  # second entry, still a draft
+
+    rows = admin.get(f"/api/asso/{assoc}/ecritures").json()
+    assert [r["numero_piece"] for r in rows] == [2, 1]  # newest voucher first
+
+    drafts = admin.get(
+        f"/api/asso/{assoc}/ecritures", params={"statut": "brouillon"}
+    ).json()
+    assert [r["numero_piece"] for r in drafts] == [2]
+    validees = admin.get(
+        f"/api/asso/{assoc}/ecritures", params={"statut": "validee"}
+    ).json()
+    assert [r["numero_piece"] for r in validees] == [1]
+
+
+def test_journal_is_tenant_scoped():
+    admin_a, assoc_a = _admin_with_association("a@example.com", "alpha")
+    _create_draft(admin_a, assoc_a)
+    admin_b, assoc_b = _admin_with_association("b@example.com", "beta")
+
+    # B's journal never surfaces A's entries.
+    assert admin_b.get(f"/api/asso/{assoc_b}/ecritures").json() == []
+    assert len(admin_a.get(f"/api/asso/{assoc_a}/ecritures").json()) == 1
+
+
 # --- RBAC -----------------------------------------------------------------
 
 

@@ -10,6 +10,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import selectinload
 from sqlmodel import Session, SQLModel, desc, select
 
 from accounting_engine import (
@@ -32,8 +33,8 @@ from models import (
     Compte,
     Ecriture,
     EcritureDetailRead,
+    EcritureListItem,
     EcritureOrigine,
-    EcritureRead,
     EcritureStatut,
     Exercice,
     ExerciceStatut,
@@ -269,7 +270,7 @@ def creer_saisie_manuelle(
 # --- Read & lifecycle -----------------------------------------------------
 
 
-@router.get("/ecritures", response_model=list[EcritureRead])
+@router.get("/ecritures", response_model=list[EcritureListItem])
 def list_ecritures(
     exercice_id: str | None = None,
     journal_id: str | None = None,
@@ -284,7 +285,8 @@ def list_ecritures(
 
     The optional ``exercice_id`` / ``journal_id`` are plain filters applied on
     top of the mandatory ``association_id`` scope — an id from another tenant
-    simply matches nothing, it never widens access.
+    simply matches nothing, it never widens access. Each row carries its total
+    amount and journal code so the listing needs no per-row follow-up.
     """
     statement = select(Ecriture).where(Ecriture.association_id == ctx.association_id)
     if exercice_id is not None:
@@ -299,8 +301,34 @@ def list_ecritures(
         statement.order_by(desc(Ecriture.date), desc(Ecriture.numero_piece))
         .limit(limit)
         .offset(offset)
+        .options(selectinload(Ecriture.lignes))  # one extra query, no N+1
     )
-    return session.exec(statement).all()
+    ecritures = session.exec(statement).all()
+
+    # Journal codes resolved once for the (small) set of journals of the tenant.
+    journal_codes = {
+        j.id: j.code
+        for j in session.exec(
+            select(Journal).where(Journal.association_id == ctx.association_id)
+        ).all()
+    }
+    return [
+        EcritureListItem(
+            id=e.id,
+            exercice_id=e.exercice_id,
+            journal_id=e.journal_id,
+            date=e.date,
+            numero_piece=e.numero_piece,
+            libelle=e.libelle,
+            statut=e.statut,
+            origine=e.origine,
+            created_at=e.created_at,
+            validated_at=e.validated_at,
+            montant=sum((ligne.debit for ligne in e.lignes), Decimal("0")),
+            journal_code=journal_codes.get(e.journal_id, ""),
+        )
+        for e in ecritures
+    ]
 
 
 @router.get("/ecritures/{ecriture_id}", response_model=EcritureDetailRead)

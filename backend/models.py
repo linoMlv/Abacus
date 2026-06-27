@@ -494,6 +494,14 @@ class EcritureDetailRead(EcritureRead):
     lignes: list[LigneEcritureRead] = []
 
 
+class EcritureListItem(EcritureRead):
+    """A journal row: the entry plus its total amount and human journal code,
+    so the listing needs no per-row follow-up request."""
+
+    montant: Decimal  # total débit = total crédit (entries are balanced)
+    journal_code: str
+
+
 class BalanceCompteRead(SQLModel):
     """One row of the trial balance (balance des comptes)."""
 
