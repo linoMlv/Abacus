@@ -7,6 +7,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
 import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
+import { SaisiePage } from '@/pages/SaisiePage';
 import { SynthesePage } from '@/pages/SynthesePage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
@@ -32,7 +33,10 @@ export default function App() {
           <Route path="/asso/:associationId" element={<AppShell />}>
             <Route index element={<Navigate to="synthese" replace />} />
             <Route path="synthese" element={<SynthesePage />} />
-            {ALL_NAV_ITEMS.filter((item) => item.segment !== 'synthese').map((item) => (
+            <Route path="saisie" element={<SaisiePage />} />
+            {ALL_NAV_ITEMS.filter(
+              (item) => item.segment !== 'synthese' && item.segment !== 'saisie'
+            ).map((item) => (
               <Route key={item.segment} path={item.segment} element={<PlaceholderPage />} />
             ))}
           </Route>
