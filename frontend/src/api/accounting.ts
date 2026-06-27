@@ -115,6 +115,7 @@ export interface Ecriture extends EcritureBase {
 export interface JournalFilters {
   statut?: EcritureStatut;
   journal_id?: string;
+  compte_id?: string;
   exercice_id?: string;
   q?: string;
   limit?: number;

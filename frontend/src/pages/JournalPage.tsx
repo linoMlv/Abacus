@@ -44,6 +44,7 @@ export function JournalPage() {
 
   const [statut, setStatut] = useState<EcritureStatut | ''>('');
   const [journalId, setJournalId] = useState('');
+  const [compteId, setCompteId] = useState('');
   const [search, setSearch] = useState('');
   const q = useDebounced(search);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -53,18 +54,24 @@ export function JournalPage() {
     queryFn: () => accountingApi.listJournaux(associationId),
   });
 
+  const tresorerieQuery = useQuery({
+    queryKey: ['tresorerie', associationId],
+    queryFn: () => accountingApi.listTresorerie(associationId),
+  });
+
   const ecrituresQuery = useQuery({
-    queryKey: ['ecritures', associationId, { statut, journalId, q }],
+    queryKey: ['ecritures', associationId, { statut, journalId, compteId, q }],
     queryFn: () =>
       accountingApi.listEcritures(associationId, {
         statut: statut || undefined,
         journal_id: journalId || undefined,
+        compte_id: compteId || undefined,
         q: q || undefined,
       }),
   });
 
   const rows = ecrituresQuery.data ?? [];
-  const hasFilters = statut !== '' || journalId !== '' || q !== '';
+  const hasFilters = statut !== '' || journalId !== '' || compteId !== '' || q !== '';
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -115,6 +122,19 @@ export function JournalPage() {
             {(journauxQuery.data ?? []).map((j) => (
               <option key={j.id} value={j.id}>
                 {j.code} — {j.libelle}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label="Filtrer par compte de trésorerie"
+            className="w-48"
+            value={compteId}
+            onChange={(e) => setCompteId(e.target.value)}
+          >
+            <option value="">Tous les comptes</option>
+            {(tresorerieQuery.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.libelle}
               </option>
             ))}
           </Select>

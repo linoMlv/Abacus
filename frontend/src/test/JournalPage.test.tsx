@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const listEcritures = vi.fn();
 const listJournaux = vi.fn();
 const listComptes = vi.fn();
+const listTresorerie = vi.fn();
 const getEcriture = vi.fn();
 const validerEcriture = vi.fn();
 const supprimerEcriture = vi.fn();
@@ -16,6 +17,7 @@ vi.mock('@/api/accounting', () => ({
     listEcritures: (...a: unknown[]) => listEcritures(...a),
     listJournaux: (...a: unknown[]) => listJournaux(...a),
     listComptes: (...a: unknown[]) => listComptes(...a),
+    listTresorerie: (...a: unknown[]) => listTresorerie(...a),
     getEcriture: (...a: unknown[]) => getEcriture(...a),
     validerEcriture: (...a: unknown[]) => validerEcriture(...a),
     supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
@@ -95,6 +97,19 @@ beforeEach(() => {
   listEcritures.mockResolvedValue(ROWS);
   listJournaux.mockResolvedValue([{ id: 'j-ve', code: 'VE', libelle: 'Ventes' }]);
   listComptes.mockResolvedValue(COMPTES);
+  listTresorerie.mockResolvedValue([
+    {
+      id: 'c-bq',
+      numero: '512',
+      libelle: 'Banque',
+      type_tresorerie: 'banque',
+      iban: null,
+      couleur: null,
+      ordre: 0,
+      is_active: true,
+      solde: '50.00',
+    },
+  ]);
   getEcriture.mockResolvedValue(DETAIL);
   validerEcriture.mockResolvedValue({ ...DETAIL, statut: 'validee' });
 });
@@ -117,6 +132,23 @@ describe('JournalPage', () => {
       expect(listEcritures).toHaveBeenCalledWith(
         'A',
         expect.objectContaining({ statut: 'brouillon' })
+      )
+    );
+  });
+
+  it('refetches with the treasury-account filter when it changes', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.selectOptions(
+      screen.getByLabelText('Filtrer par compte de trésorerie'),
+      'c-bq'
+    );
+
+    await waitFor(() =>
+      expect(listEcritures).toHaveBeenCalledWith(
+        'A',
+        expect.objectContaining({ compte_id: 'c-bq' })
       )
     );
   });
