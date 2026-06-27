@@ -21,6 +21,7 @@ out/
 
 # Development
 *.local
+*.local.md
 .env.local
 .env.development.local
 .env.test.local
@@ -29,6 +30,7 @@ out/
 # Logs
 logs/
 *.log
+*_logs.txt
 
 # Cache
 .cache/
@@ -70,6 +72,10 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# The Python packaging ignores above (notably `lib/`) must not swallow the
+# frontend source directory: re-include it explicitly.
+!frontend/src/lib/
 
 # PyInstaller
 *.manifest
