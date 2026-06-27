@@ -169,6 +169,13 @@ def seed_association_accounting(
         comptes[numero] = compte
         session.add(compte)
 
+    # Persist accounts and journals before the categories that reference them.
+    # Their FK columns alone do not order the unit-of-work flush (no ORM
+    # relationship is declared), so on a FK-enforcing backend (PostgreSQL) the
+    # categories could otherwise be inserted first and fail. The flush stays
+    # within the caller's transaction — it does not commit.
+    session.flush()
+
     for ordre, (sens, libelle, numero, code) in enumerate(DEFAULT_CATEGORIES):
         session.add(
             CategorieSaisie(

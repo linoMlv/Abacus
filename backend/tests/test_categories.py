@@ -2,7 +2,9 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, select
+from sqlalchemy import event
+from sqlmodel import Session, SQLModel, create_engine, select
+from sqlmodel.pool import StaticPool
 
 from accounting_seed import DEFAULT_CATEGORIES, seed_association_accounting
 from database import get_session
@@ -88,6 +90,46 @@ def test_seed_creates_categories_mapped_to_real_accounts(session: Session):
         assert cat.sens == sens
         assert numero_by_id[cat.compte_id] == numero
         assert code_by_journal[cat.journal_id] == code
+
+
+def test_seed_orders_inserts_under_foreign_key_enforcement():
+    """Regression: the seed must insert comptes/journaux before the
+    categorie_saisie rows that reference them.
+
+    A bare FK column does not order the unit-of-work flush, so on a FK-enforcing
+    backend (PostgreSQL in production) the categories could be inserted first,
+    breaking association creation with a ForeignKeyViolation. SQLite leaves FKs
+    unenforced by default; we turn them on here to reproduce that production
+    failure locally and guard against regression.
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _enforce_foreign_keys(dbapi_connection, _record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        association = Association(name="A", email="fk@example.com", password="x")
+        session.add(association)
+        session.flush()
+
+        # Without the ordering fix this commit raises IntegrityError.
+        seed_association_accounting(session, association.id)
+        session.commit()
+
+        categories = session.exec(
+            select(CategorieSaisie).where(
+                CategorieSaisie.association_id == association.id
+            )
+        ).all()
+    assert len(categories) == len(DEFAULT_CATEGORIES)
 
 
 # --- Read endpoint --------------------------------------------------------
