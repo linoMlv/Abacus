@@ -1,4 +1,3 @@
-import hashlib
 from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, Request, status
@@ -9,7 +8,7 @@ from sqlmodel import Session, select
 
 from database import get_session
 from models import ApiKey, Association
-from security import ALGORITHM, SECRET_KEY
+from security import ALGORITHM, SECRET_KEY, hash_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/login", auto_error=False)
 
@@ -68,7 +67,7 @@ async def get_current_association(
 
 
 def _authenticate_api_key(raw_key: str, session: Session) -> Association:
-    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_hash = hash_token(raw_key)
 
     statement = select(ApiKey).where(
         ApiKey.key_hash == key_hash, ApiKey.is_active.is_(True)

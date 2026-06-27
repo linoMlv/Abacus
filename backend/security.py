@@ -92,6 +92,11 @@ def generate_refresh_token() -> str:
     return secrets.token_urlsafe(48)
 
 
-def hash_refresh_token(token: str) -> str:
-    """Hash a refresh token for storage/lookup."""
+def hash_token(token: str) -> str:
+    """Hash an opaque token (refresh / invitation / API key) for storage/lookup."""
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash a refresh token. Alias of :func:`hash_token` for refresh call sites."""
+    return hash_token(token)
