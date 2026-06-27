@@ -39,6 +39,23 @@ require_env() {
   fi
 }
 
+require_docker() {
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "Erreur : Docker n'est pas installé (commande 'docker' introuvable)." >&2
+    echo "  Installation : https://docs.docker.com/engine/install/" >&2
+    exit 1
+  fi
+  if ! docker info >/dev/null 2>&1; then
+    echo "Erreur : le démon Docker ne répond pas (est-il démarré ?)." >&2
+    echo "  Démarrez-le puis relancez ce script :" >&2
+    echo "    sudo systemctl start docker     # Linux (systemd)" >&2
+    echo "    # ou ouvrez Docker Desktop (macOS / Windows)" >&2
+    echo "  Erreur de permission ? Ajoutez-vous au groupe docker :" >&2
+    echo "    sudo usermod -aG docker \"\$USER\"   (puis déconnectez/reconnectez-vous)" >&2
+    exit 1
+  fi
+}
+
 wait_for_health() {
   printf 'Attente du démarrage de l’app'
   for _ in $(seq 1 60); do
@@ -83,6 +100,7 @@ seed_demo() {
 
 cmd_up() {
   require_env
+  require_docker
   echo "Build + démarrage de l’environnement de test (projet $PROJECT)…"
   compose up -d --build
   wait_for_health
@@ -108,19 +126,21 @@ EOF
 
 case "${1:-up}" in
   up) cmd_up ;;
-  down) require_env; compose down ;;
+  down) require_env; require_docker; compose down ;;
   reset)
     require_env
+    require_docker
     compose down -v
     echo "Volume de test effacé. Relancez : ./scripts/run-test.sh up"
     ;;
-  logs) require_env; compose logs -f app ;;
+  logs) require_env; require_docker; compose logs -f app ;;
   seed) seed_demo && echo "Données de démo prêtes ($DEMO_EMAIL / $DEMO_PASSWORD)." ;;
   psql)
     require_env
+    require_docker
     compose exec db psql -U abacus -d abacus
     ;;
-  status) require_env; compose ps ;;
+  status) require_env; require_docker; compose ps ;;
   *)
     echo "Usage: $0 {up|down|reset|logs|seed|psql|status}" >&2
     exit 1
