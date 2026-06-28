@@ -21,6 +21,8 @@ class AuditAction:
     ECRITURE_DELETE = "ecriture.delete"
     COMPTE_TRESORERIE_CREATE = "compte_tresorerie.create"
     COMPTE_TRESORERIE_UPDATE = "compte_tresorerie.update"
+    CATEGORIE_CREATE = "categorie.create"
+    CATEGORIE_UPDATE = "categorie.update"
 
 
 def record_audit(

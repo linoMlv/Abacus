@@ -209,3 +209,165 @@ def test_viewer_can_read_categories(session: Session):
     session.commit()
 
     assert viewer.get(f"/api/asso/{assoc_id}/categories").status_code == 200
+
+
+# --- CRUD (custom categories) ---------------------------------------------
+
+
+def _member_client(session: Session, assoc: str, email: str, role: Role) -> TestClient:
+    client = _client()
+    uid = _register(client, email)
+    _login(client, email)
+    session.add(Membership(user_id=uid, association_id=assoc, role=role))
+    session.commit()
+    return client
+
+
+def _numero(admin: TestClient, assoc: str, compte_id: str) -> str:
+    comptes = admin.get(
+        f"/api/asso/{assoc}/comptes", params={"include_inactive": True}
+    ).json()
+    return next(c["numero"] for c in comptes if c["id"] == compte_id)
+
+
+def _journal_code(admin: TestClient, assoc: str, journal_id: str) -> str:
+    return next(
+        j["code"]
+        for j in admin.get(f"/api/asso/{assoc}/journaux").json()
+        if j["id"] == journal_id
+    )
+
+
+def test_create_recette_category_auto_maps_to_758_ve():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    resp = admin.post(
+        f"/api/asso/{assoc}/categories",
+        json={"sens": "recette", "libelle": "Buvette"},
+    )
+    assert resp.status_code == 201, resp.text
+    cat = resp.json()
+    assert cat["sens"] == "recette"
+    assert cat["is_active"] is True
+    assert _numero(admin, assoc, cat["compte_id"]) == "758"
+    assert _journal_code(admin, assoc, cat["journal_id"]) == "VE"
+
+
+def test_create_depense_category_auto_maps_to_658_ac():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    resp = admin.post(
+        f"/api/asso/{assoc}/categories",
+        json={"sens": "depense", "libelle": "Matériel sportif"},
+    )
+    assert resp.status_code == 201, resp.text
+    cat = resp.json()
+    assert _numero(admin, assoc, cat["compte_id"]) == "658"
+    assert _journal_code(admin, assoc, cat["journal_id"]) == "AC"
+
+
+def test_create_with_explicit_account_for_the_expert():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    compte_756 = next(
+        c
+        for c in admin.get(f"/api/asso/{assoc}/comptes", params={"classe": 7}).json()
+        if c["numero"] == "756"
+    )
+    resp = admin.post(
+        f"/api/asso/{assoc}/categories",
+        json={"sens": "recette", "libelle": "Adhésions", "compte_id": compte_756["id"]},
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["compte_id"] == compte_756["id"]
+
+
+def test_create_rejects_account_of_the_wrong_nature():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    charge = next(
+        c
+        for c in admin.get(f"/api/asso/{assoc}/comptes", params={"classe": 6}).json()
+        if c["numero"] == "658"
+    )
+    # A recette must point at a produit account, not a charge.
+    resp = admin.post(
+        f"/api/asso/{assoc}/categories",
+        json={"sens": "recette", "libelle": "Erreur", "compte_id": charge["id"]},
+    )
+    assert resp.status_code == 400
+
+
+def test_create_rejects_duplicate_libelle():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    # "Cotisations" is seeded.
+    resp = admin.post(
+        f"/api/asso/{assoc}/categories",
+        json={"sens": "recette", "libelle": "Cotisations"},
+    )
+    assert resp.status_code == 400
+
+
+def test_rename_and_deactivate_category():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    cat = next(
+        c
+        for c in admin.get(f"/api/asso/{assoc}/categories").json()
+        if c["libelle"] == "Produits divers"
+    )
+    resp = admin.patch(
+        f"/api/asso/{assoc}/categories/{cat['id']}",
+        json={"libelle": "Divers recettes", "is_active": False},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["libelle"] == "Divers recettes"
+
+    # Deactivated: gone from the default list, present with include_inactive.
+    active = admin.get(f"/api/asso/{assoc}/categories").json()
+    assert all(c["id"] != cat["id"] for c in active)
+    full = admin.get(
+        f"/api/asso/{assoc}/categories", params={"include_inactive": True}
+    ).json()
+    assert any(c["id"] == cat["id"] for c in full)
+
+
+def test_deactivating_a_category_keeps_past_entries_valid():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    result = _simple_entry(admin, assoc, "Cotisations")
+    cat_id = result["cat"]["id"]
+    admin.patch(f"/api/asso/{assoc}/categories/{cat_id}", json={"is_active": False})
+
+    # The entry still lists and still references the (now inactive) category.
+    row = admin.get(f"/api/asso/{assoc}/ecritures").json()[0]
+    assert row["categorie_id"] == cat_id
+
+
+def test_treasurer_can_quick_add_but_viewer_cannot(session: Session):
+    _, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    treasurer = _member_client(session, assoc, "tres@example.com", Role.TREASURER)
+    viewer = _member_client(session, assoc, "view@example.com", Role.VIEWER)
+
+    assert (
+        treasurer.post(
+            f"/api/asso/{assoc}/categories",
+            json={"sens": "depense", "libelle": "Snacks"},
+        ).status_code
+        == 201
+    )
+    assert (
+        viewer.post(
+            f"/api/asso/{assoc}/categories",
+            json={"sens": "depense", "libelle": "Interdit"},
+        ).status_code
+        == 403
+    )
+
+
+def test_category_crud_is_tenant_isolated():
+    admin_a, assoc_a = _admin_with_association("a@example.com", "aa@example.com")
+    cat_a = admin_a.get(f"/api/asso/{assoc_a}/categories").json()[0]
+    admin_b, assoc_b = _admin_with_association("b@example.com", "bb@example.com")
+
+    # B cannot patch A's category through B's own scope.
+    assert (
+        admin_b.patch(
+            f"/api/asso/{assoc_b}/categories/{cat_a['id']}", json={"libelle": "x"}
+        ).status_code
+        == 404
+    )

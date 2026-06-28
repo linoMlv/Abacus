@@ -15,8 +15,6 @@ from auth_context import AccessContext, get_active_membership, owned_or_404
 from database import get_session
 from models import (
     BalanceCompteRead,
-    CategorieSaisie,
-    CategorieSaisieRead,
     Compte,
     CompteRead,
     Ecriture,
@@ -26,7 +24,6 @@ from models import (
     Journal,
     JournalRead,
     LigneEcriture,
-    SensCategorie,
 )
 
 ZERO = Decimal("0.00")
@@ -79,24 +76,6 @@ def list_exercices(
         .where(Exercice.association_id == ctx.association_id)
         .order_by(desc(Exercice.date_debut))
     )
-    return session.exec(statement).all()
-
-
-@router.get("/categories", response_model=list[CategorieSaisieRead])
-def list_categories(
-    sens: SensCategorie | None = None,
-    include_inactive: bool = False,
-    ctx: AccessContext = Depends(get_active_membership),
-    session: Session = Depends(get_session),
-):
-    statement = select(CategorieSaisie).where(
-        CategorieSaisie.association_id == ctx.association_id
-    )
-    if sens is not None:
-        statement = statement.where(CategorieSaisie.sens == sens)
-    if not include_inactive:
-        statement = statement.where(CategorieSaisie.is_active.is_(True))
-    statement = statement.order_by(asc(CategorieSaisie.ordre))
     return session.exec(statement).all()
 
 

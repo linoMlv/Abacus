@@ -44,6 +44,7 @@ class Permission(str, Enum):
 
     # Périphérie métier
     TRESORERIE_MANAGE = "tresorerie:manage"  # comptes de trésorerie (création/édition)
+    CATEGORIE_MANAGE = "categorie:manage"  # catégories de saisie (CRUD, quick-add)
     BANK_RECONCILE = "bank:reconcile"
     TIERS_MANAGE = "tiers:manage"
     DONATION_MANAGE = "donation:manage"  # dons & reçus fiscaux
@@ -71,6 +72,7 @@ _TREASURER: frozenset[Permission] = _VIEWER | {
     Permission.ENTRY_CREATE_SIMPLE,
     Permission.ENTRY_DELETE,
     Permission.TRESORERIE_MANAGE,
+    Permission.CATEGORIE_MANAGE,
     Permission.BANK_RECONCILE,
     Permission.TIERS_MANAGE,
     Permission.DONATION_MANAGE,
