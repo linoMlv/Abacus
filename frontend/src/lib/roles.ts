@@ -41,3 +41,8 @@ export function canManageCategorie(role: Role): boolean {
 export function canManageTiers(role: Role): boolean {
   return role !== 'viewer';
 }
+
+/** Mirror of `ATTACHMENT_MANAGE`: treasurer and up upload/remove justificatifs. */
+export function canManageAttachment(role: Role): boolean {
+  return role !== 'viewer';
+}

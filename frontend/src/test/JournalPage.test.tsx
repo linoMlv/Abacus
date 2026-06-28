@@ -11,6 +11,9 @@ const listTresorerie = vi.fn();
 const getEcriture = vi.fn();
 const validerEcriture = vi.fn();
 const supprimerEcriture = vi.fn();
+const listJustificatifs = vi.fn();
+const uploadJustificatif = vi.fn();
+const supprimerJustificatif = vi.fn();
 
 vi.mock('@/api/accounting', () => ({
   accountingApi: {
@@ -21,6 +24,11 @@ vi.mock('@/api/accounting', () => ({
     getEcriture: (...a: unknown[]) => getEcriture(...a),
     validerEcriture: (...a: unknown[]) => validerEcriture(...a),
     supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
+    listJustificatifs: (...a: unknown[]) => listJustificatifs(...a),
+    uploadJustificatif: (...a: unknown[]) => uploadJustificatif(...a),
+    supprimerJustificatif: (...a: unknown[]) => supprimerJustificatif(...a),
+    justificatifContenuUrl: (assoc: string, id: string) =>
+      `/api/asso/${assoc}/justificatifs/${id}/contenu`,
   },
 }));
 
@@ -112,6 +120,15 @@ beforeEach(() => {
   ]);
   getEcriture.mockResolvedValue(DETAIL);
   validerEcriture.mockResolvedValue({ ...DETAIL, statut: 'validee' });
+  listJustificatifs.mockResolvedValue([]);
+  uploadJustificatif.mockResolvedValue({
+    id: 'j1',
+    ecriture_id: 'e2',
+    filename: 'facture.pdf',
+    content_type: 'application/pdf',
+    size: 1234,
+    created_at: '2026-06-27T10:00:00Z',
+  });
 });
 
 describe('JournalPage', () => {
@@ -164,5 +181,39 @@ describe('JournalPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Valider/ }));
     await waitFor(() => expect(validerEcriture).toHaveBeenCalledWith('A', 'e2'));
+  });
+
+  it('uploads a justificatif from the detail drawer', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByText('Cotisation Mars'));
+    await screen.findByRole('dialog');
+
+    const file = new File([new Uint8Array([1, 2, 3])], 'facture.pdf', {
+      type: 'application/pdf',
+    });
+    await userEvent.upload(screen.getByLabelText('Ajouter un justificatif'), file);
+
+    await waitFor(() => expect(uploadJustificatif).toHaveBeenCalledTimes(1));
+    expect(uploadJustificatif).toHaveBeenCalledWith('A', 'e2', file);
+  });
+
+  it('lists an existing justificatif with a download link', async () => {
+    listJustificatifs.mockResolvedValue([
+      {
+        id: 'j9',
+        ecriture_id: 'e2',
+        filename: 'recu.png',
+        content_type: 'image/png',
+        size: 2048,
+        created_at: '2026-06-27T10:00:00Z',
+      },
+    ]);
+    renderPage();
+    await userEvent.click(await screen.findByText('Cotisation Mars'));
+    await screen.findByRole('dialog');
+
+    expect(await screen.findByText('recu.png')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /Télécharger recu.png/ });
+    expect(link).toHaveAttribute('href', '/api/asso/A/justificatifs/j9/contenu');
   });
 });

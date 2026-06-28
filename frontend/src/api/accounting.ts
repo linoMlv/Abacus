@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, apiUrl } from './client';
 
 /** Direction of an assisted entry, mirrors the backend `SensCategorie`. */
 export type Sens = 'recette' | 'depense';
@@ -165,6 +165,16 @@ export interface Ecriture extends EcritureBase {
   lignes: LigneEcriture[];
 }
 
+/** Metadata of a supporting document attached to an entry. */
+export interface Justificatif {
+  id: string;
+  ecriture_id: string | null;
+  filename: string;
+  content_type: string;
+  size: number;
+  created_at: string;
+}
+
 /** Filters for the journal listing (all optional, all server-scoped). */
 export interface JournalFilters {
   statut?: EcritureStatut;
@@ -231,6 +241,20 @@ export const accountingApi = {
     api.get<Tiers[]>(`${base(associationId)}/tiers${qs({ type })}`),
   creerTiers: (associationId: string, input: { nom: string; type: TypeTiers }) =>
     api.post<Tiers>(`${base(associationId)}/tiers`, input),
+  listJustificatifs: (associationId: string, ecritureId: string) =>
+    api.get<Justificatif[]>(`${base(associationId)}/ecritures/${ecritureId}/justificatifs`),
+  uploadJustificatif: (associationId: string, ecritureId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.postForm<Justificatif>(
+      `${base(associationId)}/ecritures/${ecritureId}/justificatifs`,
+      form
+    );
+  },
+  supprimerJustificatif: (associationId: string, justificatifId: string) =>
+    api.del<void>(`${base(associationId)}/justificatifs/${justificatifId}`),
+  justificatifContenuUrl: (associationId: string, justificatifId: string) =>
+    apiUrl(`${base(associationId)}/justificatifs/${justificatifId}/contenu`),
   listEcritures: (associationId: string, filters: JournalFilters = {}) =>
     api.get<EcritureListItem[]>(`${base(associationId)}/ecritures${qs({ ...filters })}`),
   getEcriture: (associationId: string, ecritureId: string) =>
