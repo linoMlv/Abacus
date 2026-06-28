@@ -8,6 +8,7 @@ booked into an *open* fiscal year covering their date.
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
@@ -42,12 +43,26 @@ from models import (
     Journal,
     LigneEcriture,
     ModeReglement,
+    SensCategorie,
     Tiers,
 )
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["ecritures"])
 
 _FINANCIAL_CLASS = 5  # comptes de trésorerie (512 banque, 531 caisse, …)
+
+
+class TypeOperationFilter(str, Enum):
+    """Type-first journal filter (§15.3), the vocabulary a treasurer reasons with.
+
+    ``recette`` / ``depense`` are derived from the entry's category sens; a
+    ``virement`` from its origine. A manual entry carries no category, so it
+    matches none of these three (it only shows when no type filter is set).
+    """
+
+    RECETTE = "recette"
+    DEPENSE = "depense"
+    VIREMENT = "virement"
 
 
 # --- Request schemas ------------------------------------------------------
@@ -382,6 +397,11 @@ def list_ecritures(
     exercice_id: str | None = None,
     journal_id: str | None = None,
     compte_id: str | None = None,
+    type_operation: TypeOperationFilter | None = None,
+    categorie_id: str | None = None,
+    tiers_id: str | None = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
     statut: EcritureStatut | None = None,
     q: str | None = None,
     limit: int = Query(100, ge=1, le=500),
@@ -391,11 +411,14 @@ def list_ecritures(
 ):
     """The journal: entries of the active association, newest first.
 
-    The optional ``exercice_id`` / ``journal_id`` / ``compte_id`` (filter by
-    treasury account or any account touched) are plain filters applied on top of
-    the mandatory ``association_id`` scope — an id from another tenant simply
-    matches nothing, it never widens access. Each row carries its total amount
-    and journal code so the listing needs no per-row follow-up.
+    Every optional filter is applied on top of the mandatory ``association_id``
+    scope and composes with the others (AND): an id from another tenant simply
+    matches nothing, never widening access. Filters: fiscal year, journal,
+    ``compte_id`` (any account touched, e.g. a treasury account), operation
+    ``type_operation`` (Recette/Dépense/Virement, §15.3), category, tiers, a
+    ``date_from``/``date_to`` range (inclusive), statut and a free-text libellé
+    search. Each row carries its total amount and journal code so the listing
+    needs no per-row follow-up.
     """
     statement = select(Ecriture).where(Ecriture.association_id == ctx.association_id)
     if exercice_id is not None:
@@ -411,6 +434,31 @@ def list_ecritures(
                 )
             )
         )
+    if type_operation is TypeOperationFilter.VIREMENT:
+        statement = statement.where(Ecriture.origine == EcritureOrigine.VIREMENT)
+    elif type_operation is not None:
+        # Recette/Dépense: entries whose category carries the matching sens.
+        sens = (
+            SensCategorie.RECETTE
+            if type_operation is TypeOperationFilter.RECETTE
+            else SensCategorie.DEPENSE
+        )
+        statement = statement.where(
+            Ecriture.categorie_id.in_(
+                select(CategorieSaisie.id).where(
+                    CategorieSaisie.association_id == ctx.association_id,
+                    CategorieSaisie.sens == sens,
+                )
+            )
+        )
+    if categorie_id is not None:
+        statement = statement.where(Ecriture.categorie_id == categorie_id)
+    if tiers_id is not None:
+        statement = statement.where(Ecriture.tiers_id == tiers_id)
+    if date_from is not None:
+        statement = statement.where(Ecriture.date >= date_from)
+    if date_to is not None:
+        statement = statement.where(Ecriture.date <= date_to)
     if statut is not None:
         statement = statement.where(Ecriture.statut == statut)
     if q:
