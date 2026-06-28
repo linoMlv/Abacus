@@ -31,3 +31,8 @@ export function canDeleteEntry(role: Role): boolean {
 export function canManageTresorerie(role: Role): boolean {
   return role !== 'viewer';
 }
+
+/** Mirror of `CATEGORIE_MANAGE`: treasurer and up manage entry categories. */
+export function canManageCategorie(role: Role): boolean {
+  return role !== 'viewer';
+}

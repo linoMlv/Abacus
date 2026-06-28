@@ -18,6 +18,19 @@ export interface Categorie {
   ordre: number;
 }
 
+export interface CreateCategorieInput {
+  sens: Sens;
+  libelle: string;
+  compte_id?: string; // expert override; else auto (758/658)
+}
+
+export interface UpdateCategorieInput {
+  libelle?: string;
+  compte_id?: string;
+  ordre?: number;
+  is_active?: boolean;
+}
+
 /** One account of the chart of accounts. */
 export interface Compte {
   id: string;
@@ -141,8 +154,17 @@ function qs(params: Record<string, string | number | undefined>): string {
 }
 
 export const accountingApi = {
-  listCategories: (associationId: string, sens?: Sens) =>
-    api.get<Categorie[]>(`${base(associationId)}/categories${sens ? `?sens=${sens}` : ''}`),
+  listCategories: (associationId: string, sens?: Sens, includeInactive = false) =>
+    api.get<Categorie[]>(
+      `${base(associationId)}/categories${qs({
+        sens,
+        include_inactive: includeInactive ? 'true' : undefined,
+      })}`
+    ),
+  creerCategorie: (associationId: string, input: CreateCategorieInput) =>
+    api.post<Categorie>(`${base(associationId)}/categories`, input),
+  modifierCategorie: (associationId: string, categorieId: string, input: UpdateCategorieInput) =>
+    api.patch<Categorie>(`${base(associationId)}/categories/${categorieId}`, input),
   listComptes: (associationId: string, classe?: number) =>
     api.get<Compte[]>(`${base(associationId)}/comptes${classe ? `?classe=${classe}` : ''}`),
   listJournaux: (associationId: string) => api.get<Journal[]>(`${base(associationId)}/journaux`),

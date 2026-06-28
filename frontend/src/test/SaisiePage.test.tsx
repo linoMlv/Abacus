@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,12 +7,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const listCategories = vi.fn();
 const listTresorerie = vi.fn();
 const creerSaisieSimple = vi.fn();
+const creerCategorie = vi.fn();
+const modifierCategorie = vi.fn();
 
 vi.mock('@/api/accounting', () => ({
   accountingApi: {
     listCategories: (...args: unknown[]) => listCategories(...args),
     listTresorerie: (...args: unknown[]) => listTresorerie(...args),
     creerSaisieSimple: (...args: unknown[]) => creerSaisieSimple(...args),
+    creerCategorie: (...args: unknown[]) => creerCategorie(...args),
+    modifierCategorie: (...args: unknown[]) => modifierCategorie(...args),
   },
 }));
 
@@ -86,6 +90,15 @@ beforeEach(() => {
   listCategories.mockResolvedValue(CATEGORIES);
   listTresorerie.mockResolvedValue(TRESORERIE);
   creerSaisieSimple.mockResolvedValue({ numero_piece: 7 });
+  creerCategorie.mockResolvedValue({
+    id: 'cat-new',
+    sens: 'recette',
+    libelle: 'Buvette',
+    compte_id: 'c',
+    journal_id: 'j',
+    is_active: true,
+    ordre: 9,
+  });
 });
 
 describe('SaisiePage', () => {
@@ -105,6 +118,19 @@ describe('SaisiePage', () => {
 
     expect(await screen.findByText('Indiquez un montant.')).toBeInTheDocument();
     expect(creerSaisieSimple).not.toHaveBeenCalled();
+  });
+
+  it('quick-adds a category from the saisie screen', async () => {
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Nouvelle' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText('Libellé'), 'Buvette');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Créer' }));
+
+    await waitFor(() => expect(creerCategorie).toHaveBeenCalledTimes(1));
+    expect(creerCategorie).toHaveBeenCalledWith('A', { sens: 'recette', libelle: 'Buvette' });
   });
 
   it('posts a normalized entry and confirms success on a valid submit', async () => {

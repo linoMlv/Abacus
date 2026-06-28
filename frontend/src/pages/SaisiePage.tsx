@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
 
-import { accountingApi, type SaisieSimpleInput } from '@/api/accounting';
+import { accountingApi, type Categorie, type SaisieSimpleInput } from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
+import { CategorieDialog } from '@/components/CategorieDialog';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 import { cn } from '@/lib/utils';
-import { canCreateSimpleEntry } from '@/lib/roles';
+import { canCreateSimpleEntry, canManageCategorie } from '@/lib/roles';
 
 import { amountToDecimalString, saisieSchema, type SaisieForm } from './saisie.schema';
 
@@ -36,6 +37,8 @@ export function SaisiePage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const canCreate = association ? canCreateSimpleEntry(association.role) : false;
+  const canAddCategorie = association ? canManageCategorie(association.role) : false;
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
 
   const categoriesQuery = useQuery({
     queryKey: ['categories', associationId],
@@ -119,6 +122,15 @@ export function SaisiePage() {
     setValue('sens', next);
   }
 
+  function onCategorieCreated(cat: Categorie) {
+    // Surface the new category immediately, then select it (the invalidation
+    // triggered by the dialog reconciles with the server list).
+    queryClient.setQueryData<Categorie[]>(['categories', associationId], (old) =>
+      old ? [...old, cat] : [cat]
+    );
+    setValue('categorie_id', cat.id, { shouldValidate: true });
+  }
+
   if (!canCreate) {
     return (
       <div className="mx-auto max-w-2xl">
@@ -162,7 +174,19 @@ export function SaisiePage() {
 
         <form onSubmit={onSubmit} className="mt-5 space-y-5" noValidate>
           <div>
-            <Label htmlFor="categorie_id">Catégorie</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="categorie_id">Catégorie</Label>
+              {canAddCategorie && (
+                <button
+                  type="button"
+                  onClick={() => setCatDialogOpen(true)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden />
+                  Nouvelle
+                </button>
+              )}
+            </div>
             <Select id="categorie_id" className="mt-1.5" {...register('categorie_id')}>
               {categories.length === 0 && <option value="">—</option>}
               {categories.map((c) => (
@@ -241,6 +265,16 @@ export function SaisiePage() {
       <p className="mt-3 text-center text-xs text-faint">
         Abacus génère l’écriture en partie double automatiquement.
       </p>
+
+      {canAddCategorie && (
+        <CategorieDialog
+          associationId={associationId}
+          defaultSens={sens}
+          open={catDialogOpen}
+          onOpenChange={setCatDialogOpen}
+          onSaved={onCategorieCreated}
+        />
+      )}
     </div>
   );
 }
