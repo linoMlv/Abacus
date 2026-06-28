@@ -1,11 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Download, Paperclip, Search, Trash2, X } from 'lucide-react';
+import { Check, Eye, Paperclip, Search, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { accountingApi, type EcritureListItem, type EcritureStatut } from '@/api/accounting';
+import {
+  accountingApi,
+  type EcritureListItem,
+  type EcritureStatut,
+  type Justificatif,
+  JUSTIFICATIF_ACCEPT,
+  JUSTIFICATIF_MAX_BYTES,
+} from '@/api/accounting';
 import type { Role } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
+import { JustificatifViewer } from '@/components/JustificatifViewer';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,7 +21,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
-import { formatAmount, formatDate, formatEUR } from '@/lib/format';
+import { formatAmount, formatBytes, formatDate, formatEUR } from '@/lib/format';
 import { canDeleteEntry, canManageAttachment, canValidateEntry } from '@/lib/roles';
 
 const STATUT_LABELS: Record<EcritureStatut, string> = {
@@ -231,16 +239,7 @@ function JournalTable({
   );
 }
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const UPLOAD_ACCEPT = '.pdf,image/png,image/jpeg,image/gif,image/webp';
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} o`;
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)} Ko`;
-  return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
-}
-
-/** Justificatifs of an entry: list, upload (PDF/image, 5 Mo), download, delete. */
+/** Justificatifs of an entry: list, preview, upload (PDF/image, 5 Mo), delete. */
 function JustificatifsSection({
   associationId,
   ecritureId,
@@ -253,6 +252,7 @@ function JustificatifsSection({
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Justificatif | null>(null);
   const canManage = role ? canManageAttachment(role) : false;
 
   const listQuery = useQuery({
@@ -278,7 +278,7 @@ function JustificatifsSection({
     e.target.value = ''; // allow re-picking the same file
     if (!file) return;
     // The server re-validates type and size — this is just a friendlier guard.
-    if (file.size > MAX_UPLOAD_BYTES) {
+    if (file.size > JUSTIFICATIF_MAX_BYTES) {
       setLocalError('Fichier trop volumineux (5 Mo maximum).');
       return;
     }
@@ -303,7 +303,7 @@ function JustificatifsSection({
             <input
               ref={inputRef}
               type="file"
-              accept={UPLOAD_ACCEPT}
+              accept={JUSTIFICATIF_ACCEPT}
               className="sr-only"
               onChange={onPick}
               aria-label="Ajouter un justificatif"
@@ -331,15 +331,18 @@ function JustificatifsSection({
               key={j.id}
               className="flex items-center gap-2 rounded-lg border border-hairline px-3 py-2 text-sm"
             >
-              <span className="min-w-0 flex-1 truncate text-ink">{j.filename}</span>
-              <span className="shrink-0 text-xs text-faint">{formatBytes(j.size)}</span>
-              <a
-                href={accountingApi.justificatifContenuUrl(associationId, j.id)}
-                className="shrink-0 rounded-md p-1 text-muted hover:bg-hover hover:text-ink"
-                aria-label={`Télécharger ${j.filename}`}
+              <button
+                type="button"
+                onClick={() => setViewing(j)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                aria-label={`Aperçu de ${j.filename}`}
               >
-                <Download className="h-4 w-4" aria-hidden />
-              </a>
+                <Eye className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-ink hover:text-accent">
+                  {j.filename}
+                </span>
+              </button>
+              <span className="shrink-0 text-xs text-faint">{formatBytes(j.size)}</span>
               {canManage && (
                 <button
                   type="button"
@@ -355,6 +358,13 @@ function JustificatifsSection({
           ))}
         </ul>
       )}
+
+      <JustificatifViewer
+        associationId={associationId}
+        justificatif={viewing}
+        open={viewing !== null}
+        onOpenChange={(o) => !o && setViewing(null)}
+      />
     </section>
   );
 }

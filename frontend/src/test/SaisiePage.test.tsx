@@ -12,6 +12,7 @@ const creerVirement = vi.fn();
 const creerCategorie = vi.fn();
 const modifierCategorie = vi.fn();
 const creerTiers = vi.fn();
+const uploadJustificatif = vi.fn();
 
 vi.mock('@/api/accounting', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/accounting')>();
@@ -26,6 +27,7 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       creerCategorie: (...args: unknown[]) => creerCategorie(...args),
       modifierCategorie: (...args: unknown[]) => modifierCategorie(...args),
       creerTiers: (...args: unknown[]) => creerTiers(...args),
+      uploadJustificatif: (...args: unknown[]) => uploadJustificatif(...args),
     },
   };
 });
@@ -100,8 +102,9 @@ beforeEach(() => {
   listCategories.mockResolvedValue(CATEGORIES);
   listTresorerie.mockResolvedValue(TRESORERIE);
   listTiers.mockResolvedValue([{ id: 't1', type: 'donateur', nom: 'M. Dupont', is_active: true }]);
-  creerSaisieSimple.mockResolvedValue({ numero_piece: 7 });
-  creerVirement.mockResolvedValue({ numero_piece: 8 });
+  creerSaisieSimple.mockResolvedValue({ id: 'e7', numero_piece: 7 });
+  creerVirement.mockResolvedValue({ id: 'e8', numero_piece: 8 });
+  uploadJustificatif.mockResolvedValue({ id: 'j1' });
   creerTiers.mockResolvedValue({
     id: 't-new',
     type: 'fournisseur',
@@ -234,5 +237,24 @@ describe('SaisiePage', () => {
     });
     expect(creerSaisieSimple).not.toHaveBeenCalled();
     expect(await screen.findByText(/Virement n° 8 enregistré/)).toBeInTheDocument();
+  });
+
+  it('attaches chosen justificatifs to the created entry', async () => {
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.type(screen.getByLabelText('Montant (€)'), '60');
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    const file = new File([new Uint8Array([1, 2, 3])], 'facture.pdf', {
+      type: 'application/pdf',
+    });
+    await userEvent.upload(screen.getByLabelText('Joindre des justificatifs'), file);
+    expect(await screen.findByText('facture.pdf')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer l’opération/ }));
+
+    await waitFor(() => expect(creerSaisieSimple).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(uploadJustificatif).toHaveBeenCalledWith('A', 'e7', file));
+    expect(await screen.findByText(/1 justificatif/)).toBeInTheDocument();
   });
 });

@@ -44,3 +44,10 @@ export function formatDate(value: string | Date | null | undefined): string {
   const d = typeof value === 'string' ? new Date(value) : value;
   return Number.isNaN(d.getTime()) ? '' : DATE.format(d);
 }
+
+/** "3 Ko" / "1.2 Mo" — a human file size from a byte count. */
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} o`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} Ko`;
+  return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
+}

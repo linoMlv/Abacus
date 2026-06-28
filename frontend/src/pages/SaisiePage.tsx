@@ -1,13 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, ChevronDown, Plus } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, ChevronDown, Paperclip, Plus, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
 
 import {
   accountingApi,
   type Categorie,
+  JUSTIFICATIF_ACCEPT,
+  JUSTIFICATIF_MAX_BYTES,
   MODE_REGLEMENT_LABELS,
   type SaisieSimpleInput,
   type Tiers,
@@ -23,7 +25,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
-import { canCreateSimpleEntry, canManageCategorie, canManageTiers } from '@/lib/roles';
+import { formatBytes } from '@/lib/format';
+import {
+  canCreateSimpleEntry,
+  canManageAttachment,
+  canManageCategorie,
+  canManageTiers,
+} from '@/lib/roles';
 import { cn } from '@/lib/utils';
 
 import {
@@ -53,8 +61,13 @@ export function SaisiePage() {
   const canCreate = association ? canCreateSimpleEntry(association.role) : false;
   const canAddCategorie = association ? canManageCategorie(association.role) : false;
   const canAddTiers = association ? canManageTiers(association.role) : false;
+  const canAddJustificatif = association ? canManageAttachment(association.role) : false;
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [tiersDialogOpen, setTiersDialogOpen] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const categoriesQuery = useQuery({
     queryKey: ['categories', associationId],
@@ -142,24 +155,15 @@ export function SaisiePage() {
 
   const simpleMutation = useMutation({
     mutationFn: (input: SaisieSimpleInput) => accountingApi.creerSaisieSimple(associationId, input),
-    onSuccess: (ecriture) => {
-      setSuccess(`Écriture n° ${ecriture.numero_piece} enregistrée.`);
-      form.reset({ ...getValues(), montant: '', libelle: '', reference_externe: '' });
-      invalidateAfterEntry();
-    },
   });
   const virementMutation = useMutation({
     mutationFn: (input: VirementInput) => accountingApi.creerVirement(associationId, input),
-    onSuccess: (ecriture) => {
-      setSuccess(`Virement n° ${ecriture.numero_piece} enregistré.`);
-      form.reset({ ...getValues(), montant: '', libelle: '', reference_externe: '' });
-      invalidateAfterEntry();
-    },
   });
   const activeMutation = isVirement ? virementMutation : simpleMutation;
 
-  const onSubmit = handleSubmit((values) => {
+  const onSubmit = handleSubmit(async (values) => {
     setSuccess(null);
+    setBusy(true);
     const common = {
       montant: amountToDecimalString(values.montant),
       date: values.date,
@@ -167,21 +171,67 @@ export function SaisiePage() {
       reference_externe: values.reference_externe?.trim() || undefined,
       mode_reglement: values.mode_reglement || undefined,
     };
-    if (values.type === 'virement') {
-      virementMutation.mutate({
-        compte_source_id: values.compte_source_id,
-        compte_destination_id: values.compte_destination_id,
-        ...common,
+    try {
+      const ecriture =
+        values.type === 'virement'
+          ? await virementMutation.mutateAsync({
+              compte_source_id: values.compte_source_id,
+              compte_destination_id: values.compte_destination_id,
+              ...common,
+            })
+          : await simpleMutation.mutateAsync({
+              categorie_id: values.categorie_id,
+              compte_tresorerie_id: values.compte_tresorerie_id,
+              tiers_id: values.tiers_id || undefined,
+              ...common,
+            });
+
+      // The entry now exists: attach the chosen files to it.
+      let failed = 0;
+      for (const file of pendingFiles) {
+        try {
+          await accountingApi.uploadJustificatif(associationId, ecriture.id, file);
+        } catch {
+          failed += 1;
+        }
+      }
+      invalidateAfterEntry();
+      queryClient.invalidateQueries({
+        queryKey: ['justificatifs', associationId, ecriture.id],
       });
-    } else {
-      simpleMutation.mutate({
-        categorie_id: values.categorie_id,
-        compte_tresorerie_id: values.compte_tresorerie_id,
-        tiers_id: values.tiers_id || undefined,
-        ...common,
-      });
+
+      const label = values.type === 'virement' ? 'Virement' : 'Écriture';
+      const ending = values.type === 'virement' ? '' : 'e';
+      const joined = pendingFiles.length - failed;
+      let message = `${label} n° ${ecriture.numero_piece} enregistré${ending}.`;
+      if (joined > 0) message += ` ${joined} justificatif(s) joint(s).`;
+      if (failed > 0) message += ` ${failed} justificatif(s) non envoyé(s).`;
+      setSuccess(message);
+      setPendingFiles([]);
+      setFileError(null);
+      form.reset({ ...getValues(), montant: '', libelle: '', reference_externe: '' });
+    } catch {
+      // The create mutation's error state drives the Alert below.
+    } finally {
+      setBusy(false);
     }
   });
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = Array.from(e.target.files ?? []);
+    e.target.value = ''; // allow re-picking the same file
+    const accepted = chosen.filter((f) => f.size <= JUSTIFICATIF_MAX_BYTES);
+    setFileError(
+      accepted.length < chosen.length
+        ? 'Certains fichiers dépassent 5 Mo et ont été ignorés.'
+        : null
+    );
+    if (accepted.length) setPendingFiles((prev) => [...prev, ...accepted]);
+  }
+
+  function removePendingFile(index: number) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function selectType(next: SaisieForm['type']) {
     if (next === type) return;
@@ -428,6 +478,60 @@ export function SaisiePage() {
                     <FieldError message={errors.reference_externe?.message} />
                   </div>
                 </div>
+
+                {canAddJustificatif && (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="justificatifs">Justificatifs</Label>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+                      >
+                        <Paperclip className="h-3.5 w-3.5" aria-hidden />
+                        Joindre un fichier
+                      </button>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      id="justificatifs"
+                      type="file"
+                      multiple
+                      accept={JUSTIFICATIF_ACCEPT}
+                      className="sr-only"
+                      onChange={onPickFiles}
+                      aria-label="Joindre des justificatifs"
+                    />
+                    {pendingFiles.length === 0 ? (
+                      <p className="mt-1.5 text-xs text-muted">
+                        PDF ou image, 5 Mo max. Joints après l’enregistrement.
+                      </p>
+                    ) : (
+                      <ul className="mt-2 space-y-1.5">
+                        {pendingFiles.map((file, index) => (
+                          <li
+                            key={`${file.name}-${index}`}
+                            className="flex items-center gap-2 rounded-lg border border-hairline px-3 py-1.5 text-sm"
+                          >
+                            <span className="min-w-0 flex-1 truncate text-ink">{file.name}</span>
+                            <span className="shrink-0 text-xs text-faint">
+                              {formatBytes(file.size)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removePendingFile(index)}
+                              className="shrink-0 rounded-md p-1 text-faint hover:bg-hover hover:text-depense"
+                              aria-label={`Retirer ${file.name}`}
+                            >
+                              <X className="h-4 w-4" aria-hidden />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {fileError && <p className="mt-1.5 text-xs text-depense">{fileError}</p>}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -443,13 +547,8 @@ export function SaisiePage() {
             </div>
           )}
 
-          <Button
-            type="submit"
-            variant="accent"
-            className="w-full"
-            disabled={activeMutation.isPending}
-          >
-            {activeMutation.isPending
+          <Button type="submit" variant="accent" className="w-full" disabled={busy}>
+            {busy
               ? 'Enregistrement…'
               : isVirement
                 ? 'Enregistrer le virement'

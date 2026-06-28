@@ -175,6 +175,10 @@ export interface Justificatif {
   created_at: string;
 }
 
+/** Upload constraints, mirrored from the server (which re-validates). */
+export const JUSTIFICATIF_MAX_BYTES = 5 * 1024 * 1024;
+export const JUSTIFICATIF_ACCEPT = '.pdf,image/png,image/jpeg,image/gif,image/webp';
+
 /** Filters for the journal listing (all optional, all server-scoped). */
 export interface JournalFilters {
   statut?: EcritureStatut;
@@ -255,6 +259,8 @@ export const accountingApi = {
     api.del<void>(`${base(associationId)}/justificatifs/${justificatifId}`),
   justificatifContenuUrl: (associationId: string, justificatifId: string) =>
     apiUrl(`${base(associationId)}/justificatifs/${justificatifId}/contenu`),
+  justificatifApercuUrl: (associationId: string, justificatifId: string) =>
+    apiUrl(`${base(associationId)}/justificatifs/${justificatifId}/apercu`),
   listEcritures: (associationId: string, filters: JournalFilters = {}) =>
     api.get<EcritureListItem[]>(`${base(associationId)}/ecritures${qs({ ...filters })}`),
   getEcriture: (associationId: string, ecritureId: string) =>

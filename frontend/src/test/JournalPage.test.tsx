@@ -15,22 +15,28 @@ const listJustificatifs = vi.fn();
 const uploadJustificatif = vi.fn();
 const supprimerJustificatif = vi.fn();
 
-vi.mock('@/api/accounting', () => ({
-  accountingApi: {
-    listEcritures: (...a: unknown[]) => listEcritures(...a),
-    listJournaux: (...a: unknown[]) => listJournaux(...a),
-    listComptes: (...a: unknown[]) => listComptes(...a),
-    listTresorerie: (...a: unknown[]) => listTresorerie(...a),
-    getEcriture: (...a: unknown[]) => getEcriture(...a),
-    validerEcriture: (...a: unknown[]) => validerEcriture(...a),
-    supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
-    listJustificatifs: (...a: unknown[]) => listJustificatifs(...a),
-    uploadJustificatif: (...a: unknown[]) => uploadJustificatif(...a),
-    supprimerJustificatif: (...a: unknown[]) => supprimerJustificatif(...a),
-    justificatifContenuUrl: (assoc: string, id: string) =>
-      `/api/asso/${assoc}/justificatifs/${id}/contenu`,
-  },
-}));
+vi.mock('@/api/accounting', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/accounting')>();
+  return {
+    ...actual,
+    accountingApi: {
+      listEcritures: (...a: unknown[]) => listEcritures(...a),
+      listJournaux: (...a: unknown[]) => listJournaux(...a),
+      listComptes: (...a: unknown[]) => listComptes(...a),
+      listTresorerie: (...a: unknown[]) => listTresorerie(...a),
+      getEcriture: (...a: unknown[]) => getEcriture(...a),
+      validerEcriture: (...a: unknown[]) => validerEcriture(...a),
+      supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
+      listJustificatifs: (...a: unknown[]) => listJustificatifs(...a),
+      uploadJustificatif: (...a: unknown[]) => uploadJustificatif(...a),
+      supprimerJustificatif: (...a: unknown[]) => supprimerJustificatif(...a),
+      justificatifContenuUrl: (assoc: string, id: string) =>
+        `/api/asso/${assoc}/justificatifs/${id}/contenu`,
+      justificatifApercuUrl: (assoc: string, id: string) =>
+        `/api/asso/${assoc}/justificatifs/${id}/apercu`,
+    },
+  };
+});
 
 vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Asso', role: 'accountant', status: 'active' }),
@@ -197,7 +203,7 @@ describe('JournalPage', () => {
     expect(uploadJustificatif).toHaveBeenCalledWith('A', 'e2', file);
   });
 
-  it('lists an existing justificatif with a download link', async () => {
+  it('previews an existing justificatif in a modal with a download link', async () => {
     listJustificatifs.mockResolvedValue([
       {
         id: 'j9',
@@ -212,8 +218,11 @@ describe('JournalPage', () => {
     await userEvent.click(await screen.findByText('Cotisation Mars'));
     await screen.findByRole('dialog');
 
-    expect(await screen.findByText('recu.png')).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: /Télécharger recu.png/ });
+    // Click the entry to open the preview modal (no forced download).
+    await userEvent.click(await screen.findByRole('button', { name: /Aperçu de recu.png/ }));
+    const image = await screen.findByRole('img', { name: 'recu.png' });
+    expect(image).toHaveAttribute('src', '/api/asso/A/justificatifs/j9/apercu');
+    const link = screen.getByRole('link', { name: /Télécharger/ });
     expect(link).toHaveAttribute('href', '/api/asso/A/justificatifs/j9/contenu');
   });
 });
