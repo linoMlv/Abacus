@@ -96,6 +96,7 @@ export function JournalPage() {
   const [typeOperations, setTypeOperations] = useState<TypeOperation[]>([]);
   const [categorieIds, setCategorieIds] = useState<string[]>([]);
   const [tiersIds, setTiersIds] = useState<string[]>([]);
+  const [evenementIds, setEvenementIds] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
@@ -123,6 +124,11 @@ export function JournalPage() {
     queryFn: () => accountingApi.listTiers(associationId),
   });
 
+  const evenementsQuery = useQuery({
+    queryKey: ['evenements', associationId],
+    queryFn: () => accountingApi.listEvenements(associationId),
+  });
+
   const ecrituresQuery = useQuery({
     queryKey: [
       'ecritures',
@@ -134,6 +140,7 @@ export function JournalPage() {
         typeOperations,
         categorieIds,
         tiersIds,
+        evenementIds,
         dateFrom,
         dateTo,
         q,
@@ -147,6 +154,7 @@ export function JournalPage() {
         type_operation: typeOperations.length ? typeOperations : undefined,
         categorie_id: categorieIds.length ? categorieIds : undefined,
         tiers_id: tiersIds.length ? tiersIds : undefined,
+        evenement_id: evenementIds.length ? evenementIds : undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         q: q || undefined,
@@ -204,6 +212,14 @@ export function JournalPage() {
       onToggle: (v) => toggleValue(setTiersIds, v),
       scroll: true,
     },
+    {
+      key: 'evenement',
+      title: 'Événement',
+      options: (evenementsQuery.data ?? []).map((e) => ({ value: e.id, label: e.nom })),
+      selected: evenementIds,
+      onToggle: (v) => toggleValue(setEvenementIds, v),
+      scroll: true,
+    },
   ];
 
   const activeCount =
@@ -213,6 +229,7 @@ export function JournalPage() {
     compteIds.length +
     categorieIds.length +
     tiersIds.length +
+    evenementIds.length +
     (dateFrom ? 1 : 0) +
     (dateTo ? 1 : 0);
   const hasFilters = activeCount > 0 || q !== '';
@@ -224,6 +241,7 @@ export function JournalPage() {
     setTypeOperations([]);
     setCategorieIds([]);
     setTiersIds([]);
+    setEvenementIds([]);
     setDateFrom('');
     setDateTo('');
     setSearch('');

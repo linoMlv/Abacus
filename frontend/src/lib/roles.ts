@@ -46,3 +46,8 @@ export function canManageTiers(role: Role): boolean {
 export function canManageAttachment(role: Role): boolean {
   return role !== 'viewer';
 }
+
+/** Mirror of `EVENT_MANAGE`: treasurer and up manage events. */
+export function canManageEvenement(role: Role): boolean {
+  return role !== 'viewer';
+}

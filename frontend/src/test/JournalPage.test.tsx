@@ -10,6 +10,7 @@ const listComptes = vi.fn();
 const listTresorerie = vi.fn();
 const listCategories = vi.fn();
 const listTiers = vi.fn();
+const listEvenements = vi.fn();
 const getEcriture = vi.fn();
 const validerEcriture = vi.fn();
 const supprimerEcriture = vi.fn();
@@ -28,6 +29,7 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       listTresorerie: (...a: unknown[]) => listTresorerie(...a),
       listCategories: (...a: unknown[]) => listCategories(...a),
       listTiers: (...a: unknown[]) => listTiers(...a),
+      listEvenements: (...a: unknown[]) => listEvenements(...a),
       getEcriture: (...a: unknown[]) => getEcriture(...a),
       validerEcriture: (...a: unknown[]) => validerEcriture(...a),
       supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
@@ -140,6 +142,7 @@ beforeEach(() => {
     },
   ]);
   listTiers.mockResolvedValue([{ id: 't1', type: 'donateur', nom: 'M. Dupont', is_active: true }]);
+  listEvenements.mockResolvedValue([{ id: 'ev1', nom: 'Gala', statut: 'actif', couleur: null }]);
   getEcriture.mockResolvedValue(DETAIL);
   validerEcriture.mockResolvedValue({ ...DETAIL, statut: 'validee' });
   listJustificatifs.mockResolvedValue([]);
@@ -222,6 +225,20 @@ describe('JournalPage', () => {
           date_from: '2026-06-01',
           date_to: '2026-06-30',
         })
+      )
+    );
+  });
+
+  it('refetches with the event facet', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Gala' }));
+
+    await waitFor(() =>
+      expect(listEcritures).toHaveBeenCalledWith(
+        'A',
+        expect.objectContaining({ evenement_id: ['ev1'] })
       )
     );
   });

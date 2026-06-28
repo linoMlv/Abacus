@@ -46,6 +46,7 @@ export const saisieSchema = z
     date: z.string().min(1, 'Indiquez une date.'),
     // Avancé (optional)
     tiers_id: z.string().optional(),
+    evenement_id: z.string().optional(),
     libelle: z.string().trim().max(200, 'Libellé trop long (200 caractères max).').optional(),
     reference_externe: z
       .string()

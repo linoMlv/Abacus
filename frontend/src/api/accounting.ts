@@ -201,6 +201,7 @@ export interface JournalFilters {
   type_operation?: TypeOperation[];
   categorie_id?: string[];
   tiers_id?: string[];
+  evenement_id?: string[];
   date_from?: string;
   date_to?: string;
   exercice_id?: string;
@@ -217,8 +218,47 @@ export interface SaisieSimpleInput {
   date: string;
   libelle?: string;
   tiers_id?: string;
+  evenement_id?: string;
   reference_externe?: string;
   mode_reglement?: ModeReglement;
+}
+
+/** Lifecycle of an event, mirrors the backend `EvenementStatut`. */
+export type EvenementStatut = 'actif' | 'cloture';
+
+export const EVENEMENT_STATUT_LABELS: Record<EvenementStatut, string> = {
+  actif: 'Actif',
+  cloture: 'Clôturé',
+};
+
+/** An analytic event with its budget and computed réalisé (decimal strings). */
+export interface Evenement {
+  id: string;
+  nom: string;
+  description: string | null;
+  date_debut: string | null;
+  date_fin: string | null;
+  budget_recettes: string | null;
+  budget_depenses: string | null;
+  statut: EvenementStatut;
+  couleur: string | null;
+  realise_recettes: string;
+  realise_depenses: string;
+  resultat: string;
+}
+
+export interface CreateEvenementInput {
+  nom: string;
+  description?: string;
+  date_debut?: string;
+  date_fin?: string;
+  budget_recettes?: string;
+  budget_depenses?: string;
+  couleur?: string;
+}
+
+export interface UpdateEvenementInput extends Partial<CreateEvenementInput> {
+  statut?: EvenementStatut;
 }
 
 /** Body of an internal transfer between two treasury accounts. */
@@ -272,6 +312,14 @@ export const accountingApi = {
     api.get<Tiers[]>(`${base(associationId)}/tiers${qs({ type })}`),
   creerTiers: (associationId: string, input: { nom: string; type: TypeTiers }) =>
     api.post<Tiers>(`${base(associationId)}/tiers`, input),
+  listEvenements: (associationId: string, statut?: EvenementStatut) =>
+    api.get<Evenement[]>(`${base(associationId)}/evenements${qs({ statut })}`),
+  getEvenement: (associationId: string, evenementId: string) =>
+    api.get<Evenement>(`${base(associationId)}/evenements/${evenementId}`),
+  creerEvenement: (associationId: string, input: CreateEvenementInput) =>
+    api.post<Evenement>(`${base(associationId)}/evenements`, input),
+  modifierEvenement: (associationId: string, evenementId: string, input: UpdateEvenementInput) =>
+    api.patch<Evenement>(`${base(associationId)}/evenements/${evenementId}`, input),
   listJustificatifs: (associationId: string, ecritureId: string) =>
     api.get<Justificatif[]>(`${base(associationId)}/ecritures/${ecritureId}/justificatifs`),
   uploadJustificatif: (associationId: string, ecritureId: string, file: File) => {

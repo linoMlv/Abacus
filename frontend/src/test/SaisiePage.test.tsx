@@ -12,6 +12,8 @@ const creerVirement = vi.fn();
 const creerCategorie = vi.fn();
 const modifierCategorie = vi.fn();
 const creerTiers = vi.fn();
+const listEvenements = vi.fn();
+const creerEvenement = vi.fn();
 const uploadJustificatif = vi.fn();
 
 vi.mock('@/api/accounting', async (importOriginal) => {
@@ -22,11 +24,13 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       listCategories: (...args: unknown[]) => listCategories(...args),
       listTresorerie: (...args: unknown[]) => listTresorerie(...args),
       listTiers: (...args: unknown[]) => listTiers(...args),
+      listEvenements: (...args: unknown[]) => listEvenements(...args),
       creerSaisieSimple: (...args: unknown[]) => creerSaisieSimple(...args),
       creerVirement: (...args: unknown[]) => creerVirement(...args),
       creerCategorie: (...args: unknown[]) => creerCategorie(...args),
       modifierCategorie: (...args: unknown[]) => modifierCategorie(...args),
       creerTiers: (...args: unknown[]) => creerTiers(...args),
+      creerEvenement: (...args: unknown[]) => creerEvenement(...args),
       uploadJustificatif: (...args: unknown[]) => uploadJustificatif(...args),
     },
   };
@@ -102,6 +106,7 @@ beforeEach(() => {
   listCategories.mockResolvedValue(CATEGORIES);
   listTresorerie.mockResolvedValue(TRESORERIE);
   listTiers.mockResolvedValue([{ id: 't1', type: 'donateur', nom: 'M. Dupont', is_active: true }]);
+  listEvenements.mockResolvedValue([]);
   creerSaisieSimple.mockResolvedValue({ id: 'e7', numero_piece: 7 });
   creerVirement.mockResolvedValue({ id: 'e8', numero_piece: 8 });
   uploadJustificatif.mockResolvedValue({ id: 'j1' });
@@ -209,13 +214,50 @@ describe('SaisiePage', () => {
     await screen.findByRole('option', { name: 'Cotisations' });
 
     await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Nouveau' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Nouveau tiers' }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText('Nom'), 'Imprimeur');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Créer' }));
 
     await waitFor(() => expect(creerTiers).toHaveBeenCalledTimes(1));
     expect(creerTiers).toHaveBeenCalledWith('A', { nom: 'Imprimeur', type: 'donateur' });
+  });
+
+  it('attaches a selected event from the advanced panel', async () => {
+    listEvenements.mockResolvedValue([
+      { id: 'ev1', nom: 'Gala 2026', statut: 'actif', couleur: null },
+    ]);
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.type(screen.getByLabelText('Montant (€)'), '50');
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    await userEvent.selectOptions(await screen.findByLabelText('Événement'), 'ev1');
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer l’opération/ }));
+
+    await waitFor(() => expect(creerSaisieSimple).toHaveBeenCalledTimes(1));
+    expect(creerSaisieSimple.mock.calls[0][1]).toMatchObject({ evenement_id: 'ev1' });
+  });
+
+  it('quick-adds an event from the advanced panel', async () => {
+    creerEvenement.mockResolvedValue({
+      id: 'ev-new',
+      nom: 'Sortie',
+      statut: 'actif',
+      couleur: null,
+    });
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Nouvel événement' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText('Nom'), 'Sortie');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Créer' }));
+
+    await waitFor(() => expect(creerEvenement).toHaveBeenCalledTimes(1));
+    expect(creerEvenement.mock.calls[0][0]).toBe('A');
+    expect(creerEvenement.mock.calls[0][1]).toMatchObject({ nom: 'Sortie' });
   });
 
   it('posts an internal transfer with source and destination', async () => {

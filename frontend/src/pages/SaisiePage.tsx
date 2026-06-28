@@ -8,6 +8,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   accountingApi,
   type Categorie,
+  type Evenement,
   JUSTIFICATIF_ACCEPT,
   JUSTIFICATIF_MAX_BYTES,
   MODE_REGLEMENT_LABELS,
@@ -17,6 +18,7 @@ import {
 } from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
 import { CategorieDialog } from '@/components/CategorieDialog';
+import { EvenementDialog } from '@/components/EvenementDialog';
 import { TiersDialog } from '@/components/TiersDialog';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,7 @@ import {
   canCreateSimpleEntry,
   canManageAttachment,
   canManageCategorie,
+  canManageEvenement,
   canManageTiers,
 } from '@/lib/roles';
 import { cn } from '@/lib/utils';
@@ -61,9 +64,11 @@ export function SaisiePage() {
   const canCreate = association ? canCreateSimpleEntry(association.role) : false;
   const canAddCategorie = association ? canManageCategorie(association.role) : false;
   const canAddTiers = association ? canManageTiers(association.role) : false;
+  const canAddEvenement = association ? canManageEvenement(association.role) : false;
   const canAddJustificatif = association ? canManageAttachment(association.role) : false;
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [tiersDialogOpen, setTiersDialogOpen] = useState(false);
+  const [evenementDialogOpen, setEvenementDialogOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,6 +89,11 @@ export function SaisiePage() {
     queryFn: () => accountingApi.listTiers(associationId),
     enabled: canCreate,
   });
+  const evenementsQuery = useQuery({
+    queryKey: ['evenements', associationId, 'actif'],
+    queryFn: () => accountingApi.listEvenements(associationId, 'actif'),
+    enabled: canCreate,
+  });
 
   const form = useForm<SaisieForm>({
     resolver: zodResolver(saisieSchema),
@@ -96,6 +106,7 @@ export function SaisiePage() {
       montant: '',
       date: today(),
       tiers_id: '',
+      evenement_id: '',
       libelle: '',
       reference_externe: '',
       mode_reglement: '',
@@ -118,6 +129,7 @@ export function SaisiePage() {
   );
   const comptes = useMemo(() => comptesQuery.data ?? [], [comptesQuery.data]);
   const tiersList = useMemo(() => tiersQuery.data ?? [], [tiersQuery.data]);
+  const evenementsList = useMemo(() => evenementsQuery.data ?? [], [evenementsQuery.data]);
 
   // Keep the selected category valid as the direction toggles or data loads.
   useEffect(() => {
@@ -183,6 +195,7 @@ export function SaisiePage() {
               categorie_id: values.categorie_id,
               compte_tresorerie_id: values.compte_tresorerie_id,
               tiers_id: values.tiers_id || undefined,
+              evenement_id: values.evenement_id || undefined,
               ...common,
             });
 
@@ -253,6 +266,13 @@ export function SaisiePage() {
       old ? [...old, tiers] : [tiers]
     );
     setValue('tiers_id', tiers.id, { shouldValidate: false });
+  }
+
+  function onEvenementCreated(evenement: Evenement) {
+    queryClient.setQueryData<Evenement[]>(['evenements', associationId, 'actif'], (old) =>
+      old ? [...old, evenement] : [evenement]
+    );
+    setValue('evenement_id', evenement.id, { shouldValidate: false });
   }
 
   if (!canCreate) {
@@ -425,6 +445,7 @@ export function SaisiePage() {
                       {canAddTiers && (
                         <button
                           type="button"
+                          aria-label="Nouveau tiers"
                           onClick={() => setTiersDialogOpen(true)}
                           className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
                         >
@@ -438,6 +459,32 @@ export function SaisiePage() {
                       {tiersList.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.nom}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+                {!isVirement && (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="evenement_id">Événement</Label>
+                      {canAddEvenement && (
+                        <button
+                          type="button"
+                          aria-label="Nouvel événement"
+                          onClick={() => setEvenementDialogOpen(true)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+                        >
+                          <Plus className="h-3.5 w-3.5" aria-hidden />
+                          Nouveau
+                        </button>
+                      )}
+                    </div>
+                    <Select id="evenement_id" className="mt-1.5" {...register('evenement_id')}>
+                      <option value="">— Aucun</option>
+                      {evenementsList.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.nom}
                         </option>
                       ))}
                     </Select>
@@ -591,6 +638,16 @@ export function SaisiePage() {
           open={tiersDialogOpen}
           onOpenChange={setTiersDialogOpen}
           onSaved={onTiersCreated}
+        />
+      )}
+
+      {canAddEvenement && (
+        <EvenementDialog
+          associationId={associationId}
+          evenement={null}
+          open={evenementDialogOpen}
+          onOpenChange={setEvenementDialogOpen}
+          onSaved={onEvenementCreated}
         />
       )}
     </div>
