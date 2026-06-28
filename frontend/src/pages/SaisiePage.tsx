@@ -10,10 +10,12 @@ import {
   type Categorie,
   MODE_REGLEMENT_LABELS,
   type SaisieSimpleInput,
+  type Tiers,
   type VirementInput,
 } from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
 import { CategorieDialog } from '@/components/CategorieDialog';
+import { TiersDialog } from '@/components/TiersDialog';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -21,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
-import { canCreateSimpleEntry, canManageCategorie } from '@/lib/roles';
+import { canCreateSimpleEntry, canManageCategorie, canManageTiers } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 
 import {
@@ -50,7 +52,9 @@ export function SaisiePage() {
 
   const canCreate = association ? canCreateSimpleEntry(association.role) : false;
   const canAddCategorie = association ? canManageCategorie(association.role) : false;
+  const canAddTiers = association ? canManageTiers(association.role) : false;
   const [catDialogOpen, setCatDialogOpen] = useState(false);
+  const [tiersDialogOpen, setTiersDialogOpen] = useState(false);
 
   const categoriesQuery = useQuery({
     queryKey: ['categories', associationId],
@@ -60,6 +64,11 @@ export function SaisiePage() {
   const comptesQuery = useQuery({
     queryKey: ['tresorerie', associationId],
     queryFn: () => accountingApi.listTresorerie(associationId),
+    enabled: canCreate,
+  });
+  const tiersQuery = useQuery({
+    queryKey: ['tiers', associationId],
+    queryFn: () => accountingApi.listTiers(associationId),
     enabled: canCreate,
   });
 
@@ -73,6 +82,7 @@ export function SaisiePage() {
       compte_destination_id: '',
       montant: '',
       date: today(),
+      tiers_id: '',
       libelle: '',
       reference_externe: '',
       mode_reglement: '',
@@ -94,6 +104,7 @@ export function SaisiePage() {
     [categoriesQuery.data, type]
   );
   const comptes = useMemo(() => comptesQuery.data ?? [], [comptesQuery.data]);
+  const tiersList = useMemo(() => tiersQuery.data ?? [], [tiersQuery.data]);
 
   // Keep the selected category valid as the direction toggles or data loads.
   useEffect(() => {
@@ -166,6 +177,7 @@ export function SaisiePage() {
       simpleMutation.mutate({
         categorie_id: values.categorie_id,
         compte_tresorerie_id: values.compte_tresorerie_id,
+        tiers_id: values.tiers_id || undefined,
         ...common,
       });
     }
@@ -184,6 +196,13 @@ export function SaisiePage() {
       old ? [...old, cat] : [cat]
     );
     setValue('categorie_id', cat.id, { shouldValidate: true });
+  }
+
+  function onTiersCreated(tiers: Tiers) {
+    queryClient.setQueryData<Tiers[]>(['tiers', associationId], (old) =>
+      old ? [...old, tiers] : [tiers]
+    );
+    setValue('tiers_id', tiers.id, { shouldValidate: false });
   }
 
   if (!canCreate) {
@@ -349,6 +368,31 @@ export function SaisiePage() {
 
             {advancedOpen && (
               <div className="mt-4 space-y-5">
+                {!isVirement && (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="tiers_id">Tiers</Label>
+                      {canAddTiers && (
+                        <button
+                          type="button"
+                          onClick={() => setTiersDialogOpen(true)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+                        >
+                          <Plus className="h-3.5 w-3.5" aria-hidden />
+                          Nouveau
+                        </button>
+                      )}
+                    </div>
+                    <Select id="tiers_id" className="mt-1.5" {...register('tiers_id')}>
+                      <option value="">— Aucun</option>
+                      {tiersList.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.nom}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="libelle">Libellé</Label>
                   <Input
@@ -438,6 +482,16 @@ export function SaisiePage() {
           open={catDialogOpen}
           onOpenChange={setCatDialogOpen}
           onSaved={onCategorieCreated}
+        />
+      )}
+
+      {canAddTiers && (
+        <TiersDialog
+          associationId={associationId}
+          defaultType={type === 'recette' ? 'donateur' : 'fournisseur'}
+          open={tiersDialogOpen}
+          onOpenChange={setTiersDialogOpen}
+          onSaved={onTiersCreated}
         />
       )}
     </div>

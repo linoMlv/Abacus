@@ -50,6 +50,26 @@ export interface UpdateCategorieInput {
   is_active?: boolean;
 }
 
+/** Kind of third party, mirrors the backend `TypeTiers`. */
+export type TypeTiers = 'fournisseur' | 'client' | 'donateur' | 'financeur' | 'autre';
+
+/** A third party the association deals with (informative tag for now). */
+export interface Tiers {
+  id: string;
+  type: TypeTiers;
+  nom: string;
+  is_active: boolean;
+}
+
+/** Human labels for the third-party types. */
+export const TYPE_TIERS_LABELS: Record<TypeTiers, string> = {
+  fournisseur: 'Fournisseur',
+  client: 'Adhérent / client',
+  donateur: 'Donateur',
+  financeur: 'Financeur',
+  autre: 'Autre',
+};
+
 /** One account of the chart of accounts. */
 export interface Compte {
   id: string;
@@ -163,6 +183,7 @@ export interface SaisieSimpleInput {
   montant: string;
   date: string;
   libelle?: string;
+  tiers_id?: string;
   reference_externe?: string;
   mode_reglement?: ModeReglement;
 }
@@ -206,6 +227,10 @@ export const accountingApi = {
     api.post<Ecriture>(`${base(associationId)}/ecritures/simple`, input),
   creerVirement: (associationId: string, input: VirementInput) =>
     api.post<Ecriture>(`${base(associationId)}/ecritures/virement`, input),
+  listTiers: (associationId: string, type?: TypeTiers) =>
+    api.get<Tiers[]>(`${base(associationId)}/tiers${qs({ type })}`),
+  creerTiers: (associationId: string, input: { nom: string; type: TypeTiers }) =>
+    api.post<Tiers>(`${base(associationId)}/tiers`, input),
   listEcritures: (associationId: string, filters: JournalFilters = {}) =>
     api.get<EcritureListItem[]>(`${base(associationId)}/ecritures${qs({ ...filters })}`),
   getEcriture: (associationId: string, ecritureId: string) =>

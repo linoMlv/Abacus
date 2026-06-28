@@ -6,10 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listCategories = vi.fn();
 const listTresorerie = vi.fn();
+const listTiers = vi.fn();
 const creerSaisieSimple = vi.fn();
 const creerVirement = vi.fn();
 const creerCategorie = vi.fn();
 const modifierCategorie = vi.fn();
+const creerTiers = vi.fn();
 
 vi.mock('@/api/accounting', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/accounting')>();
@@ -18,10 +20,12 @@ vi.mock('@/api/accounting', async (importOriginal) => {
     accountingApi: {
       listCategories: (...args: unknown[]) => listCategories(...args),
       listTresorerie: (...args: unknown[]) => listTresorerie(...args),
+      listTiers: (...args: unknown[]) => listTiers(...args),
       creerSaisieSimple: (...args: unknown[]) => creerSaisieSimple(...args),
       creerVirement: (...args: unknown[]) => creerVirement(...args),
       creerCategorie: (...args: unknown[]) => creerCategorie(...args),
       modifierCategorie: (...args: unknown[]) => modifierCategorie(...args),
+      creerTiers: (...args: unknown[]) => creerTiers(...args),
     },
   };
 });
@@ -95,8 +99,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   listCategories.mockResolvedValue(CATEGORIES);
   listTresorerie.mockResolvedValue(TRESORERIE);
+  listTiers.mockResolvedValue([{ id: 't1', type: 'donateur', nom: 'M. Dupont', is_active: true }]);
   creerSaisieSimple.mockResolvedValue({ numero_piece: 7 });
   creerVirement.mockResolvedValue({ numero_piece: 8 });
+  creerTiers.mockResolvedValue({
+    id: 't-new',
+    type: 'fournisseur',
+    nom: 'Imprimeur',
+    is_active: true,
+  });
   creerCategorie.mockResolvedValue({
     id: 'cat-new',
     sens: 'recette',
@@ -175,6 +186,33 @@ describe('SaisiePage', () => {
       mode_reglement: 'cheque',
       reference_externe: 'FAC-7',
     });
+  });
+
+  it('attaches a selected tiers from the advanced panel', async () => {
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.type(screen.getByLabelText('Montant (€)'), '50');
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    await userEvent.selectOptions(await screen.findByLabelText('Tiers'), 't1');
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer l’opération/ }));
+
+    await waitFor(() => expect(creerSaisieSimple).toHaveBeenCalledTimes(1));
+    expect(creerSaisieSimple.mock.calls[0][1]).toMatchObject({ tiers_id: 't1' });
+  });
+
+  it('quick-adds a tiers from the advanced panel', async () => {
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Nouveau' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.type(within(dialog).getByLabelText('Nom'), 'Imprimeur');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Créer' }));
+
+    await waitFor(() => expect(creerTiers).toHaveBeenCalledTimes(1));
+    expect(creerTiers).toHaveBeenCalledWith('A', { nom: 'Imprimeur', type: 'donateur' });
   });
 
   it('posts an internal transfer with source and destination', async () => {

@@ -36,3 +36,8 @@ export function canManageTresorerie(role: Role): boolean {
 export function canManageCategorie(role: Role): boolean {
   return role !== 'viewer';
 }
+
+/** Mirror of `TIERS_MANAGE`: treasurer and up manage third parties. */
+export function canManageTiers(role: Role): boolean {
+  return role !== 'viewer';
+}
