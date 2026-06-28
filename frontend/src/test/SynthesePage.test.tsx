@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listTresorerie = vi.fn();
 const listEvenements = vi.fn();
+const getSynthese = vi.fn();
 const creerCompteTresorerie = vi.fn();
 const modifierCompteTresorerie = vi.fn();
 
@@ -16,11 +17,22 @@ vi.mock('@/api/accounting', async (importOriginal) => {
     accountingApi: {
       listTresorerie: (...args: unknown[]) => listTresorerie(...args),
       listEvenements: (...args: unknown[]) => listEvenements(...args),
+      getSynthese: (...args: unknown[]) => getSynthese(...args),
       creerCompteTresorerie: (...args: unknown[]) => creerCompteTresorerie(...args),
       modifierCompteTresorerie: (...args: unknown[]) => modifierCompteTresorerie(...args),
     },
   };
 });
+
+const EMPTY_SYNTHESE = {
+  date_from: '2026-01-01',
+  date_to: '2026-12-31',
+  resultat: { recettes: '0.00', depenses: '0.00', resultat: '0.00' },
+  repartition_categories: [],
+  repartition_evenements: [],
+  courbe_tresorerie: [],
+  alertes: { brouillons: 0, evenements_depasses: [], exercices_a_cloturer: [] },
+};
 
 vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Mon Asso', role: 'treasurer', status: 'active' }),
@@ -70,6 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   listTresorerie.mockResolvedValue(TRESORERIE);
   listEvenements.mockResolvedValue([]);
+  getSynthese.mockResolvedValue(EMPTY_SYNTHESE);
   creerCompteTresorerie.mockResolvedValue({ ...TRESORERIE[0], id: 'new' });
 });
 
@@ -109,5 +122,56 @@ describe('SynthesePage', () => {
     const [associationId, input] = creerCompteTresorerie.mock.calls[0];
     expect(associationId).toBe('A');
     expect(input).toMatchObject({ nom: 'Caisse fête', solde_initial: '300.00' });
+  });
+
+  it('fills the result / recettes / dépenses tiles from the synthesis', async () => {
+    getSynthese.mockResolvedValue({
+      ...EMPTY_SYNTHESE,
+      resultat: { recettes: '300.00', depenses: '75.00', resultat: '225.00' },
+    });
+    renderPage();
+    expect(await screen.findByText(/300,00/)).toBeInTheDocument();
+    expect(await screen.findByText(/225,00/)).toBeInTheDocument();
+    expect(await screen.findByText(/75,00/)).toBeInTheDocument();
+  });
+
+  it('surfaces alerts (drafts, over-budget event, fiscal year due)', async () => {
+    getSynthese.mockResolvedValue({
+      ...EMPTY_SYNTHESE,
+      alertes: {
+        brouillons: 3,
+        evenements_depasses: [
+          {
+            evenement_id: 'ev1',
+            nom: 'Gala',
+            budget_depenses: '10.00',
+            realise_depenses: '50.00',
+          },
+        ],
+        exercices_a_cloturer: [{ exercice_id: 'ex1', libelle: '2025', date_fin: '2025-12-31' }],
+      },
+    });
+    renderPage();
+    expect(await screen.findByText(/3 écritures en brouillon à valider/)).toBeInTheDocument();
+    expect(await screen.findByText(/« Gala » dépasse son budget/)).toBeInTheDocument();
+    expect(await screen.findByText(/Exercice « 2025 » échu/)).toBeInTheDocument();
+  });
+
+  it('refetches with an explicit period when a preset is chosen', async () => {
+    renderPage();
+    await screen.findByText('Compte courant');
+    // Default preset is "Exercice": no dates sent (server uses the open exercice).
+    await waitFor(() => expect(getSynthese).toHaveBeenCalledWith('A', {}));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mois' }));
+    await waitFor(() =>
+      expect(getSynthese).toHaveBeenCalledWith(
+        'A',
+        expect.objectContaining({
+          date_from: expect.stringMatching(/^\d{4}-\d{2}-01$/),
+          date_to: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        })
+      )
+    );
   });
 });

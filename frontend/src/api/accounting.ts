@@ -272,6 +272,69 @@ export interface VirementInput {
   mode_reglement?: ModeReglement;
 }
 
+/** Consolidated dashboard payload (T6). All amounts are decimal strings. */
+export interface SyntheseResultat {
+  recettes: string;
+  depenses: string;
+  resultat: string;
+}
+
+export interface RepartitionCategorie {
+  categorie_id: string;
+  libelle: string;
+  sens: Sens;
+  montant: string;
+}
+
+export interface RepartitionEvenement {
+  evenement_id: string;
+  nom: string;
+  couleur: string | null;
+  recettes: string;
+  depenses: string;
+  resultat: string;
+}
+
+export interface CourbePoint {
+  date: string;
+  solde: string;
+}
+
+export interface AlerteEvenement {
+  evenement_id: string;
+  nom: string;
+  budget_depenses: string;
+  realise_depenses: string;
+}
+
+export interface AlerteExercice {
+  exercice_id: string;
+  libelle: string;
+  date_fin: string;
+}
+
+export interface SyntheseAlertes {
+  brouillons: number;
+  evenements_depasses: AlerteEvenement[];
+  exercices_a_cloturer: AlerteExercice[];
+}
+
+export interface Synthese {
+  date_from: string;
+  date_to: string;
+  resultat: SyntheseResultat;
+  repartition_categories: RepartitionCategorie[];
+  repartition_evenements: RepartitionEvenement[];
+  courbe_tresorerie: CourbePoint[];
+  alertes: SyntheseAlertes;
+}
+
+/** Period for the synthesis; omit both to let the server use the open exercice. */
+export interface SyntheseParams {
+  date_from?: string;
+  date_to?: string;
+}
+
 const base = (associationId: string) => `/asso/${associationId}`;
 
 /** Build a query string from defined, non-empty params (else empty). */
@@ -312,6 +375,8 @@ export const accountingApi = {
     api.get<Tiers[]>(`${base(associationId)}/tiers${qs({ type })}`),
   creerTiers: (associationId: string, input: { nom: string; type: TypeTiers }) =>
     api.post<Tiers>(`${base(associationId)}/tiers`, input),
+  getSynthese: (associationId: string, params: SyntheseParams = {}) =>
+    api.get<Synthese>(`${base(associationId)}/synthese${qs({ ...params })}`),
   listEvenements: (associationId: string, statut?: EvenementStatut) =>
     api.get<Evenement[]>(`${base(associationId)}/evenements${qs({ statut })}`),
   getEvenement: (associationId: string, evenementId: string) =>

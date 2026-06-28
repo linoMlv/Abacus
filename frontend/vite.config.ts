@@ -21,6 +21,16 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep the heavy charting stack (recharts + its d3 deps) in its own
+        // cacheable chunk, loaded only when the Synthèse charts mount.
+        manualChunks: (id) =>
+          /node_modules\/(recharts|d3-|victory-vendor|internmap)/.test(id) ? 'charts' : undefined,
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

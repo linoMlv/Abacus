@@ -1,20 +1,66 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Pencil, Plus, Wallet } from 'lucide-react';
-import { useState } from 'react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  CalendarClock,
+  FileClock,
+  Pencil,
+  Plus,
+  Wallet,
+} from 'lucide-react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import {
   accountingApi,
   type CompteTresorerie,
-  type Evenement,
+  type Synthese,
+  type SyntheseParams,
   TYPE_TRESORERIE_LABELS,
 } from '@/api/accounting';
 import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
-import { formatEUR } from '@/lib/format';
+import { formatDate, formatEUR } from '@/lib/format';
 import { canManageTresorerie } from '@/lib/roles';
+import { cn } from '@/lib/utils';
+
+// Charts live in a lazily-loaded chunk so recharts never weighs on the main bundle.
+const SyntheseCharts = lazy(() => import('@/components/charts/SyntheseCharts'));
+
+type Preset = 'mois' | 'trimestre' | 'exercice' | 'custom';
+
+const PRESET_LABELS: Record<Preset, string> = {
+  mois: 'Mois',
+  trimestre: 'Trimestre',
+  exercice: 'Exercice',
+  custom: 'Personnalisé',
+};
+
+function ymd(year: number, month1: number, day: number): string {
+  return `${year}-${String(month1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Period parameters for a preset (exercice → empty: the server uses the open one). */
+function presetParams(preset: Preset, customFrom: string, customTo: string): SyntheseParams {
+  const now = new Date();
+  const year = now.getFullYear();
+  if (preset === 'mois') {
+    const m = now.getMonth(); // 0-based
+    const last = new Date(year, m + 1, 0).getDate();
+    return { date_from: ymd(year, m + 1, 1), date_to: ymd(year, m + 1, last) };
+  }
+  if (preset === 'trimestre') {
+    const start = Math.floor(now.getMonth() / 3) * 3; // 0-based first month
+    const last = new Date(year, start + 3, 0).getDate();
+    return { date_from: ymd(year, start + 1, 1), date_to: ymd(year, start + 3, last) };
+  }
+  if (preset === 'custom') {
+    return customFrom && customTo ? { date_from: customFrom, date_to: customTo } : {};
+  }
+  return {}; // exercice
+}
 
 function StatTile({
   label,
@@ -74,24 +120,149 @@ function sumSoldes(comptes: CompteTresorerie[]): number {
   return comptes.reduce((total, c) => total + Number(c.solde), 0);
 }
 
-function EvenementMiniCard({ evenement }: { evenement: Evenement }) {
-  const value = Number(evenement.resultat);
-  const tone = value > 0 ? 'text-recette' : value < 0 ? 'text-depense' : 'text-ink';
+function PeriodControl({
+  preset,
+  onPreset,
+  customFrom,
+  customTo,
+  onCustomFrom,
+  onCustomTo,
+}: {
+  preset: Preset;
+  onPreset: (p: Preset) => void;
+  customFrom: string;
+  customTo: string;
+  onCustomFrom: (v: string) => void;
+  onCustomTo: (v: string) => void;
+}) {
   return (
-    <Card className="flex items-center gap-3 p-4">
-      <span
-        className="h-8 w-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: evenement.couleur ?? 'var(--color-accent)' }}
-        aria-hidden
-      />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{evenement.nom}</p>
-        <p className="text-xs text-muted">Résultat</p>
+    <div className="flex flex-wrap items-center gap-2">
+      <div
+        className="inline-flex rounded-lg border border-hairline bg-surface p-0.5"
+        role="group"
+        aria-label="Période"
+      >
+        {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            aria-pressed={preset === p}
+            onClick={() => onPreset(p)}
+            className={cn(
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              preset === p ? 'bg-accent text-white' : 'text-muted hover:text-ink'
+            )}
+          >
+            {PRESET_LABELS[p]}
+          </button>
+        ))}
       </div>
-      <p className={`tabular shrink-0 text-base font-semibold ${tone}`}>
-        {formatEUR(evenement.resultat)}
-      </p>
+      {preset === 'custom' && (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            aria-label="Date de début"
+            value={customFrom}
+            max={customTo || undefined}
+            onChange={(e) => onCustomFrom(e.target.value)}
+            className="h-9 rounded-lg border border-hairline bg-surface px-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          />
+          <span className="text-xs text-muted">au</span>
+          <input
+            type="date"
+            aria-label="Date de fin"
+            value={customTo}
+            min={customFrom || undefined}
+            onChange={(e) => onCustomTo(e.target.value)}
+            className="h-9 rounded-lg border border-hairline bg-surface px-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlertesPanel({ synthese, associationId }: { synthese: Synthese; associationId: string }) {
+  const navigate = useNavigate();
+  const { brouillons, evenements_depasses, exercices_a_cloturer } = synthese.alertes;
+  const hasAny =
+    brouillons > 0 || evenements_depasses.length > 0 || exercices_a_cloturer.length > 0;
+  if (!hasAny) return null;
+
+  return (
+    <Card className="divide-y divide-hairline p-0">
+      {brouillons > 0 && (
+        <AlerteRow
+          icon={<FileClock className="h-4 w-4" aria-hidden />}
+          tone="accent"
+          text={`${brouillons} écriture${brouillons > 1 ? 's' : ''} en brouillon à valider`}
+          action="Ouvrir le journal"
+          onClick={() => navigate(`/asso/${associationId}/journal`)}
+        />
+      )}
+      {exercices_a_cloturer.map((ex) => (
+        <AlerteRow
+          key={ex.exercice_id}
+          icon={<CalendarClock className="h-4 w-4" aria-hidden />}
+          tone="warning"
+          text={`Exercice « ${ex.libelle} » échu le ${formatDate(ex.date_fin)} — à clôturer`}
+        />
+      ))}
+      {evenements_depasses.map((ev) => (
+        <AlerteRow
+          key={ev.evenement_id}
+          icon={<AlertTriangle className="h-4 w-4" aria-hidden />}
+          tone="depense"
+          text={`« ${ev.nom} » dépasse son budget (${formatEUR(ev.realise_depenses)} / ${formatEUR(ev.budget_depenses)})`}
+          action="Voir les événements"
+          onClick={() => navigate(`/asso/${associationId}/evenements`)}
+        />
+      ))}
     </Card>
+  );
+}
+
+function AlerteRow({
+  icon,
+  tone,
+  text,
+  action,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  tone: 'accent' | 'warning' | 'depense';
+  text: string;
+  action?: string;
+  onClick?: () => void;
+}) {
+  const toneColor =
+    tone === 'depense' ? 'text-depense' : tone === 'warning' ? 'text-warning' : 'text-accent';
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 text-sm">
+      <span className={cn('shrink-0', toneColor)}>{icon}</span>
+      <span className="min-w-0 flex-1 text-ink">{text}</span>
+      {action && onClick && (
+        <button
+          type="button"
+          onClick={onClick}
+          className="shrink-0 text-xs font-medium text-accent hover:text-accent-hover"
+        >
+          {action}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ChartsSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      <Card className="h-64 animate-pulse bg-hover/50" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="h-44 animate-pulse bg-hover/50" />
+        <Card className="h-44 animate-pulse bg-hover/50" />
+      </div>
+    </div>
   );
 }
 
@@ -103,6 +274,14 @@ export function SynthesePage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CompteTresorerie | null>(null);
+  const [preset, setPreset] = useState<Preset>('exercice');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+
+  const params = useMemo(
+    () => presetParams(preset, customFrom, customTo),
+    [preset, customFrom, customTo]
+  );
 
   const tresorerieQuery = useQuery({
     queryKey: ['tresorerie', associationId],
@@ -111,11 +290,11 @@ export function SynthesePage() {
   const comptes = tresorerieQuery.data ?? [];
   const total = sumSoldes(comptes);
 
-  const evenementsQuery = useQuery({
-    queryKey: ['evenements', associationId, 'actif'],
-    queryFn: () => accountingApi.listEvenements(associationId, 'actif'),
+  const syntheseQuery = useQuery({
+    queryKey: ['synthese', associationId, params],
+    queryFn: () => accountingApi.getSynthese(associationId, params),
   });
-  const evenements = evenementsQuery.data ?? [];
+  const synthese = syntheseQuery.data;
 
   function openCreate() {
     setEditing(null);
@@ -127,13 +306,40 @@ export function SynthesePage() {
     setDialogOpen(true);
   }
 
+  function statValue(amount: string | undefined): string {
+    if (syntheseQuery.isLoading) return '…';
+    if (amount === undefined) return '—';
+    return formatEUR(amount);
+  }
+
+  const resultatTone = synthese && Number(synthese.resultat.resultat) < 0 ? 'depense' : 'recette';
+  const hasChartData =
+    !!synthese &&
+    (synthese.courbe_tresorerie.length > 0 ||
+      synthese.repartition_categories.length > 0 ||
+      synthese.repartition_evenements.length > 0);
+
   return (
     <div className="mx-auto max-w-6xl space-y-7">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight text-ink">
-          {association?.name ?? 'Synthèse'}
-        </h2>
-        <p className="mt-1 text-sm text-muted">Vue d’ensemble de l’exercice en cours.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight text-ink">
+            {association?.name ?? 'Synthèse'}
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            {synthese
+              ? `Période du ${formatDate(synthese.date_from)} au ${formatDate(synthese.date_to)}`
+              : 'Vue d’ensemble'}
+          </p>
+        </div>
+        <PeriodControl
+          preset={preset}
+          onPreset={setPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFrom={setCustomFrom}
+          onCustomTo={setCustomTo}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -142,10 +348,27 @@ export function SynthesePage() {
           value={tresorerieQuery.isLoading ? '…' : formatEUR(total)}
           hint="Solde consolidé des comptes"
         />
-        <StatTile label="Résultat" value="—" hint="Exercice en cours" />
-        <StatTile label="Recettes" value="—" hint="Cumul de l’exercice" tone="recette" />
-        <StatTile label="Dépenses" value="—" hint="Cumul de l’exercice" tone="depense" />
+        <StatTile
+          label="Résultat"
+          value={statValue(synthese?.resultat.resultat)}
+          hint="Produits − charges de la période"
+          tone={synthese ? resultatTone : undefined}
+        />
+        <StatTile
+          label="Recettes"
+          value={statValue(synthese?.resultat.recettes)}
+          hint="Produits de la période"
+          tone="recette"
+        />
+        <StatTile
+          label="Dépenses"
+          value={statValue(synthese?.resultat.depenses)}
+          hint="Charges de la période"
+          tone="depense"
+        />
       </div>
+
+      {synthese && <AlertesPanel synthese={synthese} associationId={associationId} />}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -178,39 +401,27 @@ export function SynthesePage() {
         )}
       </section>
 
-      {evenements.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ink-soft">Événements en cours</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate(`/asso/${associationId}/evenements`)}
-            >
-              Voir tout
-            </Button>
+      {syntheseQuery.isError ? (
+        <Card className="p-5 text-sm text-muted">Impossible de charger la synthèse.</Card>
+      ) : hasChartData ? (
+        <Suspense fallback={<ChartsSkeleton />}>
+          <SyntheseCharts synthese={synthese} />
+        </Suspense>
+      ) : synthese && !syntheseQuery.isLoading ? (
+        <Card className="flex flex-col items-center gap-4 px-6 py-12 text-center">
+          <div>
+            <h3 className="text-base font-semibold text-ink">Aucun mouvement sur la période</h3>
+            <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
+              Saisissez une recette ou une dépense : Abacus génère l’écriture comptable et met les
+              soldes à jour.
+            </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {evenements.slice(0, 6).map((evenement) => (
-              <EvenementMiniCard key={evenement.id} evenement={evenement} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <Card className="flex flex-col items-center gap-4 px-6 py-12 text-center">
-        <div>
-          <h3 className="text-base font-semibold text-ink">Enregistrer une opération</h3>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
-            Saisissez une recette ou une dépense : Abacus génère l’écriture comptable et met les
-            soldes à jour.
-          </p>
-        </div>
-        <Button onClick={() => navigate(`/asso/${associationId}/saisie`)}>
-          Saisir une opération
-          <ArrowRight className="h-4 w-4" aria-hidden />
-        </Button>
-      </Card>
+          <Button onClick={() => navigate(`/asso/${associationId}/saisie`)}>
+            Saisir une opération
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </Button>
+        </Card>
+      ) : null}
 
       {canManage && (
         <TreasuryAccountDialog
