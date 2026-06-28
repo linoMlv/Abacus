@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Eye, Paperclip, Search, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Eye, Paperclip, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -21,15 +29,45 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 import { formatAmount, formatBytes, formatDate, formatEUR } from '@/lib/format';
 import { canDeleteEntry, canManageAttachment, canValidateEntry } from '@/lib/roles';
+import { cn } from '@/lib/utils';
 
 const STATUT_LABELS: Record<EcritureStatut, string> = {
   brouillon: 'Brouillon',
   validee: 'Validée',
 };
+
+interface FilterOption {
+  value: string;
+  label: string;
+}
+
+interface Facet {
+  key: string;
+  title: string;
+  options: FilterOption[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  /** Cap the list height with an inner scroll (for potentially long lists). */
+  scroll?: boolean;
+}
+
+const TYPE_OPTIONS: FilterOption[] = (['recette', 'depense', 'virement'] as const).map((v) => ({
+  value: v,
+  label: TYPE_OPERATION_LABELS[v],
+}));
+
+const STATUT_OPTIONS: FilterOption[] = (['brouillon', 'validee'] as const).map((v) => ({
+  value: v,
+  label: STATUT_LABELS[v],
+}));
+
+function toggleValue<T>(setter: Dispatch<SetStateAction<T[]>>, value: T) {
+  setter((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
+}
 
 function StatutBadge({ statut }: { statut: EcritureStatut }) {
   return (
@@ -52,17 +90,18 @@ export function JournalPage() {
   const association = useActiveAssociation();
   const navigate = useNavigate();
 
-  const [statut, setStatut] = useState<EcritureStatut | ''>('');
-  const [journalId, setJournalId] = useState('');
-  const [compteId, setCompteId] = useState('');
-  const [typeOperation, setTypeOperation] = useState<TypeOperation | ''>('');
-  const [categorieId, setCategorieId] = useState('');
-  const [tiersId, setTiersId] = useState('');
+  const [statuts, setStatuts] = useState<EcritureStatut[]>([]);
+  const [journalIds, setJournalIds] = useState<string[]>([]);
+  const [compteIds, setCompteIds] = useState<string[]>([]);
+  const [typeOperations, setTypeOperations] = useState<TypeOperation[]>([]);
+  const [categorieIds, setCategorieIds] = useState<string[]>([]);
+  const [tiersIds, setTiersIds] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const q = useDebounced(search);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const journauxQuery = useQuery({
     queryKey: ['journaux', associationId],
@@ -88,16 +127,26 @@ export function JournalPage() {
     queryKey: [
       'ecritures',
       associationId,
-      { statut, journalId, compteId, typeOperation, categorieId, tiersId, dateFrom, dateTo, q },
+      {
+        statuts,
+        journalIds,
+        compteIds,
+        typeOperations,
+        categorieIds,
+        tiersIds,
+        dateFrom,
+        dateTo,
+        q,
+      },
     ],
     queryFn: () =>
       accountingApi.listEcritures(associationId, {
-        statut: statut || undefined,
-        journal_id: journalId || undefined,
-        compte_id: compteId || undefined,
-        type_operation: typeOperation || undefined,
-        categorie_id: categorieId || undefined,
-        tiers_id: tiersId || undefined,
+        statut: statuts.length ? statuts : undefined,
+        journal_id: journalIds.length ? journalIds : undefined,
+        compte_id: compteIds.length ? compteIds : undefined,
+        type_operation: typeOperations.length ? typeOperations : undefined,
+        categorie_id: categorieIds.length ? categorieIds : undefined,
+        tiers_id: tiersIds.length ? tiersIds : undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         q: q || undefined,
@@ -105,31 +154,83 @@ export function JournalPage() {
   });
 
   const rows = ecrituresQuery.data ?? [];
-  const hasFilters =
-    statut !== '' ||
-    journalId !== '' ||
-    compteId !== '' ||
-    typeOperation !== '' ||
-    categorieId !== '' ||
-    tiersId !== '' ||
-    dateFrom !== '' ||
-    dateTo !== '' ||
-    q !== '';
+
+  const facets: Facet[] = [
+    {
+      key: 'type',
+      title: 'Type',
+      options: TYPE_OPTIONS,
+      selected: typeOperations,
+      onToggle: (v) => toggleValue(setTypeOperations, v as TypeOperation),
+    },
+    {
+      key: 'statut',
+      title: 'Statut',
+      options: STATUT_OPTIONS,
+      selected: statuts,
+      onToggle: (v) => toggleValue(setStatuts, v as EcritureStatut),
+    },
+    {
+      key: 'journal',
+      title: 'Journal',
+      options: (journauxQuery.data ?? []).map((j) => ({
+        value: j.id,
+        label: `${j.code} — ${j.libelle}`,
+      })),
+      selected: journalIds,
+      onToggle: (v) => toggleValue(setJournalIds, v),
+    },
+    {
+      key: 'compte',
+      title: 'Compte de trésorerie',
+      options: (tresorerieQuery.data ?? []).map((c) => ({ value: c.id, label: c.libelle })),
+      selected: compteIds,
+      onToggle: (v) => toggleValue(setCompteIds, v),
+      scroll: true,
+    },
+    {
+      key: 'categorie',
+      title: 'Catégorie',
+      options: (categoriesQuery.data ?? []).map((c) => ({ value: c.id, label: c.libelle })),
+      selected: categorieIds,
+      onToggle: (v) => toggleValue(setCategorieIds, v),
+      scroll: true,
+    },
+    {
+      key: 'tiers',
+      title: 'Tiers',
+      options: (tiersQuery.data ?? []).map((t) => ({ value: t.id, label: t.nom })),
+      selected: tiersIds,
+      onToggle: (v) => toggleValue(setTiersIds, v),
+      scroll: true,
+    },
+  ];
+
+  const activeCount =
+    typeOperations.length +
+    statuts.length +
+    journalIds.length +
+    compteIds.length +
+    categorieIds.length +
+    tiersIds.length +
+    (dateFrom ? 1 : 0) +
+    (dateTo ? 1 : 0);
+  const hasFilters = activeCount > 0 || q !== '';
 
   function resetFilters() {
-    setStatut('');
-    setJournalId('');
-    setCompteId('');
-    setTypeOperation('');
-    setCategorieId('');
-    setTiersId('');
+    setStatuts([]);
+    setJournalIds([]);
+    setCompteIds([]);
+    setTypeOperations([]);
+    setCategorieIds([]);
+    setTiersIds([]);
     setDateFrom('');
     setDateTo('');
     setSearch('');
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight text-ink">Journal</h2>
@@ -142,136 +243,81 @@ export function JournalPage() {
         </Button>
       </div>
 
-      <Card className="p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-50 flex-1">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
-              aria-hidden
+      <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-6">
+        {/* Faceted filters: a sidebar on desktop, a drawer on small screens. */}
+        <aside className="hidden lg:block">
+          <Card className="sticky top-6 max-h-[calc(100dvh-3rem)] overflow-y-auto p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">Filtres</h3>
+              {activeCount > 0 && <ResetButton onClick={resetFilters} />}
+            </div>
+            <FilterPanel
+              facets={facets}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFrom={setDateFrom}
+              onDateTo={setDateTo}
             />
-            <Input
-              aria-label="Rechercher dans les libellés"
-              placeholder="Rechercher un libellé…"
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Select
-            aria-label="Filtrer par statut"
-            className="w-44"
-            value={statut}
-            onChange={(e) => setStatut(e.target.value as EcritureStatut | '')}
-          >
-            <option value="">Tous les statuts</option>
-            <option value="brouillon">Brouillons</option>
-            <option value="validee">Validées</option>
-          </Select>
-          <Select
-            aria-label="Filtrer par journal"
-            className="w-44"
-            value={journalId}
-            onChange={(e) => setJournalId(e.target.value)}
-          >
-            <option value="">Tous les journaux</option>
-            {(journauxQuery.data ?? []).map((j) => (
-              <option key={j.id} value={j.id}>
-                {j.code} — {j.libelle}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Filtrer par compte de trésorerie"
-            className="w-48"
-            value={compteId}
-            onChange={(e) => setCompteId(e.target.value)}
-          >
-            <option value="">Tous les comptes</option>
-            {(tresorerieQuery.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.libelle}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Filtrer par type d’opération"
-            className="w-40"
-            value={typeOperation}
-            onChange={(e) => setTypeOperation(e.target.value as TypeOperation | '')}
-          >
-            <option value="">Tous les types</option>
-            {(['recette', 'depense', 'virement'] as const).map((t) => (
-              <option key={t} value={t}>
-                {TYPE_OPERATION_LABELS[t]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Filtrer par catégorie"
-            className="w-48"
-            value={categorieId}
-            onChange={(e) => setCategorieId(e.target.value)}
-          >
-            <option value="">Toutes les catégories</option>
-            {(categoriesQuery.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.libelle}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Filtrer par tiers"
-            className="w-44"
-            value={tiersId}
-            onChange={(e) => setTiersId(e.target.value)}
-          >
-            <option value="">Tous les tiers</option>
-            {(tiersQuery.data ?? []).map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.nom}
-              </option>
-            ))}
-          </Select>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted">Du</span>
-            <Input
-              type="date"
-              aria-label="Date de début"
-              className="w-40"
-              value={dateFrom}
-              max={dateTo || undefined}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-            <span className="text-xs text-muted">au</span>
-            <Input
-              type="date"
-              aria-label="Date de fin"
-              className="w-40"
-              value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </div>
-          {hasFilters && (
+          </Card>
+        </aside>
+
+        <div className="mt-4 min-w-0 space-y-4 lg:mt-0">
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint"
+                aria-hidden
+              />
+              <Input
+                aria-label="Rechercher dans les libellés"
+                placeholder="Rechercher un libellé…"
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
             <button
               type="button"
-              onClick={resetFilters}
-              className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-muted hover:text-ink"
+              onClick={() => setDrawerOpen(true)}
+              className="relative inline-flex shrink-0 items-center gap-2 rounded-lg border border-hairline bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-hover lg:hidden"
             >
-              <X className="h-4 w-4" aria-hidden />
-              Réinitialiser
+              <SlidersHorizontal className="h-4 w-4" aria-hidden />
+              Filtres
+              {activeCount > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-semibold text-white">
+                  {activeCount}
+                </span>
+              )}
             </button>
+          </div>
+
+          {ecrituresQuery.isError ? (
+            <Alert>Impossible de charger les écritures.</Alert>
+          ) : rows.length === 0 ? (
+            <EmptyState associationId={associationId} filtered={hasFilters} />
+          ) : (
+            <JournalTable rows={rows} onSelect={setSelectedId} />
           )}
         </div>
-      </Card>
+      </div>
 
-      {ecrituresQuery.isError ? (
-        <Alert>Impossible de charger les écritures.</Alert>
-      ) : rows.length === 0 ? (
-        <EmptyState associationId={associationId} filtered={hasFilters} />
-      ) : (
-        <JournalTable rows={rows} onSelect={setSelectedId} />
-      )}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent className="lg:hidden">
+          <div className="flex items-center justify-between border-b border-hairline p-4 pr-12">
+            <SheetTitle>Filtres</SheetTitle>
+            {activeCount > 0 && <ResetButton onClick={resetFilters} />}
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <FilterPanel
+              facets={facets}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFrom={setDateFrom}
+              onDateTo={setDateTo}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {selectedId && (
         <EcritureDrawer
@@ -281,6 +327,120 @@ export function JournalPage() {
           onClose={() => setSelectedId(null)}
         />
       )}
+    </div>
+  );
+}
+
+function ResetButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 text-xs font-medium text-muted hover:text-ink"
+    >
+      <X className="h-3.5 w-3.5" aria-hidden />
+      Réinitialiser
+    </button>
+  );
+}
+
+function FilterGroup({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count?: number;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-hairline pt-4 first:border-0 first:pt-0">
+      <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-faint">
+        {title}
+        {count ? (
+          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-soft px-1 text-[10px] font-semibold normal-case text-accent">
+            {count}
+          </span>
+        ) : null}
+      </h4>
+      {children}
+    </section>
+  );
+}
+
+function FacetSection({ facet }: { facet: Facet }) {
+  if (facet.options.length === 0) return null;
+  return (
+    <FilterGroup title={facet.title} count={facet.selected.length}>
+      <ul className={cn('space-y-0.5', facet.scroll && 'max-h-44 overflow-y-auto')}>
+        {facet.options.map((option) => (
+          <li key={option.value}>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-md px-1 py-1.5 text-sm text-ink hover:bg-hover">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 rounded border-hairline accent-accent"
+                checked={facet.selected.includes(option.value)}
+                onChange={() => facet.onToggle(option.value)}
+              />
+              <span className="min-w-0 truncate">{option.label}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </FilterGroup>
+  );
+}
+
+function FilterPanel({
+  facets,
+  dateFrom,
+  dateTo,
+  onDateFrom,
+  onDateTo,
+}: {
+  facets: Facet[];
+  dateFrom: string;
+  dateTo: string;
+  onDateFrom: (value: string) => void;
+  onDateTo: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <FilterGroup title="Période">
+        <div className="space-y-2.5">
+          <div>
+            <label htmlFor="filtre-date-from" className="text-xs text-muted">
+              Du
+            </label>
+            <Input
+              id="filtre-date-from"
+              type="date"
+              aria-label="Date de début"
+              className="mt-1"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => onDateFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="filtre-date-to" className="text-xs text-muted">
+              Au
+            </label>
+            <Input
+              id="filtre-date-to"
+              type="date"
+              aria-label="Date de fin"
+              className="mt-1"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => onDateTo(e.target.value)}
+            />
+          </div>
+        </div>
+      </FilterGroup>
+      {facets.map((facet) => (
+        <FacetSection key={facet.key} facet={facet} />
+      ))}
     </div>
   );
 }
@@ -315,42 +475,44 @@ function JournalTable({
 }) {
   return (
     <Card className="overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-hairline text-left text-xs uppercase tracking-wider text-faint">
-            <th className="px-4 py-2.5 font-medium">Date</th>
-            <th className="px-4 py-2.5 font-medium">Pièce</th>
-            <th className="px-4 py-2.5 font-medium">Journal</th>
-            <th className="px-4 py-2.5 font-medium">Libellé</th>
-            <th className="px-4 py-2.5 text-right font-medium">Montant</th>
-            <th className="px-4 py-2.5 font-medium">Statut</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((e) => (
-            <tr
-              key={e.id}
-              onClick={() => onSelect(e.id)}
-              className="cursor-pointer border-b border-hairline last:border-0 hover:bg-hover"
-            >
-              <td className="whitespace-nowrap px-4 py-2.5 text-muted">{formatDate(e.date)}</td>
-              <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted">
-                {e.numero_piece}
-              </td>
-              <td className="px-4 py-2.5">
-                <Badge variant="neutral">{e.journal_code}</Badge>
-              </td>
-              <td className="px-4 py-2.5 text-ink">{e.libelle}</td>
-              <td className="px-4 py-2.5 text-right font-mono tabular-nums text-ink">
-                {formatEUR(e.montant)}
-              </td>
-              <td className="px-4 py-2.5">
-                <StatutBadge statut={e.statut} />
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-sm">
+          <thead>
+            <tr className="border-b border-hairline text-left text-xs uppercase tracking-wider text-faint">
+              <th className="px-4 py-2.5 font-medium">Date</th>
+              <th className="px-4 py-2.5 font-medium">Pièce</th>
+              <th className="px-4 py-2.5 font-medium">Journal</th>
+              <th className="px-4 py-2.5 font-medium">Libellé</th>
+              <th className="px-4 py-2.5 text-right font-medium">Montant</th>
+              <th className="px-4 py-2.5 font-medium">Statut</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((e) => (
+              <tr
+                key={e.id}
+                onClick={() => onSelect(e.id)}
+                className="cursor-pointer border-b border-hairline last:border-0 hover:bg-hover"
+              >
+                <td className="whitespace-nowrap px-4 py-2.5 text-muted">{formatDate(e.date)}</td>
+                <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted">
+                  {e.numero_piece}
+                </td>
+                <td className="px-4 py-2.5">
+                  <Badge variant="neutral">{e.journal_code}</Badge>
+                </td>
+                <td className="px-4 py-2.5 text-ink">{e.libelle}</td>
+                <td className="px-4 py-2.5 text-right font-mono tabular-nums text-ink">
+                  {formatEUR(e.montant)}
+                </td>
+                <td className="px-4 py-2.5">
+                  <StatutBadge statut={e.statut} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }

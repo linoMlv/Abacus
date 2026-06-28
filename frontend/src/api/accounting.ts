@@ -189,14 +189,18 @@ export interface Justificatif {
 export const JUSTIFICATIF_MAX_BYTES = 5 * 1024 * 1024;
 export const JUSTIFICATIF_ACCEPT = '.pdf,image/png,image/jpeg,image/gif,image/webp';
 
-/** Filters for the journal listing (all optional, all server-scoped). */
+/**
+ * Filters for the journal listing (all optional, all server-scoped). The
+ * faceted filters take several values (OR within the facet); the facets still
+ * compose with AND. Date range and text search complete them.
+ */
 export interface JournalFilters {
-  statut?: EcritureStatut;
-  journal_id?: string;
-  compte_id?: string;
-  type_operation?: TypeOperation;
-  categorie_id?: string;
-  tiers_id?: string;
+  statut?: EcritureStatut[];
+  journal_id?: string[];
+  compte_id?: string[];
+  type_operation?: TypeOperation[];
+  categorie_id?: string[];
+  tiers_id?: string[];
   date_from?: string;
   date_to?: string;
   exercice_id?: string;
@@ -231,10 +235,18 @@ export interface VirementInput {
 const base = (associationId: string) => `/asso/${associationId}`;
 
 /** Build a query string from defined, non-empty params (else empty). */
-function qs(params: Record<string, string | number | undefined>): string {
-  const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== '');
-  if (entries.length === 0) return '';
-  return '?' + entries.map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join('&');
+function qs(params: Record<string, string | number | string[] | undefined>): string {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === '') continue;
+    // An array emits one repeated param per value (?k=a&k=b), the multi-value form.
+    const values = Array.isArray(v) ? v : [v];
+    for (const value of values) {
+      if (value === undefined || value === '') continue;
+      parts.push(`${k}=${encodeURIComponent(String(value))}`);
+    }
+  }
+  return parts.length === 0 ? '' : '?' + parts.join('&');
 }
 
 export const accountingApi = {

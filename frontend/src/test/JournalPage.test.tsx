@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -161,44 +161,55 @@ describe('JournalPage', () => {
     expect(screen.getByText('VE')).toBeInTheDocument();
   });
 
-  it('refetches with the statut filter when it changes', async () => {
+  it('refetches with a checked statut facet', async () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
-    await userEvent.selectOptions(screen.getByLabelText('Filtrer par statut'), 'brouillon');
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Brouillon' }));
 
     await waitFor(() =>
       expect(listEcritures).toHaveBeenCalledWith(
         'A',
-        expect.objectContaining({ statut: 'brouillon' })
+        expect.objectContaining({ statut: ['brouillon'] })
       )
     );
   });
 
-  it('refetches with the treasury-account filter when it changes', async () => {
+  it('refetches with a checked treasury-account facet', async () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
-    await userEvent.selectOptions(
-      screen.getByLabelText('Filtrer par compte de trésorerie'),
-      'c-bq'
-    );
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Banque' }));
 
     await waitFor(() =>
       expect(listEcritures).toHaveBeenCalledWith(
         'A',
-        expect.objectContaining({ compte_id: 'c-bq' })
+        expect.objectContaining({ compte_id: ['c-bq'] })
       )
     );
   });
 
-  it('refetches with the type, category, tiers and date filters', async () => {
+  it('combines several checked values into one facet (OR)', async () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
-    await userEvent.selectOptions(screen.getByLabelText('Filtrer par type d’opération'), 'recette');
-    await userEvent.selectOptions(screen.getByLabelText('Filtrer par catégorie'), 'cat-co');
-    await userEvent.selectOptions(screen.getByLabelText('Filtrer par tiers'), 't1');
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Recette' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Virement' }));
+
+    await waitFor(() =>
+      expect(listEcritures).toHaveBeenCalledWith(
+        'A',
+        expect.objectContaining({ type_operation: ['recette', 'virement'] })
+      )
+    );
+  });
+
+  it('refetches with the category, tiers and date filters', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Cotisations' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'M. Dupont' }));
     await userEvent.type(screen.getByLabelText('Date de début'), '2026-06-01');
     await userEvent.type(screen.getByLabelText('Date de fin'), '2026-06-30');
 
@@ -206,9 +217,8 @@ describe('JournalPage', () => {
       expect(listEcritures).toHaveBeenCalledWith(
         'A',
         expect.objectContaining({
-          type_operation: 'recette',
-          categorie_id: 'cat-co',
-          tiers_id: 't1',
+          categorie_id: ['cat-co'],
+          tiers_id: ['t1'],
           date_from: '2026-06-01',
           date_to: '2026-06-30',
         })
@@ -220,19 +230,23 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
-    await userEvent.selectOptions(
-      screen.getByLabelText('Filtrer par type d’opération'),
-      'virement'
-    );
+    const virement = await screen.findByRole('checkbox', { name: 'Virement' });
+    await userEvent.click(virement);
     const reset = await screen.findByRole('button', { name: /Réinitialiser/ });
     await userEvent.click(reset);
 
-    await waitFor(() =>
-      expect(
-        (screen.getByLabelText('Filtrer par type d’opération') as HTMLSelectElement).value
-      ).toBe('')
-    );
+    await waitFor(() => expect(virement).not.toBeChecked());
     expect(screen.queryByRole('button', { name: /Réinitialiser/ })).not.toBeInTheDocument();
+  });
+
+  it('opens the filters in a drawer on small screens', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.click(screen.getByRole('button', { name: /Filtres/ }));
+    const drawer = await screen.findByRole('dialog');
+    // The same faceted filters are available inside the drawer.
+    expect(within(drawer).getByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
   });
 
   it('opens the detail and validates a draft', async () => {
