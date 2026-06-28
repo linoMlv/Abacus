@@ -16,6 +16,8 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       listEvenements: (...a: unknown[]) => listEvenements(...a),
       listEcritures: (...a: unknown[]) => listEcritures(...a),
       creerEvenement: (...a: unknown[]) => creerEvenement(...a),
+      evenementBilanPdfUrl: (assoc: string, id: string) =>
+        `/api/asso/${assoc}/exports/evenements/${id}/bilan.pdf`,
     },
   };
 });

@@ -19,6 +19,7 @@ import {
   type SyntheseParams,
   TYPE_TRESORERIE_LABELS,
 } from '@/api/accounting';
+import { ExportMenu } from '@/components/ExportMenu';
 import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -350,14 +351,31 @@ export function SynthesePage() {
               : 'Vue d’ensemble'}
           </p>
         </div>
-        <PeriodControl
-          preset={preset}
-          onPreset={setPreset}
-          customFrom={customFrom}
-          customTo={customTo}
-          onCustomFrom={setCustomFrom}
-          onCustomTo={setCustomTo}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <PeriodControl
+            preset={preset}
+            onPreset={setPreset}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFrom={setCustomFrom}
+            onCustomTo={setCustomTo}
+          />
+          <ExportMenu
+            label="États"
+            groups={[
+              {
+                heading: 'États comptables',
+                items: [
+                  {
+                    label: 'Compte de résultat (PDF)',
+                    url: accountingApi.compteResultatPdfUrl(associationId, params),
+                  },
+                  { label: 'Bilan (PDF)', url: accountingApi.bilanPdfUrl(associationId, params) },
+                ],
+              },
+            ]}
+          />
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CalendarRange, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, CalendarRange, Download, Pencil, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { triggerDownload } from '@/lib/download';
 import { formatDate, formatEUR } from '@/lib/format';
 import { canManageEvenement } from '@/lib/roles';
 
@@ -95,10 +96,12 @@ function EvenementCard({
   evenement,
   onOpen,
   onEdit,
+  bilanHref,
 }: {
   evenement: Evenement;
   onOpen: () => void;
   onEdit?: () => void;
+  bilanHref: string;
 }) {
   return (
     <Card className="flex flex-col overflow-hidden">
@@ -123,6 +126,14 @@ function EvenementCard({
           </button>
           <div className="flex shrink-0 items-center gap-1.5">
             <StatutBadge evenement={evenement} />
+            <button
+              type="button"
+              onClick={() => triggerDownload(bilanHref)}
+              aria-label={`Bilan PDF de ${evenement.nom}`}
+              className="rounded-md p-1 text-faint transition-colors hover:bg-hover hover:text-ink"
+            >
+              <Download className="h-4 w-4" />
+            </button>
             {onEdit && (
               <button
                 type="button"
@@ -272,6 +283,7 @@ export function EvenementsPage() {
                   evenement={evenement}
                   onOpen={() => setOpenId(evenement.id)}
                   onEdit={canManage ? () => openEdit(evenement) : undefined}
+                  bilanHref={accountingApi.evenementBilanPdfUrl(associationId, evenement.id)}
                 />
               ))}
             </div>

@@ -22,6 +22,8 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       modifierCompteTresorerie: (...args: unknown[]) => modifierCompteTresorerie(...args),
       relevePdfUrl: (assoc: string, compteId: string) =>
         `/api/asso/${assoc}/exports/tresorerie/${compteId}/releve.pdf`,
+      compteResultatPdfUrl: (assoc: string) => `/api/asso/${assoc}/exports/compte-resultat.pdf`,
+      bilanPdfUrl: (assoc: string) => `/api/asso/${assoc}/exports/bilan.pdf`,
     },
   };
 });

@@ -389,6 +389,12 @@ export const accountingApi = {
     apiUrl(`${base(associationId)}/exports/grand-livre.xlsx${qs({ ...params })}`),
   relevePdfUrl: (associationId: string, compteId: string, params: SyntheseParams = {}) =>
     apiUrl(`${base(associationId)}/exports/tresorerie/${compteId}/releve.pdf${qs({ ...params })}`),
+  compteResultatPdfUrl: (associationId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/compte-resultat.pdf${qs({ ...params })}`),
+  bilanPdfUrl: (associationId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/bilan.pdf${qs({ ...params })}`),
+  evenementBilanPdfUrl: (associationId: string, evenementId: string) =>
+    apiUrl(`${base(associationId)}/exports/evenements/${evenementId}/bilan.pdf`),
   listEvenements: (associationId: string, statut?: EvenementStatut) =>
     api.get<Evenement[]>(`${base(associationId)}/evenements${qs({ statut })}`),
   getEvenement: (associationId: string, evenementId: string) =>
