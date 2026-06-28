@@ -8,12 +8,12 @@ The PostgreSQL schema must already exist and be empty: run
 `alembic upgrade head` against the target before this script.
 
 Usage:
-    SOURCE_DATABASE_URL="mysql+pymysql://user:pass@host:3306/abacus" \
-    DATABASE_URL="postgresql+psycopg://user:pass@host:5432/abacus" \
+    SOURCE_MYSQL="mysql+pymysql://user:pass@host:3306/abacus" \
     python scripts/migrate_mysql_to_postgres.py [--dry-run]
 
 The migration runs inside a single transaction on the target: if validation
-fails, nothing is committed. Re-running against a non-empty target is refused.
+fails, nothing is committed. Re-running against a non-empty target is refused
+(the script will gracefully exit without failing the container).
 
 This script needs both drivers; install requirements-migration.txt.
 """
@@ -29,6 +29,7 @@ from sqlmodel import Session, create_engine, select
 # Ensure the backend package root is importable when run as a script.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from database import DATABASE_URL  # noqa: E402
 from models import ApiKey, Association, Balance, LogEntry, Operation  # noqa: E402
 
 # Insertion order respects foreign keys (parents before children).
@@ -66,17 +67,23 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    source_engine = create_engine(_require_url("SOURCE_DATABASE_URL"))
-    target_engine = create_engine(_require_url("DATABASE_URL"))
+    source_url = os.getenv("SOURCE_MYSQL") or os.getenv("SOURCE_DATABASE_URL")
+    if not source_url:
+        sys.exit("Environment variable SOURCE_MYSQL or SOURCE_DATABASE_URL is required.")
+
+    source_engine = create_engine(source_url)
+    target_engine = create_engine(DATABASE_URL)
 
     with Session(source_engine) as source, Session(target_engine) as target:
         # Refuse to run against a target that already holds data.
         existing = {m.__name__: _count(target, m) for m in MODELS}
         if any(existing.values()):
-            sys.exit(
+            print(
                 "Target database is not empty: "
                 + ", ".join(f"{k}={v}" for k, v in existing.items() if v)
+                + ". Skipping migration."
             )
+            return
 
         # Copy every table, parents first.
         for model in MODELS:

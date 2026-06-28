@@ -17,8 +17,8 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install dependencies first to leverage Docker layer caching.
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt backend/requirements-migration.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-migration.txt
 
 COPY backend/ ./
 
@@ -33,4 +33,4 @@ USER appuser
 EXPOSE 8000
 
 # Apply migrations, then start the ASGI app (the top-level wrapper fronts /mcp).
-CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && if [ -n \"$SOURCE_MYSQL\" ]; then python scripts/migrate_mysql_to_postgres.py; fi && uvicorn main:app --host 0.0.0.0 --port 8000"]

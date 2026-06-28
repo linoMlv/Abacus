@@ -264,21 +264,13 @@ sert déjà le front et l'API ensemble.
 
 #### 4️⃣ Reprise d'une base MySQL existante (optionnel)
 
-Pour migrer les données depuis une ancienne instance MySQL vers PostgreSQL :
+Pour migrer automatiquement les données depuis une ancienne instance MySQL vers PostgreSQL, il vous suffit d'ajouter la variable `SOURCE_MYSQL` dans votre `.env` avant de lancer l'application :
 
 ```bash
-# Le schéma PostgreSQL doit déjà exister (migrations appliquées au démarrage).
-pip install -r backend/requirements.txt -r backend/requirements-migration.txt
-
-SOURCE_DATABASE_URL="mysql+pymysql://user:pass@ancien-hote:3306/abacus" \
-DATABASE_URL="postgresql+psycopg://user:pass@nouveau-hote:5432/abacus" \
-python backend/scripts/migrate_mysql_to_postgres.py --dry-run   # validation
-# puis sans --dry-run pour valider la copie (comptages + totaux vérifiés)
+SOURCE_MYSQL="mysql+pymysql://user:pass@ancien-hote:3306/abacus"
 ```
 
-Le script copie chaque table dans l'ordre des dépendances, **valide par
-comptages de lignes et sommes monétaires**, s'exécute dans une transaction
-unique et **refuse une base cible non vide**.
+Au démarrage, le conteneur va vérifier que la base PostgreSQL est vide. Si c'est le cas, il copiera chaque table, validera les données par comptage de lignes et sommes monétaires, puis committera la migration (tout se fait dans une transaction unique, en lecture seule sur le MySQL d'origine). Si la base PostgreSQL n'est plus vide au démarrage suivant, l'application ignorera silencieusement cette étape de migration.
 
 #### ✅ Checklist post-déploiement
 
