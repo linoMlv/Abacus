@@ -55,11 +55,54 @@ def _sanitize_filename(name: str | None) -> str:
     return base or "fichier"
 
 
-def _content_disposition(filename: str) -> str:
-    """RFC 6266 attachment header with an ASCII fallback and a UTF-8 form."""
+def _content_disposition(filename: str, disposition: str) -> str:
+    """RFC 6266 disposition header with an ASCII fallback and a UTF-8 form."""
     ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "fichier"
     ascii_name = ascii_name.replace('"', "")
-    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
+    return (
+        f"{disposition}; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
+    )
+
+
+def _serve(
+    session: Session,
+    storage: FileStorage,
+    association_id: str,
+    justificatif_id: str,
+    *,
+    inline: bool,
+) -> Response:
+    """Stream a tenant-owned justificatif, as an attachment or for inline preview.
+
+    Inline responses are sandboxed (``Content-Security-Policy: sandbox``) and
+    ``nosniff``, so a (strictly type-validated) PDF/image renders in an iframe/img
+    without being able to run script or navigate. Both forms are marked
+    non-storable — these are private tenant documents.
+    """
+    justificatif = owned_or_404(
+        session,
+        Justificatif,
+        justificatif_id,
+        association_id,
+        "Justificatif introuvable",
+    )
+    try:
+        data = storage.load(justificatif.storage_key)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Fichier introuvable"
+        ) from exc
+
+    headers = {
+        "Content-Disposition": _content_disposition(
+            justificatif.filename, "inline" if inline else "attachment"
+        ),
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+    }
+    if inline:
+        headers["Content-Security-Policy"] = "sandbox"
+    return Response(content=data, media_type=justificatif.content_type, headers=headers)
 
 
 @router.post(
@@ -160,28 +203,19 @@ def download_justificatif(
     session: Session = Depends(get_session),
     storage: FileStorage = Depends(get_storage),
 ):
-    justificatif = owned_or_404(
-        session,
-        Justificatif,
-        justificatif_id,
-        ctx.association_id,
-        "Justificatif introuvable",
-    )
-    try:
-        data = storage.load(justificatif.storage_key)
-    except FileNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Fichier introuvable"
-        ) from exc
+    """Download the file as an attachment (forced save, never rendered inline)."""
+    return _serve(session, storage, ctx.association_id, justificatif_id, inline=False)
 
-    return Response(
-        content=data,
-        media_type=justificatif.content_type,
-        headers={
-            "Content-Disposition": _content_disposition(justificatif.filename),
-            "X-Content-Type-Options": "nosniff",
-        },
-    )
+
+@router.get("/justificatifs/{justificatif_id}/apercu")
+def preview_justificatif(
+    justificatif_id: str,
+    ctx: AccessContext = Depends(get_active_membership),
+    session: Session = Depends(get_session),
+    storage: FileStorage = Depends(get_storage),
+):
+    """Serve the file inline for an in-app preview (sandboxed, nosniff)."""
+    return _serve(session, storage, ctx.association_id, justificatif_id, inline=True)
 
 
 @router.delete(

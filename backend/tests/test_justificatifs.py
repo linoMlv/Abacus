@@ -145,6 +145,36 @@ def test_upload_png_is_accepted():
     assert up.json()["content_type"] == "image/png"
 
 
+def test_preview_serves_inline_sandboxed():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    entry = _entry(admin, assoc)
+    jid = _upload(
+        admin, assoc, entry, "facture.pdf", PDF_BYTES, "application/pdf"
+    ).json()["id"]
+
+    ap = admin.get(f"/api/asso/{assoc}/justificatifs/{jid}/apercu")
+    assert ap.status_code == 200
+    assert ap.content == PDF_BYTES
+    assert ap.headers["content-type"].startswith("application/pdf")
+    # Rendered in-app, but sandboxed and non-sniffable.
+    assert "inline" in ap.headers["content-disposition"]
+    assert ap.headers["x-content-type-options"] == "nosniff"
+    assert ap.headers["content-security-policy"] == "sandbox"
+
+
+def test_preview_is_tenant_scoped():
+    admin_a, assoc_a = _admin_with_association("a@example.com", "alpha")
+    admin_b, assoc_b = _admin_with_association("b@example.com", "beta")
+    entry_a = _entry(admin_a, assoc_a)
+    jid = _upload(
+        admin_a, assoc_a, entry_a, "f.pdf", PDF_BYTES, "application/pdf"
+    ).json()["id"]
+    assert (
+        admin_b.get(f"/api/asso/{assoc_b}/justificatifs/{jid}/apercu").status_code
+        == 404
+    )
+
+
 # --- Security: content sniffing & limits ----------------------------------
 
 
