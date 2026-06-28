@@ -29,6 +29,7 @@ from routers import (
     identity,
     logs,
     operations,
+    tiers,
     tresorerie,
 )
 from security import ENVIRONMENT
@@ -104,6 +105,7 @@ _fastapi_app.include_router(accounting.router)
 _fastapi_app.include_router(ecritures.router)
 _fastapi_app.include_router(tresorerie.router)
 _fastapi_app.include_router(categories.router)
+_fastapi_app.include_router(tiers.router)
 _fastapi_app.include_router(auth.router)
 _fastapi_app.include_router(associations.router)
 _fastapi_app.include_router(operations.router)

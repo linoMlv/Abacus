@@ -22,6 +22,7 @@ from models import (  # noqa: F401
     Membership,
     Operation,
     RefreshSession,
+    Tiers,
     User,
 )
 

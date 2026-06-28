@@ -24,6 +24,7 @@ class AuditAction:
     COMPTE_TRESORERIE_UPDATE = "compte_tresorerie.update"
     CATEGORIE_CREATE = "categorie.create"
     CATEGORIE_UPDATE = "categorie.update"
+    TIERS_CREATE = "tiers.create"
 
 
 def record_audit(

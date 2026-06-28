@@ -409,6 +409,9 @@ class Ecriture(SQLModel, table=True):
     categorie_id: str | None = Field(
         default=None, foreign_key="categorie_saisie.id", index=True
     )
+    # Optional third party the operation is with (supplier, donor…), memorised
+    # for "by tiers" views. Informative only — the accounting truth is on lines.
+    tiers_id: str | None = Field(default=None, foreign_key="tiers.id", index=True)
     date: date
     numero_piece: int  # séquentiel sans trou par association
     libelle: str
@@ -480,6 +483,44 @@ class CategorieSaisie(SQLModel, table=True):
     ordre: int = Field(default=0)  # ordre d'affichage dans l'écran de saisie
 
 
+class TypeTiers(str, Enum):
+    """Kind of third party (§3). Stable strings (persisted, audited)."""
+
+    FOURNISSEUR = "fournisseur"
+    CLIENT = "client"  # usagers, adhérents, clients
+    DONATEUR = "donateur"
+    FINANCEUR = "financeur"  # subventions, mécénat
+    AUTRE = "autre"
+
+
+class Tiers(SQLModel, table=True):
+    """A third party the association deals with (supplier, member, donor…).
+
+    A lightweight informative entity for now: a name and a type, attached to an
+    entry to enable "by tiers" views. The accounting third-party ledger (401/411
+    linkage, lettrage) is a later concern.
+    """
+
+    __tablename__ = "tiers"
+    __table_args__ = (
+        UniqueConstraint("association_id", "nom", name="uq_tiers_assoc_nom"),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    type: TypeTiers
+    nom: str
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class TiersRead(SQLModel):
+    id: str
+    type: TypeTiers
+    nom: str
+    is_active: bool
+
+
 class CompteRead(SQLModel):
     id: str
     numero: str
@@ -544,6 +585,7 @@ class EcritureRead(SQLModel):
     date: date
     numero_piece: int
     libelle: str
+    tiers_id: str | None
     reference_externe: str | None
     mode_reglement: ModeReglement | None
     statut: EcritureStatut

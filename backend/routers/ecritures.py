@@ -42,6 +42,7 @@ from models import (
     Journal,
     LigneEcriture,
     ModeReglement,
+    Tiers,
 )
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["ecritures"])
@@ -58,6 +59,7 @@ class SaisieSimpleRequest(SQLModel):
     montant: Decimal
     date: date
     libelle: str | None = None
+    tiers_id: str | None = None
     reference_externe: str | None = None
     mode_reglement: ModeReglement | None = None
 
@@ -84,6 +86,7 @@ class SaisieManuelleRequest(SQLModel):
     date: date
     libelle: str
     lignes: list[LigneInput]
+    tiers_id: str | None = None
     reference_externe: str | None = None
     mode_reglement: ModeReglement | None = None
 
@@ -132,6 +135,24 @@ def _owned_treasury(session: Session, association_id: str, compte_id: str) -> Co
     if compte.type_tresorerie is None:
         raise _bad_request("Le compte sélectionné n'est pas un compte de trésorerie.")
     return compte
+
+
+def _resolve_tiers_id(
+    session: Session, association_id: str, tiers_id: str | None
+) -> str | None:
+    """Validate an optional tiers reference belongs to the association (else 400)."""
+    if tiers_id is None:
+        return None
+    tiers = session.exec(
+        select(Tiers).where(
+            Tiers.id == tiers_id,
+            Tiers.association_id == association_id,
+            Tiers.is_active.is_(True),
+        )
+    ).first()
+    if tiers is None:
+        raise _bad_request("Tiers introuvable ou inactif.")
+    return tiers.id
 
 
 def _journal_by_code(session: Session, association_id: str, code: str) -> Journal:
@@ -223,6 +244,7 @@ def creer_saisie_simple(
         raise _bad_request(str(exc))
 
     ecriture.categorie_id = categorie.id  # remembered for "by category" views
+    ecriture.tiers_id = _resolve_tiers_id(session, ctx.association_id, body.tiers_id)
     ecriture.reference_externe = body.reference_externe
     ecriture.mode_reglement = body.mode_reglement
     session.add(ecriture)
@@ -338,6 +360,7 @@ def creer_saisie_manuelle(
         date=body.date,
         numero_piece=next_numero_piece(session, ctx.association_id),
         libelle=body.libelle,
+        tiers_id=_resolve_tiers_id(session, ctx.association_id, body.tiers_id),
         reference_externe=body.reference_externe,
         mode_reglement=body.mode_reglement,
         origine=EcritureOrigine.MANUELLE,
@@ -416,6 +439,7 @@ def list_ecritures(
             date=e.date,
             numero_piece=e.numero_piece,
             libelle=e.libelle,
+            tiers_id=e.tiers_id,
             reference_externe=e.reference_externe,
             mode_reglement=e.mode_reglement,
             statut=e.statut,
