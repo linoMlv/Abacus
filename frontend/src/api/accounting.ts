@@ -377,6 +377,18 @@ export const accountingApi = {
     api.post<Tiers>(`${base(associationId)}/tiers`, input),
   getSynthese: (associationId: string, params: SyntheseParams = {}) =>
     api.get<Synthese>(`${base(associationId)}/synthese${qs({ ...params })}`),
+  // Export download URLs (server streams an attachment; the cookie session is
+  // sent automatically on a same-origin navigation, so a plain link works).
+  journalPdfUrl: (associationId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/journal.pdf${qs({ ...params })}`),
+  journalXlsxUrl: (associationId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/journal.xlsx${qs({ ...params })}`),
+  grandLivrePdfUrl: (associationId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/grand-livre.pdf${qs({ ...params })}`),
+  grandLivreXlsxUrl: (associationId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/grand-livre.xlsx${qs({ ...params })}`),
+  relevePdfUrl: (associationId: string, compteId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/tresorerie/${compteId}/releve.pdf${qs({ ...params })}`),
   listEvenements: (associationId: string, statut?: EvenementStatut) =>
     api.get<Evenement[]>(`${base(associationId)}/evenements${qs({ statut })}`),
   getEvenement: (associationId: string, evenementId: string) =>

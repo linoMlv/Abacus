@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarClock,
+  Download,
   FileClock,
   Pencil,
   Plus,
@@ -22,6 +23,7 @@ import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { triggerDownload } from '@/lib/download';
 import { formatDate, formatEUR } from '@/lib/format';
 import { canManageTresorerie } from '@/lib/roles';
 import { cn } from '@/lib/utils';
@@ -84,7 +86,15 @@ function StatTile({
   );
 }
 
-function TreasuryCard({ compte, onEdit }: { compte: CompteTresorerie; onEdit?: () => void }) {
+function TreasuryCard({
+  compte,
+  onEdit,
+  releveHref,
+}: {
+  compte: CompteTresorerie;
+  onEdit?: () => void;
+  releveHref?: string;
+}) {
   return (
     <Card className="flex items-center gap-4 p-4">
       <span
@@ -102,6 +112,14 @@ function TreasuryCard({ compte, onEdit }: { compte: CompteTresorerie; onEdit?: (
         <p className="text-xs text-muted">{TYPE_TRESORERIE_LABELS[compte.type_tresorerie]}</p>
       </div>
       <p className="tabular shrink-0 text-base font-semibold text-ink">{formatEUR(compte.solde)}</p>
+      <button
+        type="button"
+        onClick={() => triggerDownload(releveHref ?? '')}
+        aria-label={`Relevé PDF de ${compte.libelle}`}
+        className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <Download className="h-4 w-4" />
+      </button>
       {onEdit && (
         <button
           type="button"
@@ -395,6 +413,7 @@ export function SynthesePage() {
                 key={compte.id}
                 compte={compte}
                 onEdit={canManage ? () => openEdit(compte) : undefined}
+                releveHref={accountingApi.relevePdfUrl(associationId, compte.id, params)}
               />
             ))}
           </div>

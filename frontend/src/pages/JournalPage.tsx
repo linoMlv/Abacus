@@ -23,6 +23,7 @@ import {
 } from '@/api/accounting';
 import type { Role } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
+import { ExportMenu } from '@/components/ExportMenu';
 import { JustificatifViewer } from '@/components/JustificatifViewer';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -247,6 +248,10 @@ export function JournalPage() {
     setSearch('');
   }
 
+  // Exports follow the date range from the filters (the export endpoints scope
+  // by period; the facet filters are a future enhancement on the export side).
+  const exportParams = { date_from: dateFrom || undefined, date_to: dateTo || undefined };
+
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -256,9 +261,41 @@ export function JournalPage() {
             Toutes les écritures de l’exercice, les plus récentes d’abord.
           </p>
         </div>
-        <Button variant="accent" onClick={() => navigate(`/asso/${associationId}/saisie`)}>
-          Nouvelle opération
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportMenu
+            groups={[
+              {
+                heading: 'Journal',
+                items: [
+                  {
+                    label: 'Journal (PDF)',
+                    url: accountingApi.journalPdfUrl(associationId, exportParams),
+                  },
+                  {
+                    label: 'Journal (Excel)',
+                    url: accountingApi.journalXlsxUrl(associationId, exportParams),
+                  },
+                ],
+              },
+              {
+                heading: 'Grand livre',
+                items: [
+                  {
+                    label: 'Grand livre (PDF)',
+                    url: accountingApi.grandLivrePdfUrl(associationId, exportParams),
+                  },
+                  {
+                    label: 'Grand livre (Excel)',
+                    url: accountingApi.grandLivreXlsxUrl(associationId, exportParams),
+                  },
+                ],
+              },
+            ]}
+          />
+          <Button variant="accent" onClick={() => navigate(`/asso/${associationId}/saisie`)}>
+            Nouvelle opération
+          </Button>
+        </div>
       </div>
 
       <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-6">

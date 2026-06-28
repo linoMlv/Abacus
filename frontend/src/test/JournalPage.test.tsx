@@ -40,6 +40,10 @@ vi.mock('@/api/accounting', async (importOriginal) => {
         `/api/asso/${assoc}/justificatifs/${id}/contenu`,
       justificatifApercuUrl: (assoc: string, id: string) =>
         `/api/asso/${assoc}/justificatifs/${id}/apercu`,
+      journalPdfUrl: (assoc: string) => `/api/asso/${assoc}/exports/journal.pdf`,
+      journalXlsxUrl: (assoc: string) => `/api/asso/${assoc}/exports/journal.xlsx`,
+      grandLivrePdfUrl: (assoc: string) => `/api/asso/${assoc}/exports/grand-livre.pdf`,
+      grandLivreXlsxUrl: (assoc: string) => `/api/asso/${assoc}/exports/grand-livre.xlsx`,
     },
   };
 });

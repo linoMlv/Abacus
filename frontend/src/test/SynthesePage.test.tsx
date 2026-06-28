@@ -20,6 +20,8 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       getSynthese: (...args: unknown[]) => getSynthese(...args),
       creerCompteTresorerie: (...args: unknown[]) => creerCompteTresorerie(...args),
       modifierCompteTresorerie: (...args: unknown[]) => modifierCompteTresorerie(...args),
+      relevePdfUrl: (assoc: string, compteId: string) =>
+        `/api/asso/${assoc}/exports/tresorerie/${compteId}/releve.pdf`,
     },
   };
 });
