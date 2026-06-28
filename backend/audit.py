@@ -16,6 +16,7 @@ class AuditAction:
     """Stable action identifiers (``domain.action``). Persisted — do not rename."""
 
     ECRITURE_CREATE_SIMPLE = "ecriture.create_simple"
+    ECRITURE_CREATE_VIREMENT = "ecriture.create_virement"
     ECRITURE_CREATE_MANUAL = "ecriture.create_manual"
     ECRITURE_VALIDATE = "ecriture.validate"
     ECRITURE_DELETE = "ecriture.delete"

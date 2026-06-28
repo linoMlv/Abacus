@@ -407,3 +407,42 @@ def test_entry_id_is_scoped_to_its_association():
 
 def test_entry_endpoints_require_authentication():
     assert _client().get("/api/asso/x/ecritures/y").status_code == 401
+
+
+# --- Payment metadata on assisted entries (T3a) ---------------------------
+
+
+def test_simple_entry_carries_payment_metadata():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    cat = _categorie(admin, assoc, "Cotisations")
+    resp = admin.post(
+        f"/api/asso/{assoc}/ecritures/simple",
+        json={
+            "categorie_id": cat["id"],
+            "compte_tresorerie_id": _compte_id(admin, assoc, "512"),
+            "montant": "30.00",
+            "date": TODAY,
+            "reference_externe": "FAC-42",
+            "mode_reglement": "cheque",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    detail = admin.get(f"/api/asso/{assoc}/ecritures/{resp.json()['id']}").json()
+    assert detail["reference_externe"] == "FAC-42"
+    assert detail["mode_reglement"] == "cheque"
+
+
+def test_simple_entry_rejects_unknown_payment_mode():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    cat = _categorie(admin, assoc, "Cotisations")
+    resp = admin.post(
+        f"/api/asso/{assoc}/ecritures/simple",
+        json={
+            "categorie_id": cat["id"],
+            "compte_tresorerie_id": _compte_id(admin, assoc, "512"),
+            "montant": "30.00",
+            "date": TODAY,
+            "mode_reglement": "bitcoin",
+        },
+    )
+    assert resp.status_code == 422, resp.text

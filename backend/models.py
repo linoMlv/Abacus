@@ -373,9 +373,21 @@ class EcritureOrigine(str, Enum):
 
     SAISIE_SIMPLE = "saisie_simple"  # via le moteur recette/dépense assisté
     MANUELLE = "manuelle"  # saisie expert multi-lignes
+    VIREMENT = "virement"  # virement interne entre deux comptes de trésorerie
     IMPORT = "import"  # rapprochement bancaire
     RECURRENCE = "recurrence"  # générée par une Recurrence
     A_NOUVEAU = "a_nouveau"  # solde initial d'un compte de trésorerie (§15.4)
+
+
+class ModeReglement(str, Enum):
+    """How money changed hands — purely informative (§15.3). Stable strings."""
+
+    CARTE = "carte"
+    CHEQUE = "cheque"
+    ESPECES = "especes"
+    VIREMENT = "virement"
+    PRELEVEMENT = "prelevement"
+    AUTRE = "autre"
 
 
 class Ecriture(SQLModel, table=True):
@@ -400,6 +412,10 @@ class Ecriture(SQLModel, table=True):
     date: date
     numero_piece: int  # séquentiel sans trou par association
     libelle: str
+    # Optional "Avancé" metadata, purely informative (§15.3) — never affects the
+    # accounting: external reference (supplier invoice n°…) and payment method.
+    reference_externe: str | None = None
+    mode_reglement: ModeReglement | None = None
     statut: EcritureStatut = Field(default=EcritureStatut.BROUILLON)
     origine: EcritureOrigine
     created_by: str | None = Field(default=None, foreign_key="user.id")
@@ -528,6 +544,8 @@ class EcritureRead(SQLModel):
     date: date
     numero_piece: int
     libelle: str
+    reference_externe: str | None
+    mode_reglement: ModeReglement | None
     statut: EcritureStatut
     origine: EcritureOrigine
     created_at: datetime

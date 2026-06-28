@@ -16,6 +16,7 @@ from sqlmodel import Session, SQLModel, desc, select
 from accounting_engine import (
     EntryError,
     build_ecriture_simple,
+    build_ecriture_virement,
     find_open_exercice,
     next_numero_piece,
     validate_lignes,
@@ -40,6 +41,7 @@ from models import (
     Exercice,
     Journal,
     LigneEcriture,
+    ModeReglement,
 )
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["ecritures"])
@@ -56,6 +58,18 @@ class SaisieSimpleRequest(SQLModel):
     montant: Decimal
     date: date
     libelle: str | None = None
+    reference_externe: str | None = None
+    mode_reglement: ModeReglement | None = None
+
+
+class VirementRequest(SQLModel):
+    compte_source_id: str
+    compte_destination_id: str
+    montant: Decimal
+    date: date
+    libelle: str | None = None
+    reference_externe: str | None = None
+    mode_reglement: ModeReglement | None = None
 
 
 class LigneInput(SQLModel):
@@ -70,6 +84,8 @@ class SaisieManuelleRequest(SQLModel):
     date: date
     libelle: str
     lignes: list[LigneInput]
+    reference_externe: str | None = None
+    mode_reglement: ModeReglement | None = None
 
 
 # --- Tenant-scoped resolution helpers -------------------------------------
@@ -107,6 +123,25 @@ def _owned_journal(session: Session, association_id: str, journal_id: str) -> Jo
     ).first()
     if journal is None:
         raise _bad_request("Journal introuvable.")
+    return journal
+
+
+def _owned_treasury(session: Session, association_id: str, compte_id: str) -> Compte:
+    """Resolve an active *treasury* account of the association (else 400)."""
+    compte = _owned_compte(session, association_id, compte_id)
+    if compte.type_tresorerie is None:
+        raise _bad_request("Le compte sélectionné n'est pas un compte de trésorerie.")
+    return compte
+
+
+def _journal_by_code(session: Session, association_id: str, code: str) -> Journal:
+    journal = session.exec(
+        select(Journal).where(
+            Journal.association_id == association_id, Journal.code == code
+        )
+    ).first()
+    if journal is None:
+        raise _bad_request(f"Journal {code} introuvable.")
     return journal
 
 
@@ -188,8 +223,61 @@ def creer_saisie_simple(
         raise _bad_request(str(exc))
 
     ecriture.categorie_id = categorie.id  # remembered for "by category" views
+    ecriture.reference_externe = body.reference_externe
+    ecriture.mode_reglement = body.mode_reglement
     session.add(ecriture)
     _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_SIMPLE, ecriture)
+    session.commit()
+    session.refresh(ecriture)
+    return ecriture
+
+
+@router.post(
+    "/ecritures/virement",
+    response_model=EcritureDetailRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def creer_virement(
+    body: VirementRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_CREATE_TRANSFER)),
+    session: Session = Depends(get_session),
+):
+    """Internal transfer between two of the association's treasury accounts.
+
+    Books a single balanced OD entry (D destination / C source) with no impact on
+    the result. Both accounts are re-resolved against the active association and
+    must be treasury accounts; an id from another tenant is rejected.
+    """
+    source = _owned_treasury(session, ctx.association_id, body.compte_source_id)
+    destination = _owned_treasury(
+        session, ctx.association_id, body.compte_destination_id
+    )
+    journal = _journal_by_code(session, ctx.association_id, "OD")
+    exercice = _open_exercice(session, ctx.association_id, body.date)
+    libelle = (body.libelle or "").strip() or (
+        f"Virement {source.libelle} → {destination.libelle}"
+    )
+
+    try:
+        ecriture = build_ecriture_virement(
+            association_id=ctx.association_id,
+            exercice_id=exercice.id,
+            journal_id=journal.id,
+            compte_source_id=source.id,
+            compte_destination_id=destination.id,
+            montant=body.montant,
+            date_ecriture=body.date,
+            libelle=libelle,
+            numero_piece=next_numero_piece(session, ctx.association_id),
+            created_by=ctx.user.id,
+        )
+    except EntryError as exc:
+        raise _bad_request(str(exc))
+
+    ecriture.reference_externe = body.reference_externe
+    ecriture.mode_reglement = body.mode_reglement
+    session.add(ecriture)
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_VIREMENT, ecriture)
     session.commit()
     session.refresh(ecriture)
     return ecriture
@@ -250,6 +338,8 @@ def creer_saisie_manuelle(
         date=body.date,
         numero_piece=next_numero_piece(session, ctx.association_id),
         libelle=body.libelle,
+        reference_externe=body.reference_externe,
+        mode_reglement=body.mode_reglement,
         origine=EcritureOrigine.MANUELLE,
         created_by=ctx.user.id,
         lignes=lignes,
@@ -326,6 +416,8 @@ def list_ecritures(
             date=e.date,
             numero_piece=e.numero_piece,
             libelle=e.libelle,
+            reference_externe=e.reference_externe,
+            mode_reglement=e.mode_reglement,
             statut=e.statut,
             origine=e.origine,
             created_at=e.created_at,

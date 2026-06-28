@@ -171,6 +171,54 @@ def build_ecriture_a_nouveau(
     )
 
 
+def build_ecriture_virement(
+    *,
+    association_id: str,
+    exercice_id: str,
+    journal_id: str,
+    compte_source_id: str,
+    compte_destination_id: str,
+    montant: Decimal | int | str,
+    date_ecriture: date,
+    libelle: str,
+    numero_piece: int,
+    created_by: str | None = None,
+) -> Ecriture:
+    """Internal transfer between two treasury accounts as a balanced entry.
+
+    Money leaves ``compte_source_id`` and lands on ``compte_destination_id``:
+    D destination / C source (journal OD). The transfer nets to zero across the
+    two accounts, so it never touches a charge/produit account and has no impact
+    on the result. The result is validated against the balance invariant before
+    being returned (unsaved — the caller owns the transaction).
+    """
+    if compte_source_id == compte_destination_id:
+        raise EntryError(
+            "La source et la destination du virement doivent être différentes."
+        )
+    montant = _as_amount(montant, "montant")
+    if montant == ZERO:
+        raise EntryError("Le montant doit être strictement positif.")
+
+    lignes = [
+        LigneEcriture(compte_id=compte_destination_id, libelle=libelle, debit=montant),
+        LigneEcriture(compte_id=compte_source_id, libelle=libelle, credit=montant),
+    ]
+    validate_lignes(lignes)
+
+    return Ecriture(
+        association_id=association_id,
+        exercice_id=exercice_id,
+        journal_id=journal_id,
+        date=date_ecriture,
+        numero_piece=numero_piece,
+        libelle=libelle,
+        origine=EcritureOrigine.VIREMENT,
+        created_by=created_by,
+        lignes=lignes,
+    )
+
+
 def build_ecriture_simple(
     *,
     association_id: str,

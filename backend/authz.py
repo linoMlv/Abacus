@@ -34,6 +34,7 @@ class Permission(str, Enum):
 
     # Saisie & écritures comptables
     ENTRY_CREATE_SIMPLE = "entry:create_simple"  # saisie assistée recette/dépense
+    ENTRY_CREATE_TRANSFER = "entry:create_transfer"  # virement interne (trésorerie)
     ENTRY_CREATE_MANUAL = "entry:create_manual"  # écriture manuelle multi-lignes
     ENTRY_VALIDATE = "entry:validate"  # passage brouillon -> validée
     ENTRY_DELETE = "entry:delete"  # suppression d'un brouillon / contre-passation
@@ -70,6 +71,7 @@ _VIEWER: frozenset[Permission] = frozenset(
 # admin-only-for-durable-edit split is deferred to the per-user override panel (T8).
 _TREASURER: frozenset[Permission] = _VIEWER | {
     Permission.ENTRY_CREATE_SIMPLE,
+    Permission.ENTRY_CREATE_TRANSFER,
     Permission.ENTRY_DELETE,
     Permission.TRESORERIE_MANAGE,
     Permission.CATEGORIE_MANAGE,
