@@ -11,6 +11,7 @@ from decimal import Decimal
 from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, SQLModel, desc, select
 
@@ -63,6 +64,35 @@ class TypeOperationFilter(str, Enum):
     RECETTE = "recette"
     DEPENSE = "depense"
     VIREMENT = "virement"
+
+
+def _type_operation_clause(types: list[TypeOperationFilter], ctx: AccessContext):
+    """OR clause matching entries of any of the requested operation types.
+
+    Virement is identified by its origine; recette/dépense by the sens of the
+    entry's category (re-scoped to the active association). A manual entry has
+    no category, so it matches neither recette nor dépense.
+    """
+    conditions = []
+    sens_wanted = [
+        SensCategorie.RECETTE
+        if t is TypeOperationFilter.RECETTE
+        else SensCategorie.DEPENSE
+        for t in types
+        if t is not TypeOperationFilter.VIREMENT
+    ]
+    if sens_wanted:
+        conditions.append(
+            Ecriture.categorie_id.in_(
+                select(CategorieSaisie.id).where(
+                    CategorieSaisie.association_id == ctx.association_id,
+                    CategorieSaisie.sens.in_(sens_wanted),
+                )
+            )
+        )
+    if TypeOperationFilter.VIREMENT in types:
+        conditions.append(Ecriture.origine == EcritureOrigine.VIREMENT)
+    return or_(*conditions)
 
 
 # --- Request schemas ------------------------------------------------------
@@ -395,14 +425,14 @@ def creer_saisie_manuelle(
 @router.get("/ecritures", response_model=list[EcritureListItem])
 def list_ecritures(
     exercice_id: str | None = None,
-    journal_id: str | None = None,
-    compte_id: str | None = None,
-    type_operation: TypeOperationFilter | None = None,
-    categorie_id: str | None = None,
-    tiers_id: str | None = None,
+    journal_id: list[str] | None = Query(None),
+    compte_id: list[str] | None = Query(None),
+    type_operation: list[TypeOperationFilter] | None = Query(None),
+    categorie_id: list[str] | None = Query(None),
+    tiers_id: list[str] | None = Query(None),
     date_from: date | None = None,
     date_to: date | None = None,
-    statut: EcritureStatut | None = None,
+    statut: list[EcritureStatut] | None = Query(None),
     q: str | None = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -413,54 +443,40 @@ def list_ecritures(
 
     Every optional filter is applied on top of the mandatory ``association_id``
     scope and composes with the others (AND): an id from another tenant simply
-    matches nothing, never widening access. Filters: fiscal year, journal,
-    ``compte_id`` (any account touched, e.g. a treasury account), operation
-    ``type_operation`` (Recette/Dépense/Virement, §15.3), category, tiers, a
-    ``date_from``/``date_to`` range (inclusive), statut and a free-text libellé
-    search. Each row carries its total amount and journal code so the listing
-    needs no per-row follow-up.
+    matches nothing, never widening access. The faceted filters (journal,
+    ``compte_id`` — any account touched, e.g. a treasury account —, operation
+    ``type_operation`` Recette/Dépense/Virement §15.3, category, tiers, statut)
+    accept several values, each an OR *within* the facet. A ``date_from``/
+    ``date_to`` range (inclusive) and a free-text libellé search complete them.
+    Each row carries its total amount and journal code so the listing needs no
+    per-row follow-up.
     """
     statement = select(Ecriture).where(Ecriture.association_id == ctx.association_id)
     if exercice_id is not None:
         statement = statement.where(Ecriture.exercice_id == exercice_id)
-    if journal_id is not None:
-        statement = statement.where(Ecriture.journal_id == journal_id)
-    if compte_id is not None:
-        # Entries with at least one line on this account (e.g. a treasury account).
+    if journal_id:
+        statement = statement.where(Ecriture.journal_id.in_(journal_id))
+    if compte_id:
+        # Entries with at least one line on one of these accounts (e.g. treasury).
         statement = statement.where(
             Ecriture.id.in_(
                 select(LigneEcriture.ecriture_id).where(
-                    LigneEcriture.compte_id == compte_id
+                    LigneEcriture.compte_id.in_(compte_id)
                 )
             )
         )
-    if type_operation is TypeOperationFilter.VIREMENT:
-        statement = statement.where(Ecriture.origine == EcritureOrigine.VIREMENT)
-    elif type_operation is not None:
-        # Recette/Dépense: entries whose category carries the matching sens.
-        sens = (
-            SensCategorie.RECETTE
-            if type_operation is TypeOperationFilter.RECETTE
-            else SensCategorie.DEPENSE
-        )
-        statement = statement.where(
-            Ecriture.categorie_id.in_(
-                select(CategorieSaisie.id).where(
-                    CategorieSaisie.association_id == ctx.association_id,
-                    CategorieSaisie.sens == sens,
-                )
-            )
-        )
-    if categorie_id is not None:
-        statement = statement.where(Ecriture.categorie_id == categorie_id)
-    if tiers_id is not None:
-        statement = statement.where(Ecriture.tiers_id == tiers_id)
+    if type_operation:
+        statement = statement.where(_type_operation_clause(type_operation, ctx))
+    if categorie_id:
+        statement = statement.where(Ecriture.categorie_id.in_(categorie_id))
+    if tiers_id:
+        statement = statement.where(Ecriture.tiers_id.in_(tiers_id))
     if date_from is not None:
         statement = statement.where(Ecriture.date >= date_from)
     if date_to is not None:
         statement = statement.where(Ecriture.date <= date_to)
-    if statut is not None:
-        statement = statement.where(Ecriture.statut == statut)
+    if statut:
+        statement = statement.where(Ecriture.statut.in_(statut))
     if q:
         statement = statement.where(Ecriture.libelle.ilike(f"%{q}%"))
     statement = (

@@ -192,6 +192,16 @@ def test_filter_type_rejects_unknown_value():
     assert resp.status_code == 422
 
 
+def test_filter_type_accepts_several_values_or():
+    """Repeated ``type_operation`` is an OR within the facet (recette OR virement)."""
+    admin, assoc, refs = _mixed_books()
+    rows = admin.get(
+        f"/api/asso/{assoc}/ecritures",
+        params={"type_operation": ["recette", "virement"]},
+    ).json()
+    assert _ids(rows) == {refs["recette"]["id"], refs["virement"]["id"]}
+
+
 # --- Category & tiers filters ---------------------------------------------
 
 
@@ -202,6 +212,18 @@ def test_filter_by_categorie():
         f"/api/asso/{assoc}/ecritures", params={"categorie_id": cat}
     ).json()
     assert _ids(rows) == {refs["recette"]["id"]}
+
+
+def test_filter_by_several_categories_or():
+    admin, assoc, refs = _mixed_books()
+    cats = [
+        _categorie_id(admin, assoc, "Cotisations"),
+        _categorie_id(admin, assoc, "Locations"),
+    ]
+    rows = admin.get(
+        f"/api/asso/{assoc}/ecritures", params={"categorie_id": cats}
+    ).json()
+    assert _ids(rows) == {refs["recette"]["id"], refs["depense"]["id"]}
 
 
 def test_filter_by_tiers():
