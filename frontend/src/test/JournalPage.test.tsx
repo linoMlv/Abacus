@@ -8,6 +8,8 @@ const listEcritures = vi.fn();
 const listJournaux = vi.fn();
 const listComptes = vi.fn();
 const listTresorerie = vi.fn();
+const listCategories = vi.fn();
+const listTiers = vi.fn();
 const getEcriture = vi.fn();
 const validerEcriture = vi.fn();
 const supprimerEcriture = vi.fn();
@@ -24,6 +26,8 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       listJournaux: (...a: unknown[]) => listJournaux(...a),
       listComptes: (...a: unknown[]) => listComptes(...a),
       listTresorerie: (...a: unknown[]) => listTresorerie(...a),
+      listCategories: (...a: unknown[]) => listCategories(...a),
+      listTiers: (...a: unknown[]) => listTiers(...a),
       getEcriture: (...a: unknown[]) => getEcriture(...a),
       validerEcriture: (...a: unknown[]) => validerEcriture(...a),
       supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
@@ -124,6 +128,18 @@ beforeEach(() => {
       solde: '50.00',
     },
   ]);
+  listCategories.mockResolvedValue([
+    {
+      id: 'cat-co',
+      sens: 'recette',
+      libelle: 'Cotisations',
+      compte_id: 'c',
+      journal_id: 'j',
+      is_active: true,
+      ordre: 0,
+    },
+  ]);
+  listTiers.mockResolvedValue([{ id: 't1', type: 'donateur', nom: 'M. Dupont', is_active: true }]);
   getEcriture.mockResolvedValue(DETAIL);
   validerEcriture.mockResolvedValue({ ...DETAIL, statut: 'validee' });
   listJustificatifs.mockResolvedValue([]);
@@ -174,6 +190,49 @@ describe('JournalPage', () => {
         expect.objectContaining({ compte_id: 'c-bq' })
       )
     );
+  });
+
+  it('refetches with the type, category, tiers and date filters', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.selectOptions(screen.getByLabelText('Filtrer par type d’opération'), 'recette');
+    await userEvent.selectOptions(screen.getByLabelText('Filtrer par catégorie'), 'cat-co');
+    await userEvent.selectOptions(screen.getByLabelText('Filtrer par tiers'), 't1');
+    await userEvent.type(screen.getByLabelText('Date de début'), '2026-06-01');
+    await userEvent.type(screen.getByLabelText('Date de fin'), '2026-06-30');
+
+    await waitFor(() =>
+      expect(listEcritures).toHaveBeenCalledWith(
+        'A',
+        expect.objectContaining({
+          type_operation: 'recette',
+          categorie_id: 'cat-co',
+          tiers_id: 't1',
+          date_from: '2026-06-01',
+          date_to: '2026-06-30',
+        })
+      )
+    );
+  });
+
+  it('clears every filter with the reset button', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.selectOptions(
+      screen.getByLabelText('Filtrer par type d’opération'),
+      'virement'
+    );
+    const reset = await screen.findByRole('button', { name: /Réinitialiser/ });
+    await userEvent.click(reset);
+
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText('Filtrer par type d’opération') as HTMLSelectElement).value
+      ).toBe('')
+    );
+    expect(screen.queryByRole('button', { name: /Réinitialiser/ })).not.toBeInTheDocument();
   });
 
   it('opens the detail and validates a draft', async () => {

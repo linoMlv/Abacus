@@ -10,6 +10,8 @@ import {
   type Justificatif,
   JUSTIFICATIF_ACCEPT,
   JUSTIFICATIF_MAX_BYTES,
+  type TypeOperation,
+  TYPE_OPERATION_LABELS,
 } from '@/api/accounting';
 import type { Role } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
@@ -53,6 +55,11 @@ export function JournalPage() {
   const [statut, setStatut] = useState<EcritureStatut | ''>('');
   const [journalId, setJournalId] = useState('');
   const [compteId, setCompteId] = useState('');
+  const [typeOperation, setTypeOperation] = useState<TypeOperation | ''>('');
+  const [categorieId, setCategorieId] = useState('');
+  const [tiersId, setTiersId] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [search, setSearch] = useState('');
   const q = useDebounced(search);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -67,19 +74,59 @@ export function JournalPage() {
     queryFn: () => accountingApi.listTresorerie(associationId),
   });
 
+  const categoriesQuery = useQuery({
+    queryKey: ['categories', associationId],
+    queryFn: () => accountingApi.listCategories(associationId),
+  });
+
+  const tiersQuery = useQuery({
+    queryKey: ['tiers', associationId],
+    queryFn: () => accountingApi.listTiers(associationId),
+  });
+
   const ecrituresQuery = useQuery({
-    queryKey: ['ecritures', associationId, { statut, journalId, compteId, q }],
+    queryKey: [
+      'ecritures',
+      associationId,
+      { statut, journalId, compteId, typeOperation, categorieId, tiersId, dateFrom, dateTo, q },
+    ],
     queryFn: () =>
       accountingApi.listEcritures(associationId, {
         statut: statut || undefined,
         journal_id: journalId || undefined,
         compte_id: compteId || undefined,
+        type_operation: typeOperation || undefined,
+        categorie_id: categorieId || undefined,
+        tiers_id: tiersId || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
         q: q || undefined,
       }),
   });
 
   const rows = ecrituresQuery.data ?? [];
-  const hasFilters = statut !== '' || journalId !== '' || compteId !== '' || q !== '';
+  const hasFilters =
+    statut !== '' ||
+    journalId !== '' ||
+    compteId !== '' ||
+    typeOperation !== '' ||
+    categorieId !== '' ||
+    tiersId !== '' ||
+    dateFrom !== '' ||
+    dateTo !== '' ||
+    q !== '';
+
+  function resetFilters() {
+    setStatut('');
+    setJournalId('');
+    setCompteId('');
+    setTypeOperation('');
+    setCategorieId('');
+    setTiersId('');
+    setDateFrom('');
+    setDateTo('');
+    setSearch('');
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -146,6 +193,75 @@ export function JournalPage() {
               </option>
             ))}
           </Select>
+          <Select
+            aria-label="Filtrer par type d’opération"
+            className="w-40"
+            value={typeOperation}
+            onChange={(e) => setTypeOperation(e.target.value as TypeOperation | '')}
+          >
+            <option value="">Tous les types</option>
+            {(['recette', 'depense', 'virement'] as const).map((t) => (
+              <option key={t} value={t}>
+                {TYPE_OPERATION_LABELS[t]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label="Filtrer par catégorie"
+            className="w-48"
+            value={categorieId}
+            onChange={(e) => setCategorieId(e.target.value)}
+          >
+            <option value="">Toutes les catégories</option>
+            {(categoriesQuery.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.libelle}
+              </option>
+            ))}
+          </Select>
+          <Select
+            aria-label="Filtrer par tiers"
+            className="w-44"
+            value={tiersId}
+            onChange={(e) => setTiersId(e.target.value)}
+          >
+            <option value="">Tous les tiers</option>
+            {(tiersQuery.data ?? []).map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nom}
+              </option>
+            ))}
+          </Select>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted">Du</span>
+            <Input
+              type="date"
+              aria-label="Date de début"
+              className="w-40"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+            <span className="text-xs text-muted">au</span>
+            <Input
+              type="date"
+              aria-label="Date de fin"
+              className="w-40"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
+          </div>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="ml-auto inline-flex items-center gap-1 text-sm font-medium text-muted hover:text-ink"
+            >
+              <X className="h-4 w-4" aria-hidden />
+              Réinitialiser
+            </button>
+          )}
         </div>
       </Card>
 

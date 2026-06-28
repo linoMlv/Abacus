@@ -3,6 +3,16 @@ import { api, apiUrl } from './client';
 /** Direction of an assisted entry, mirrors the backend `SensCategorie`. */
 export type Sens = 'recette' | 'depense';
 
+/** Operation type used by the journal filter (type-first vocabulary, §15.3). */
+export type TypeOperation = 'recette' | 'depense' | 'virement';
+
+/** Human labels for the operation types. */
+export const TYPE_OPERATION_LABELS: Record<TypeOperation, string> = {
+  recette: 'Recette',
+  depense: 'Dépense',
+  virement: 'Virement',
+};
+
 export type CompteType = 'actif' | 'passif' | 'charge' | 'produit';
 export type EcritureStatut = 'brouillon' | 'validee';
 export type EcritureOrigine =
@@ -184,6 +194,11 @@ export interface JournalFilters {
   statut?: EcritureStatut;
   journal_id?: string;
   compte_id?: string;
+  type_operation?: TypeOperation;
+  categorie_id?: string;
+  tiers_id?: string;
+  date_from?: string;
+  date_to?: string;
   exercice_id?: string;
   q?: string;
   limit?: number;
