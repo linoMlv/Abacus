@@ -1,6 +1,14 @@
 """Document builders: turn gathered data into PDF / Excel bytes."""
 
-from .data import GrandLivreData, JournalData, ReleveData
+from .data import (
+    BilanData,
+    CompteResultatData,
+    EvenementBilanData,
+    GrandLivreData,
+    JournalData,
+    LigneCompte,
+    ReleveData,
+)
 from .format import fmt_amount, fmt_date, fmt_eur
 from .pdf import DEPENSE, MUTED, RECETTE, AbacusPDF
 from .xlsx import Column, Sheet, workbook_bytes
@@ -264,3 +272,160 @@ def grand_livre_xlsx(data: GrandLivreData) -> bytes:
                 ]
             )
     return workbook_bytes([Sheet("Grand livre", columns, rows)])
+
+
+# --- Compte de résultat & Bilan ANC (PDF) -----------------------------------
+
+_COMPTE_HEADERS = ["Compte", "Libellé", "Montant"]
+_COMPTE_WIDTHS = (22, 64, 28)
+_COMPTE_ALIGNS = ("LEFT", "LEFT", "RIGHT")
+
+
+def _compte_section(
+    pdf: AbacusPDF,
+    title: str,
+    lignes: list[LigneCompte],
+    total: object,
+    total_label: str,
+) -> None:
+    pdf.section_title(title)
+    if not lignes:
+        _empty_note(pdf, "Aucun mouvement.")
+        pdf.ln(2)
+        return
+    rows = [
+        [ligne.numero, ligne.libelle, fmt_amount(ligne.montant)] for ligne in lignes
+    ]
+    pdf.table(
+        _COMPTE_HEADERS,
+        rows,
+        widths=_COMPTE_WIDTHS,
+        aligns=_COMPTE_ALIGNS,
+        total_row=["", total_label, fmt_amount(total)],
+    )
+
+
+def _resultat_banner(pdf: AbacusPDF, resultat) -> None:
+    color = RECETTE if resultat >= 0 else DEPENSE
+    pdf.ln(2)
+    pdf.set_font("plex", "B", 13)
+    pdf.set_text_color(*color)
+    pdf.cell(0, 9, f"Résultat : {fmt_eur(resultat)}", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_text_color(*MUTED)
+
+
+def compte_resultat_pdf(association_name: str, data: CompteResultatData) -> bytes:
+    pdf = AbacusPDF(
+        association_name=association_name,
+        title="Compte de résultat",
+        subtitle=_period_subtitle(data.date_from, data.date_to),
+    )
+    pdf.add_page()
+    _compte_section(
+        pdf, "Charges", data.charges, data.total_charges, "Total des charges"
+    )
+    pdf.ln(3)
+    _compte_section(
+        pdf, "Produits", data.produits, data.total_produits, "Total des produits"
+    )
+    _resultat_banner(pdf, data.resultat)
+    return pdf.to_bytes()
+
+
+def bilan_pdf(association_name: str, data: BilanData) -> bytes:
+    pdf = AbacusPDF(
+        association_name=association_name,
+        title="Bilan",
+        subtitle=f"au {fmt_date(data.date_to)}",
+    )
+    pdf.add_page()
+    _compte_section(pdf, "Actif", data.actif, data.total_actif, "Total de l'actif")
+    pdf.ln(3)
+
+    pdf.section_title("Passif")
+    rows = [
+        [ligne.numero, ligne.libelle, fmt_amount(ligne.montant)]
+        for ligne in data.passif
+    ]
+    rows.append(["", "Résultat de l'exercice", fmt_amount(data.resultat)])
+    pdf.table(
+        _COMPTE_HEADERS,
+        rows,
+        widths=_COMPTE_WIDTHS,
+        aligns=_COMPTE_ALIGNS,
+        total_row=["", "Total du passif", fmt_amount(data.total_passif)],
+    )
+
+    pdf.ln(2)
+    pdf.set_font("plex", "", 9)
+    pdf.set_text_color(*MUTED)
+    balanced = data.total_actif == data.total_passif
+    note = (
+        "Bilan équilibré (actif = passif)."
+        if balanced
+        else "Attention : l'actif et le passif ne s'équilibrent pas."
+    )
+    pdf.cell(0, 6, note, new_x="LMARGIN", new_y="NEXT")
+    return pdf.to_bytes()
+
+
+# --- Bilan d'un événement (PDF) ---------------------------------------------
+
+
+def _opt_eur(value) -> str:
+    return fmt_eur(value) if value is not None else "—"
+
+
+def evenement_bilan_pdf(association_name: str, data: EvenementBilanData) -> bytes:
+    period = ""
+    if data.date_debut or data.date_fin:
+        period = f" — du {fmt_date(data.date_debut)} au {fmt_date(data.date_fin)}"
+    pdf = AbacusPDF(
+        association_name=association_name,
+        title="Bilan d'événement",
+        subtitle=f"{data.nom}{period}",
+    )
+    pdf.add_page()
+    pdf.summary(
+        [
+            ("Budget recettes", _opt_eur(data.budget_recettes), None),
+            ("Réalisé recettes", fmt_eur(data.realise_recettes), RECETTE),
+            ("Budget dépenses", _opt_eur(data.budget_depenses), None),
+            ("Réalisé dépenses", fmt_eur(data.realise_depenses), DEPENSE),
+            (
+                "Résultat",
+                fmt_eur(data.resultat),
+                RECETTE if data.resultat >= 0 else DEPENSE,
+            ),
+        ]
+    )
+
+    pdf.section_title("Opérations")
+    if not data.operations:
+        _empty_note(pdf, "Aucune opération rattachée à cet événement.")
+        return pdf.to_bytes()
+
+    rows = [
+        [
+            fmt_date(op.date),
+            str(op.numero_piece),
+            op.libelle,
+            _amount_or_blank(op.recette),
+            _amount_or_blank(op.depense),
+        ]
+        for op in data.operations
+    ]
+    pdf.table(
+        ["Date", "Pièce", "Libellé", "Recette", "Dépense"],
+        rows,
+        widths=(18, 14, 62, 24, 24),
+        aligns=("LEFT", "CENTER", "LEFT", "RIGHT", "RIGHT"),
+        total_row=[
+            "",
+            "",
+            "Total",
+            fmt_amount(data.realise_recettes),
+            fmt_amount(data.realise_depenses),
+        ],
+    )
+    return pdf.to_bytes()

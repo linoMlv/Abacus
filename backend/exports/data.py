@@ -10,9 +10,11 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, asc, select
 
 from accounting_engine import find_open_exercice
-from models import Compte, Ecriture, Journal, LigneEcriture
+from models import Compte, Ecriture, Evenement, Journal, LigneEcriture
 
 ZERO = Decimal("0.00")
+_CHARGE, _PRODUIT = 6, 7
+_BALANCE_CLASSES = (1, 2, 3, 4, 5)
 
 
 def _dec(value) -> Decimal:
@@ -80,6 +82,58 @@ class GrandLivreData:
     date_from: date
     date_to: date
     comptes: list[CompteLedger]
+
+
+@dataclass
+class LigneCompte:
+    numero: str
+    libelle: str
+    montant: Decimal
+
+
+@dataclass
+class CompteResultatData:
+    date_from: date
+    date_to: date
+    charges: list[LigneCompte]
+    produits: list[LigneCompte]
+    total_charges: Decimal
+    total_produits: Decimal
+    resultat: Decimal
+
+
+@dataclass
+class BilanData:
+    date_to: date
+    actif: list[LigneCompte]
+    passif: list[LigneCompte]
+    resultat: Decimal
+    total_actif: Decimal
+    total_passif: Decimal
+
+
+@dataclass
+class EvenementOperation:
+    date: date
+    numero_piece: int
+    libelle: str
+    recette: Decimal
+    depense: Decimal
+
+
+@dataclass
+class EvenementBilanData:
+    nom: str
+    description: str | None
+    date_debut: date | None
+    date_fin: date | None
+    statut: str
+    budget_recettes: Decimal | None
+    budget_depenses: Decimal | None
+    realise_recettes: Decimal
+    realise_depenses: Decimal
+    resultat: Decimal
+    operations: list[EvenementOperation]
 
 
 def resolve_period(
@@ -296,3 +350,193 @@ def grand_livre_data(
         )
 
     return GrandLivreData(date_from, date_to, list(ledgers.values()))
+
+
+def compte_resultat_data(
+    session: Session, association_id: str, date_from: date, date_to: date
+) -> CompteResultatData:
+    """Income statement over the period: each class-6/7 account with movement."""
+    rows = session.exec(
+        select(
+            Compte.id,
+            Compte.numero,
+            Compte.libelle,
+            Compte.classe,
+            func.coalesce(func.sum(LigneEcriture.debit), 0),
+            func.coalesce(func.sum(LigneEcriture.credit), 0),
+        )
+        .select_from(LigneEcriture)
+        .join(Ecriture, Ecriture.id == LigneEcriture.ecriture_id)
+        .join(Compte, Compte.id == LigneEcriture.compte_id)
+        .where(
+            Ecriture.association_id == association_id,
+            Compte.association_id == association_id,
+            Ecriture.date >= date_from,
+            Ecriture.date <= date_to,
+            Compte.classe.in_([_CHARGE, _PRODUIT]),
+        )
+        .group_by(Compte.id, Compte.numero, Compte.libelle, Compte.classe)
+        .order_by(asc(Compte.numero))
+    ).all()
+
+    charges: list[LigneCompte] = []
+    produits: list[LigneCompte] = []
+    total_charges, total_produits = ZERO, ZERO
+    for _id, numero, libelle, classe, debit, credit in rows:
+        debit, credit = _dec(debit), _dec(credit)
+        if classe == _CHARGE:
+            montant = debit - credit
+            charges.append(LigneCompte(numero, libelle, montant))
+            total_charges += montant
+        else:
+            montant = credit - debit
+            produits.append(LigneCompte(numero, libelle, montant))
+            total_produits += montant
+
+    return CompteResultatData(
+        date_from=date_from,
+        date_to=date_to,
+        charges=charges,
+        produits=produits,
+        total_charges=total_charges,
+        total_produits=total_produits,
+        resultat=total_produits - total_charges,
+    )
+
+
+def bilan_data(session: Session, association_id: str, date_to: date) -> BilanData:
+    """Balance sheet at ``date_to``: cumulative class 1-5 balances + result.
+
+    Each class 1-5 account is placed on the side of its cumulative balance
+    (debit → actif, credit → passif). The result (cumulative produits − charges
+    up to ``date_to``) is added to the passif so that actif = passif, since the
+    books are not yet closed (the report à nouveau is a later phase).
+    """
+    rows = session.exec(
+        select(
+            Compte.id,
+            Compte.numero,
+            Compte.libelle,
+            func.coalesce(func.sum(LigneEcriture.debit), 0),
+            func.coalesce(func.sum(LigneEcriture.credit), 0),
+        )
+        .select_from(LigneEcriture)
+        .join(Ecriture, Ecriture.id == LigneEcriture.ecriture_id)
+        .join(Compte, Compte.id == LigneEcriture.compte_id)
+        .where(
+            Ecriture.association_id == association_id,
+            Compte.association_id == association_id,
+            Ecriture.date <= date_to,
+            Compte.classe.in_(_BALANCE_CLASSES),
+        )
+        .group_by(Compte.id, Compte.numero, Compte.libelle)
+        .order_by(asc(Compte.numero))
+    ).all()
+
+    actif: list[LigneCompte] = []
+    passif: list[LigneCompte] = []
+    total_actif, total_passif = ZERO, ZERO
+    for _id, numero, libelle, debit, credit in rows:
+        solde = _dec(debit) - _dec(credit)
+        if solde > ZERO:
+            actif.append(LigneCompte(numero, libelle, solde))
+            total_actif += solde
+        elif solde < ZERO:
+            passif.append(LigneCompte(numero, libelle, -solde))
+            total_passif += -solde
+
+    res_rows = session.exec(
+        select(
+            Compte.classe,
+            func.coalesce(func.sum(LigneEcriture.debit), 0),
+            func.coalesce(func.sum(LigneEcriture.credit), 0),
+        )
+        .select_from(LigneEcriture)
+        .join(Ecriture, Ecriture.id == LigneEcriture.ecriture_id)
+        .join(Compte, Compte.id == LigneEcriture.compte_id)
+        .where(
+            Ecriture.association_id == association_id,
+            Compte.association_id == association_id,
+            Ecriture.date <= date_to,
+            Compte.classe.in_([_CHARGE, _PRODUIT]),
+        )
+        .group_by(Compte.classe)
+    ).all()
+    produits, charges = ZERO, ZERO
+    for classe, debit, credit in res_rows:
+        if classe == _PRODUIT:
+            produits += _dec(credit) - _dec(debit)
+        else:
+            charges += _dec(debit) - _dec(credit)
+    resultat = produits - charges
+
+    return BilanData(
+        date_to=date_to,
+        actif=actif,
+        passif=passif,
+        resultat=resultat,
+        total_actif=total_actif,
+        total_passif=total_passif + resultat,
+    )
+
+
+def evenement_bilan_data(
+    session: Session, association_id: str, evenement: Evenement
+) -> EvenementBilanData:
+    """Financial summary of one event: réalisé per operation + budget."""
+    rows = session.exec(
+        select(
+            Ecriture.id,
+            Ecriture.date,
+            Ecriture.numero_piece,
+            Ecriture.libelle,
+            Compte.classe,
+            func.coalesce(func.sum(LigneEcriture.debit), 0),
+            func.coalesce(func.sum(LigneEcriture.credit), 0),
+        )
+        .select_from(Ecriture)
+        .join(LigneEcriture, LigneEcriture.ecriture_id == Ecriture.id)
+        .join(Compte, Compte.id == LigneEcriture.compte_id)
+        .where(
+            Ecriture.association_id == association_id,
+            Ecriture.evenement_id == evenement.id,
+            Compte.classe.in_([_CHARGE, _PRODUIT]),
+        )
+        .group_by(
+            Ecriture.id,
+            Ecriture.date,
+            Ecriture.numero_piece,
+            Ecriture.libelle,
+            Compte.classe,
+        )
+        .order_by(asc(Ecriture.date), asc(Ecriture.numero_piece))
+    ).all()
+
+    by_entry: "OrderedDict[str, EvenementOperation]" = OrderedDict()
+    realise_recettes, realise_depenses = ZERO, ZERO
+    for eid, jour, numero, libelle, classe, debit, credit in rows:
+        op = by_entry.get(eid)
+        if op is None:
+            op = EvenementOperation(jour, numero, libelle, ZERO, ZERO)
+            by_entry[eid] = op
+        debit, credit = _dec(debit), _dec(credit)
+        if classe == _PRODUIT:
+            op.recette += credit - debit
+            realise_recettes += credit - debit
+        else:
+            op.depense += debit - credit
+            realise_depenses += debit - credit
+
+    return EvenementBilanData(
+        nom=evenement.nom,
+        description=evenement.description,
+        date_debut=evenement.date_debut,
+        date_fin=evenement.date_fin,
+        statut=evenement.statut.value,
+        budget_recettes=evenement.budget_recettes,
+        budget_depenses=evenement.budget_depenses,
+        realise_recettes=realise_recettes,
+        realise_depenses=realise_depenses,
+        resultat=realise_recettes - realise_depenses,
+        operations=list(by_entry.values()),
+    )

@@ -16,13 +16,16 @@ from auth_context import AccessContext, get_active_membership, owned_or_404
 from database import get_session
 from exports import documents
 from exports.data import (
+    bilan_data,
+    compte_resultat_data,
+    evenement_bilan_data,
     grand_livre_data,
     journal_data,
     releve_data,
     resolve_period,
 )
 from exports.xlsx import XLSX_MEDIA_TYPE
-from models import Association, Compte
+from models import Association, Compte, Evenement
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["exports"])
 
@@ -134,3 +137,47 @@ def export_grand_livre_xlsx(
     return _file_response(
         documents.grand_livre_xlsx(data), f"grand-livre-{df}-{dt}.xlsx", XLSX_MEDIA_TYPE
     )
+
+
+@router.get("/exports/compte-resultat.pdf")
+def export_compte_resultat_pdf(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    ctx: AccessContext = Depends(get_active_membership),
+    session: Session = Depends(get_session),
+):
+    df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
+    data = compte_resultat_data(session, ctx.association_id, df, dt)
+    pdf = documents.compte_resultat_pdf(
+        _association_name(session, ctx.association_id), data
+    )
+    return _file_response(pdf, f"compte-resultat-{df}-{dt}.pdf", PDF_MEDIA_TYPE)
+
+
+@router.get("/exports/bilan.pdf")
+def export_bilan_pdf(
+    date_to: date | None = None,
+    ctx: AccessContext = Depends(get_active_membership),
+    session: Session = Depends(get_session),
+):
+    """Balance sheet as of ``date_to`` (defaults to the open exercice's end)."""
+    _, dt = resolve_period(session, ctx.association_id, None, date_to)
+    data = bilan_data(session, ctx.association_id, dt)
+    pdf = documents.bilan_pdf(_association_name(session, ctx.association_id), data)
+    return _file_response(pdf, f"bilan-{dt}.pdf", PDF_MEDIA_TYPE)
+
+
+@router.get("/exports/evenements/{evenement_id}/bilan.pdf")
+def export_evenement_bilan_pdf(
+    evenement_id: str,
+    ctx: AccessContext = Depends(get_active_membership),
+    session: Session = Depends(get_session),
+):
+    evenement = owned_or_404(
+        session, Evenement, evenement_id, ctx.association_id, "Événement introuvable"
+    )
+    data = evenement_bilan_data(session, ctx.association_id, evenement)
+    pdf = documents.evenement_bilan_pdf(
+        _association_name(session, ctx.association_id), data
+    )
+    return _file_response(pdf, f"bilan-evenement-{evenement.nom}.pdf", PDF_MEDIA_TYPE)

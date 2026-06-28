@@ -7,6 +7,8 @@ empty-period case. Reading is open to any member; a foreign / non-treasury id
 is a 404.
 """
 
+from datetime import date
+from decimal import Decimal
 from io import BytesIO
 
 import pytest
@@ -15,6 +17,7 @@ from openpyxl import load_workbook
 from sqlmodel import Session
 
 from database import get_session
+from exports.data import bilan_data, compte_resultat_data
 from main import _fastapi_app as app
 
 PASSWORD = "password123"
@@ -80,6 +83,20 @@ def _post_simple(client: TestClient, assoc: str, libelle: str, montant: str, jou
         },
     )
     assert resp.status_code == 201, resp.text
+
+
+def _set_solde_initial(client: TestClient, assoc: str, montant: str, jour: str) -> None:
+    resp = client.post(
+        f"/api/asso/{assoc}/tresorerie/{_treso_id(client, assoc, '512')}/solde-initial",
+        json={"montant": montant, "date_solde_initial": jour},
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def _create_evenement(client: TestClient, assoc: str, nom: str) -> str:
+    resp = client.post(f"/api/asso/{assoc}/evenements", json={"nom": nom})
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
 
 
 def _books() -> tuple[TestClient, str]:
@@ -211,3 +228,79 @@ def test_exports_are_member_scoped():
     assert (
         client_b.get(f"/api/asso/{assoc_a}/exports/grand-livre.xlsx").status_code == 404
     )
+
+
+# --- Compte de résultat & Bilan ANC -----------------------------------------
+
+
+def test_compte_resultat_data_groups_and_totals(session: Session):
+    _, assoc = _books()
+    data = compte_resultat_data(session, assoc, date(2026, 6, 1), date(2026, 6, 30))
+    produits = {ligne.numero: ligne.montant for ligne in data.produits}
+    charges = {ligne.numero: ligne.montant for ligne in data.charges}
+    assert produits["756"] == Decimal("150.00")  # Cotisations
+    assert charges["613"] == Decimal("40.00")  # Locations
+    assert data.resultat == Decimal("110.00")
+
+
+def test_bilan_data_balances(session: Session):
+    client, assoc = _admin_with_association("bilan@example.com", "bil")
+    _set_solde_initial(client, assoc, "1000.00", "2026-01-01")
+    _post_simple(client, assoc, "Cotisations", "150.00", "2026-06-10")
+    _post_simple(client, assoc, "Locations", "40.00", "2026-06-20")
+
+    data = bilan_data(session, assoc, date(2026, 12, 31))
+    # Bank = 1000 + 150 − 40 ; report à nouveau 110 = 1000 (passif) ; result 110.
+    bank = next(ligne.montant for ligne in data.actif if ligne.numero.startswith("512"))
+    assert bank == Decimal("1110.00")
+    assert data.resultat == Decimal("110.00")
+    assert data.total_actif == data.total_passif  # the balance sheet balances
+
+
+def test_compte_resultat_pdf():
+    client, assoc = _books()
+    _assert_pdf(
+        client.get(
+            f"/api/asso/{assoc}/exports/compte-resultat.pdf",
+            params={"date_from": FROM, "date_to": TO},
+        )
+    )
+
+
+def test_bilan_pdf():
+    client, assoc = _books()
+    _assert_pdf(
+        client.get(
+            f"/api/asso/{assoc}/exports/bilan.pdf", params={"date_to": "2026-12-31"}
+        )
+    )
+
+
+# --- Bilan d'événement ------------------------------------------------------
+
+
+def test_evenement_bilan_pdf():
+    client, assoc = _books()
+    evenement_id = _create_evenement(client, assoc, "Gala 2026")
+    resp = client.post(
+        f"/api/asso/{assoc}/ecritures/simple",
+        json={
+            "categorie_id": _categorie_id(client, assoc, "Cotisations"),
+            "compte_tresorerie_id": _treso_id(client, assoc, "512"),
+            "montant": "300.00",
+            "date": "2026-06-15",
+            "evenement_id": evenement_id,
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    _assert_pdf(
+        client.get(f"/api/asso/{assoc}/exports/evenements/{evenement_id}/bilan.pdf")
+    )
+
+
+def test_evenement_bilan_rejects_foreign_event():
+    client_a, assoc_a = _books()
+    client_b, assoc_b = _admin_with_association("h@example.com", "eta")
+    event_a = _create_evenement(client_a, assoc_a, "Privé")
+    resp = client_b.get(f"/api/asso/{assoc_b}/exports/evenements/{event_a}/bilan.pdf")
+    assert resp.status_code == 404
