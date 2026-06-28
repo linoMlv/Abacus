@@ -5,6 +5,7 @@ import { useAuth } from '@/auth/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/RequireAuth';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
+import { CategoriesPage } from '@/pages/CategoriesPage';
 import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
 import { JournalPage } from '@/pages/JournalPage';
 import { OnboardingSoldesPage } from '@/pages/OnboardingSoldesPage';
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="synthese" element={<SynthesePage />} />
             <Route path="saisie" element={<SaisiePage />} />
             <Route path="journal" element={<JournalPage />} />
+            <Route path="categories" element={<CategoriesPage />} />
             {ALL_NAV_ITEMS.filter(
               (item) => !['synthese', 'saisie', 'journal'].includes(item.segment)
             ).map((item) => (

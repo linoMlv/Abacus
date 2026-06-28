@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import { accountingApi, type Categorie, type SaisieSimpleInput } from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
@@ -264,6 +264,17 @@ export function SaisiePage() {
 
       <p className="mt-3 text-center text-xs text-faint">
         Abacus génère l’écriture en partie double automatiquement.
+        {canAddCategorie && (
+          <>
+            {' · '}
+            <Link
+              to={`/asso/${associationId}/categories`}
+              className="text-accent hover:text-accent-hover"
+            >
+              Gérer les catégories
+            </Link>
+          </>
+        )}
       </p>
 
       {canAddCategorie && (
