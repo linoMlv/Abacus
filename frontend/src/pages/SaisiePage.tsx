@@ -1,11 +1,17 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Plus } from 'lucide-react';
+import { CheckCircle2, ChevronDown, Plus } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
 
-import { accountingApi, type Categorie, type SaisieSimpleInput } from '@/api/accounting';
+import {
+  accountingApi,
+  type Categorie,
+  MODE_REGLEMENT_LABELS,
+  type SaisieSimpleInput,
+  type VirementInput,
+} from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
 import { CategorieDialog } from '@/components/CategorieDialog';
 import { Alert } from '@/components/ui/alert';
@@ -15,10 +21,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
-import { cn } from '@/lib/utils';
 import { canCreateSimpleEntry, canManageCategorie } from '@/lib/roles';
+import { cn } from '@/lib/utils';
 
-import { amountToDecimalString, saisieSchema, type SaisieForm } from './saisie.schema';
+import {
+  amountToDecimalString,
+  MODE_REGLEMENT_VALUES,
+  saisieSchema,
+  type SaisieForm,
+} from './saisie.schema';
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -35,6 +46,7 @@ export function SaisiePage() {
   const association = useActiveAssociation();
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const canCreate = association ? canCreateSimpleEntry(association.role) : false;
   const canAddCategorie = association ? canManageCategorie(association.role) : false;
@@ -54,12 +66,16 @@ export function SaisiePage() {
   const form = useForm<SaisieForm>({
     resolver: zodResolver(saisieSchema),
     defaultValues: {
-      sens: 'recette',
+      type: 'recette',
       categorie_id: '',
       compte_tresorerie_id: '',
+      compte_source_id: '',
+      compte_destination_id: '',
       montant: '',
       date: today(),
       libelle: '',
+      reference_externe: '',
+      mode_reglement: '',
     },
   });
   const {
@@ -70,56 +86,95 @@ export function SaisiePage() {
     getValues,
     formState: { errors },
   } = form;
-  const sens = watch('sens');
+  const type = watch('type');
+  const isVirement = type === 'virement';
 
   const categories = useMemo(
-    () => (categoriesQuery.data ?? []).filter((c) => c.sens === sens),
-    [categoriesQuery.data, sens]
+    () => (categoriesQuery.data ?? []).filter((c) => c.sens === type),
+    [categoriesQuery.data, type]
   );
   const comptes = useMemo(() => comptesQuery.data ?? [], [comptesQuery.data]);
 
   // Keep the selected category valid as the direction toggles or data loads.
   useEffect(() => {
+    if (isVirement) return;
     if (categories.length && !categories.some((c) => c.id === getValues('categorie_id'))) {
       setValue('categorie_id', categories[0].id, { shouldValidate: false });
     }
-  }, [categories, getValues, setValue]);
+  }, [isVirement, categories, getValues, setValue]);
 
-  // Default the counterpart to the bank account (512…), else the first one.
+  // Default the treasury accounts: bank (512…) for recette/dépense; for a
+  // transfer, a distinct source and destination.
   useEffect(() => {
-    if (comptes.length && !getValues('compte_tresorerie_id')) {
-      const prefer = comptes.find((c) => c.numero.startsWith('512')) ?? comptes[0];
-      setValue('compte_tresorerie_id', prefer.id, { shouldValidate: false });
+    if (!comptes.length) return;
+    const bank = comptes.find((c) => c.numero.startsWith('512')) ?? comptes[0];
+    if (!isVirement) {
+      if (!getValues('compte_tresorerie_id')) {
+        setValue('compte_tresorerie_id', bank.id, { shouldValidate: false });
+      }
+      return;
     }
-  }, [comptes, getValues, setValue]);
+    if (!getValues('compte_source_id')) {
+      const source = comptes.find((c) => c.id !== bank.id) ?? comptes[0];
+      setValue('compte_source_id', source.id, { shouldValidate: false });
+    }
+    if (!getValues('compte_destination_id')) {
+      setValue('compte_destination_id', bank.id, { shouldValidate: false });
+    }
+  }, [isVirement, comptes, getValues, setValue]);
 
-  const mutation = useMutation({
+  function invalidateAfterEntry() {
+    queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
+    queryClient.invalidateQueries({ queryKey: ['balance', associationId] });
+    queryClient.invalidateQueries({ queryKey: ['tresorerie', associationId] });
+  }
+
+  const simpleMutation = useMutation({
     mutationFn: (input: SaisieSimpleInput) => accountingApi.creerSaisieSimple(associationId, input),
     onSuccess: (ecriture) => {
       setSuccess(`Écriture n° ${ecriture.numero_piece} enregistrée.`);
-      // Keep direction/category/account/date for fast repeat entry.
-      form.reset({ ...getValues(), montant: '', libelle: '' });
-      queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
-      queryClient.invalidateQueries({ queryKey: ['balance', associationId] });
-      queryClient.invalidateQueries({ queryKey: ['tresorerie', associationId] });
+      form.reset({ ...getValues(), montant: '', libelle: '', reference_externe: '' });
+      invalidateAfterEntry();
     },
   });
+  const virementMutation = useMutation({
+    mutationFn: (input: VirementInput) => accountingApi.creerVirement(associationId, input),
+    onSuccess: (ecriture) => {
+      setSuccess(`Virement n° ${ecriture.numero_piece} enregistré.`);
+      form.reset({ ...getValues(), montant: '', libelle: '', reference_externe: '' });
+      invalidateAfterEntry();
+    },
+  });
+  const activeMutation = isVirement ? virementMutation : simpleMutation;
 
   const onSubmit = handleSubmit((values) => {
     setSuccess(null);
-    mutation.mutate({
-      categorie_id: values.categorie_id,
-      compte_tresorerie_id: values.compte_tresorerie_id,
+    const common = {
       montant: amountToDecimalString(values.montant),
       date: values.date,
       libelle: values.libelle?.trim() || undefined,
-    });
+      reference_externe: values.reference_externe?.trim() || undefined,
+      mode_reglement: values.mode_reglement || undefined,
+    };
+    if (values.type === 'virement') {
+      virementMutation.mutate({
+        compte_source_id: values.compte_source_id,
+        compte_destination_id: values.compte_destination_id,
+        ...common,
+      });
+    } else {
+      simpleMutation.mutate({
+        categorie_id: values.categorie_id,
+        compte_tresorerie_id: values.compte_tresorerie_id,
+        ...common,
+      });
+    }
   });
 
-  function selectSens(next: SaisieForm['sens']) {
-    if (next === sens) return;
+  function selectType(next: SaisieForm['type']) {
+    if (next === type) return;
     setSuccess(null);
-    setValue('sens', next);
+    setValue('type', next);
   }
 
   function onCategorieCreated(cat: Categorie) {
@@ -142,29 +197,37 @@ export function SaisiePage() {
     );
   }
 
-  const error = apiErrorMessage(mutation, 'Enregistrement impossible.');
+  const error = apiErrorMessage(activeMutation, 'Enregistrement impossible.');
   const loadError = categoriesQuery.isError || comptesQuery.isError;
+  const quickAddSens = type === 'depense' ? 'depense' : 'recette';
 
   return (
     <div className="mx-auto max-w-2xl">
       <Header />
 
       <Card className="mt-6 p-6">
-        {/* Direction toggle — the only "accounting" concept a volunteer sees. */}
-        <div className="grid grid-cols-2 gap-2" role="group" aria-label="Sens de l’opération">
-          <SensButton
-            active={sens === 'recette'}
+        {/* Operation type — the only "accounting" concept a volunteer sees. */}
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Type d’opération">
+          <TypeButton
+            active={type === 'recette'}
             tone="recette"
             label="Recette"
             hint="Argent reçu"
-            onClick={() => selectSens('recette')}
+            onClick={() => selectType('recette')}
           />
-          <SensButton
-            active={sens === 'depense'}
+          <TypeButton
+            active={type === 'depense'}
             tone="depense"
             label="Dépense"
             hint="Argent versé"
-            onClick={() => selectSens('depense')}
+            onClick={() => selectType('depense')}
+          />
+          <TypeButton
+            active={type === 'virement'}
+            tone="neutre"
+            label="Virement"
+            hint="Entre comptes"
+            onClick={() => selectType('virement')}
           />
         </div>
 
@@ -173,30 +236,63 @@ export function SaisiePage() {
         )}
 
         <form onSubmit={onSubmit} className="mt-5 space-y-5" noValidate>
-          <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="categorie_id">Catégorie</Label>
-              {canAddCategorie && (
-                <button
-                  type="button"
-                  onClick={() => setCatDialogOpen(true)}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+          {isVirement ? (
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="compte_source_id">Compte de départ</Label>
+                <Select id="compte_source_id" className="mt-1.5" {...register('compte_source_id')}>
+                  {comptes.length === 0 && <option value="">—</option>}
+                  {comptes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.libelle}
+                    </option>
+                  ))}
+                </Select>
+                <FieldError message={errors.compte_source_id?.message} />
+              </div>
+              <div>
+                <Label htmlFor="compte_destination_id">Compte d’arrivée</Label>
+                <Select
+                  id="compte_destination_id"
+                  className="mt-1.5"
+                  {...register('compte_destination_id')}
                 >
-                  <Plus className="h-3.5 w-3.5" aria-hidden />
-                  Nouvelle
-                </button>
-              )}
+                  {comptes.length === 0 && <option value="">—</option>}
+                  {comptes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.libelle}
+                    </option>
+                  ))}
+                </Select>
+                <FieldError message={errors.compte_destination_id?.message} />
+              </div>
             </div>
-            <Select id="categorie_id" className="mt-1.5" {...register('categorie_id')}>
-              {categories.length === 0 && <option value="">—</option>}
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.libelle}
-                </option>
-              ))}
-            </Select>
-            <FieldError message={errors.categorie_id?.message} />
-          </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="categorie_id">Catégorie</Label>
+                {canAddCategorie && (
+                  <button
+                    type="button"
+                    onClick={() => setCatDialogOpen(true)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:text-accent-hover"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    Nouvelle
+                  </button>
+                )}
+              </div>
+              <Select id="categorie_id" className="mt-1.5" {...register('categorie_id')}>
+                {categories.length === 0 && <option value="">—</option>}
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.libelle}
+                  </option>
+                ))}
+              </Select>
+              <FieldError message={errors.categorie_id?.message} />
+            </div>
+          )}
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
@@ -217,32 +313,79 @@ export function SaisiePage() {
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="compte_tresorerie_id">Compte de trésorerie</Label>
-            <Select
-              id="compte_tresorerie_id"
-              className="mt-1.5"
-              {...register('compte_tresorerie_id')}
-            >
-              {comptes.length === 0 && <option value="">—</option>}
-              {comptes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.libelle}
-                </option>
-              ))}
-            </Select>
-            <FieldError message={errors.compte_tresorerie_id?.message} />
-          </div>
+          {!isVirement && (
+            <div>
+              <Label htmlFor="compte_tresorerie_id">Compte de trésorerie</Label>
+              <Select
+                id="compte_tresorerie_id"
+                className="mt-1.5"
+                {...register('compte_tresorerie_id')}
+              >
+                {comptes.length === 0 && <option value="">—</option>}
+                {comptes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.libelle}
+                  </option>
+                ))}
+              </Select>
+              <FieldError message={errors.compte_tresorerie_id?.message} />
+            </div>
+          )}
 
-          <div>
-            <Label htmlFor="libelle">Libellé (optionnel)</Label>
-            <Input
-              id="libelle"
-              placeholder="Repris de la catégorie si vide"
-              className="mt-1.5"
-              {...register('libelle')}
-            />
-            <FieldError message={errors.libelle?.message} />
+          {/* Advanced, collapsed by default: simple by default, powerful on demand. */}
+          <div className="border-t border-hairline pt-4">
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((v) => !v)}
+              aria-expanded={advancedOpen}
+              className="flex items-center gap-1.5 text-sm font-medium text-ink-soft hover:text-ink"
+            >
+              <ChevronDown
+                className={cn('h-4 w-4 transition-transform', advancedOpen && 'rotate-180')}
+                aria-hidden
+              />
+              Avancé
+            </button>
+
+            {advancedOpen && (
+              <div className="mt-4 space-y-5">
+                <div>
+                  <Label htmlFor="libelle">Libellé</Label>
+                  <Input
+                    id="libelle"
+                    placeholder={
+                      isVirement ? 'Repris des comptes si vide' : 'Repris de la catégorie si vide'
+                    }
+                    className="mt-1.5"
+                    {...register('libelle')}
+                  />
+                  <FieldError message={errors.libelle?.message} />
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="mode_reglement">Mode de règlement</Label>
+                    <Select id="mode_reglement" className="mt-1.5" {...register('mode_reglement')}>
+                      <option value="">—</option>
+                      {MODE_REGLEMENT_VALUES.map((m) => (
+                        <option key={m} value={m}>
+                          {MODE_REGLEMENT_LABELS[m]}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="reference_externe">Référence externe</Label>
+                    <Input
+                      id="reference_externe"
+                      placeholder="N° de facture, de chèque…"
+                      className="mt-1.5"
+                      {...register('reference_externe')}
+                    />
+                    <FieldError message={errors.reference_externe?.message} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && <Alert>{error}</Alert>}
@@ -256,15 +399,26 @@ export function SaisiePage() {
             </div>
           )}
 
-          <Button type="submit" variant="accent" className="w-full" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Enregistrement…' : 'Enregistrer l’opération'}
+          <Button
+            type="submit"
+            variant="accent"
+            className="w-full"
+            disabled={activeMutation.isPending}
+          >
+            {activeMutation.isPending
+              ? 'Enregistrement…'
+              : isVirement
+                ? 'Enregistrer le virement'
+                : 'Enregistrer l’opération'}
           </Button>
         </form>
       </Card>
 
       <p className="mt-3 text-center text-xs text-faint">
-        Abacus génère l’écriture en partie double automatiquement.
-        {canAddCategorie && (
+        {isVirement
+          ? 'Le virement déplace l’argent entre vos comptes, sans impact sur le résultat.'
+          : 'Abacus génère l’écriture en partie double automatiquement.'}
+        {canAddCategorie && !isVirement && (
           <>
             {' · '}
             <Link
@@ -280,7 +434,7 @@ export function SaisiePage() {
       {canAddCategorie && (
         <CategorieDialog
           associationId={associationId}
-          defaultSens={sens}
+          defaultSens={quickAddSens}
           open={catDialogOpen}
           onOpenChange={setCatDialogOpen}
           onSaved={onCategorieCreated}
@@ -295,13 +449,13 @@ function Header() {
     <div>
       <h2 className="text-xl font-semibold tracking-tight text-ink">Saisie</h2>
       <p className="mt-1 text-sm text-muted">
-        Enregistrez une recette ou une dépense ; la comptabilité suit toute seule.
+        Enregistrez une recette, une dépense ou un virement ; la comptabilité suit toute seule.
       </p>
     </div>
   );
 }
 
-function SensButton({
+function TypeButton({
   active,
   tone,
   label,
@@ -309,15 +463,16 @@ function SensButton({
   onClick,
 }: {
   active: boolean;
-  tone: 'recette' | 'depense';
+  tone: 'recette' | 'depense' | 'neutre';
   label: string;
   hint: string;
   onClick: () => void;
 }) {
-  const activeRing =
-    tone === 'recette'
-      ? 'border-recette bg-recette-soft text-recette'
-      : 'border-depense bg-depense-soft text-depense';
+  const activeRing = {
+    recette: 'border-recette bg-recette-soft text-recette',
+    depense: 'border-depense bg-depense-soft text-depense',
+    neutre: 'border-accent bg-accent-soft text-accent',
+  }[tone];
   return (
     <button
       type="button"

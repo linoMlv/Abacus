@@ -5,7 +5,26 @@ export type Sens = 'recette' | 'depense';
 
 export type CompteType = 'actif' | 'passif' | 'charge' | 'produit';
 export type EcritureStatut = 'brouillon' | 'validee';
-export type EcritureOrigine = 'saisie_simple' | 'manuelle' | 'import' | 'recurrence';
+export type EcritureOrigine =
+  | 'saisie_simple'
+  | 'virement'
+  | 'manuelle'
+  | 'import'
+  | 'recurrence'
+  | 'a_nouveau';
+
+/** Informative payment method on an entry, mirrors the backend `ModeReglement`. */
+export type ModeReglement = 'carte' | 'cheque' | 'especes' | 'virement' | 'prelevement' | 'autre';
+
+/** Human labels for the payment methods. */
+export const MODE_REGLEMENT_LABELS: Record<ModeReglement, string> = {
+  carte: 'Carte',
+  cheque: 'Chèque',
+  especes: 'Espèces',
+  virement: 'Virement',
+  prelevement: 'Prélèvement',
+  autre: 'Autre',
+};
 
 /** A plain-language entry category bridging the simple screen to an account. */
 export interface Categorie {
@@ -107,6 +126,8 @@ interface EcritureBase {
   date: string;
   numero_piece: number;
   libelle: string;
+  reference_externe: string | null;
+  mode_reglement: ModeReglement | null;
   statut: EcritureStatut;
   origine: EcritureOrigine;
   created_at: string;
@@ -142,6 +163,19 @@ export interface SaisieSimpleInput {
   montant: string;
   date: string;
   libelle?: string;
+  reference_externe?: string;
+  mode_reglement?: ModeReglement;
+}
+
+/** Body of an internal transfer between two treasury accounts. */
+export interface VirementInput {
+  compte_source_id: string;
+  compte_destination_id: string;
+  montant: string;
+  date: string;
+  libelle?: string;
+  reference_externe?: string;
+  mode_reglement?: ModeReglement;
 }
 
 const base = (associationId: string) => `/asso/${associationId}`;
@@ -170,6 +204,8 @@ export const accountingApi = {
   listJournaux: (associationId: string) => api.get<Journal[]>(`${base(associationId)}/journaux`),
   creerSaisieSimple: (associationId: string, input: SaisieSimpleInput) =>
     api.post<Ecriture>(`${base(associationId)}/ecritures/simple`, input),
+  creerVirement: (associationId: string, input: VirementInput) =>
+    api.post<Ecriture>(`${base(associationId)}/ecritures/virement`, input),
   listEcritures: (associationId: string, filters: JournalFilters = {}) =>
     api.get<EcritureListItem[]>(`${base(associationId)}/ecritures${qs({ ...filters })}`),
   getEcriture: (associationId: string, ecritureId: string) =>

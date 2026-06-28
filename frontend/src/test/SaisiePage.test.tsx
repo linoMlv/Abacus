@@ -7,18 +7,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const listCategories = vi.fn();
 const listTresorerie = vi.fn();
 const creerSaisieSimple = vi.fn();
+const creerVirement = vi.fn();
 const creerCategorie = vi.fn();
 const modifierCategorie = vi.fn();
 
-vi.mock('@/api/accounting', () => ({
-  accountingApi: {
-    listCategories: (...args: unknown[]) => listCategories(...args),
-    listTresorerie: (...args: unknown[]) => listTresorerie(...args),
-    creerSaisieSimple: (...args: unknown[]) => creerSaisieSimple(...args),
-    creerCategorie: (...args: unknown[]) => creerCategorie(...args),
-    modifierCategorie: (...args: unknown[]) => modifierCategorie(...args),
-  },
-}));
+vi.mock('@/api/accounting', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/accounting')>();
+  return {
+    ...actual,
+    accountingApi: {
+      listCategories: (...args: unknown[]) => listCategories(...args),
+      listTresorerie: (...args: unknown[]) => listTresorerie(...args),
+      creerSaisieSimple: (...args: unknown[]) => creerSaisieSimple(...args),
+      creerVirement: (...args: unknown[]) => creerVirement(...args),
+      creerCategorie: (...args: unknown[]) => creerCategorie(...args),
+      modifierCategorie: (...args: unknown[]) => modifierCategorie(...args),
+    },
+  };
+});
 
 vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Asso', role: 'treasurer', status: 'active' }),
@@ -90,6 +96,7 @@ beforeEach(() => {
   listCategories.mockResolvedValue(CATEGORIES);
   listTresorerie.mockResolvedValue(TRESORERIE);
   creerSaisieSimple.mockResolvedValue({ numero_piece: 7 });
+  creerVirement.mockResolvedValue({ numero_piece: 8 });
   creerCategorie.mockResolvedValue({
     id: 'cat-new',
     sens: 'recette',
@@ -151,5 +158,43 @@ describe('SaisiePage', () => {
     });
     expect(input.libelle).toBeUndefined();
     expect(await screen.findByText(/Écriture n° 7 enregistrée/)).toBeInTheDocument();
+  });
+
+  it('sends payment metadata from the advanced panel', async () => {
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.type(screen.getByLabelText('Montant (€)'), '40');
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    await userEvent.selectOptions(screen.getByLabelText('Mode de règlement'), 'cheque');
+    await userEvent.type(screen.getByLabelText('Référence externe'), 'FAC-7');
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer/ }));
+
+    await waitFor(() => expect(creerSaisieSimple).toHaveBeenCalledTimes(1));
+    expect(creerSaisieSimple.mock.calls[0][1]).toMatchObject({
+      mode_reglement: 'cheque',
+      reference_externe: 'FAC-7',
+    });
+  });
+
+  it('posts an internal transfer with source and destination', async () => {
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.click(screen.getByRole('button', { name: /Virement/ }));
+    // Source defaults to a non-bank account (caisse), destination to the bank.
+    await userEvent.type(screen.getByLabelText('Montant (€)'), '200,00');
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer le virement/ }));
+
+    await waitFor(() => expect(creerVirement).toHaveBeenCalledTimes(1));
+    const [associationId, input] = creerVirement.mock.calls[0];
+    expect(associationId).toBe('A');
+    expect(input).toMatchObject({
+      compte_source_id: 'ca',
+      compte_destination_id: 'bq',
+      montant: '200.00',
+    });
+    expect(creerSaisieSimple).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Virement n° 8 enregistré/)).toBeInTheDocument();
   });
 });
