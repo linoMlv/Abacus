@@ -167,4 +167,13 @@ export const accountingApi = {
     compteId: string,
     input: UpdateTresorerieInput
   ) => api.patch<CompteTresorerie>(`${base(associationId)}/tresorerie/${compteId}`, input),
+  definirSoldeInitial: (
+    associationId: string,
+    compteId: string,
+    input: { montant: string; date_solde_initial?: string }
+  ) =>
+    api.post<CompteTresorerie>(
+      `${base(associationId)}/tresorerie/${compteId}/solde-initial`,
+      input
+    ),
 };

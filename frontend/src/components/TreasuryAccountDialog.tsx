@@ -86,25 +86,34 @@ export function TreasuryAccountDialog({
   }
 
   const mutation = useMutation({
-    mutationFn: (values: TresorerieForm) => {
+    mutationFn: async (values: TresorerieForm) => {
       const iban = values.iban.trim() || undefined;
+      const hasSolde = values.solde_initial.trim() !== '';
       if (isEdit) {
-        return accountingApi.modifierCompteTresorerie(associationId, compte.id, {
+        await accountingApi.modifierCompteTresorerie(associationId, compte.id, {
           nom: values.nom,
           type_tresorerie: values.type_tresorerie,
           iban,
         });
+        // Opening balance is a separate, idempotent action; only touch it when set.
+        if (hasSolde) {
+          await accountingApi.definirSoldeInitial(associationId, compte.id, {
+            montant: amountToDecimalString(values.solde_initial),
+            date_solde_initial: values.date_solde_initial || today(),
+          });
+        }
+        return;
       }
       const input: CreateTresorerieInput = {
         nom: values.nom,
         type_tresorerie: values.type_tresorerie,
         iban,
       };
-      if (values.solde_initial.trim() !== '') {
+      if (hasSolde) {
         input.solde_initial = amountToDecimalString(values.solde_initial);
         input.date_solde_initial = values.date_solde_initial || today();
       }
-      return accountingApi.creerCompteTresorerie(associationId, input);
+      await accountingApi.creerCompteTresorerie(associationId, input);
     },
     onSuccess: () => {
       invalidate();
@@ -165,7 +174,7 @@ export function TreasuryAccountDialog({
             <FieldError message={errors.iban?.message} />
           </div>
 
-          {!isEdit && (
+          <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="treso-solde">Solde initial (€, optionnel)</Label>
@@ -188,7 +197,12 @@ export function TreasuryAccountDialog({
                 />
               </div>
             </div>
-          )}
+            {isEdit && (
+              <p className="mt-1.5 text-xs text-faint">
+                Renseigne ou remplace le solde de départ. Laissez vide pour ne pas y toucher.
+              </p>
+            )}
+          </div>
 
           {error && <Alert>{error}</Alert>}
 

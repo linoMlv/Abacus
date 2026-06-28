@@ -7,6 +7,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
 import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
 import { JournalPage } from '@/pages/JournalPage';
+import { OnboardingSoldesPage } from '@/pages/OnboardingSoldesPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { SaisiePage } from '@/pages/SaisiePage';
 import { SynthesePage } from '@/pages/SynthesePage';
@@ -30,6 +31,7 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route path="/" element={<HomeRedirect />} />
           <Route path="/associations/nouvelle" element={<CreateAssociationPage />} />
+          <Route path="/asso/:associationId/bienvenue" element={<OnboardingSoldesPage />} />
 
           <Route path="/asso/:associationId" element={<AppShell />}>
             <Route index element={<Navigate to="synthese" replace />} />

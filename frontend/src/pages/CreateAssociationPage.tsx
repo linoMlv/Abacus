@@ -24,7 +24,8 @@ export function CreateAssociationPage() {
     mutationFn: () => authApi.createAssociation({ name, email }),
     onSuccess: (assoc) => {
       refresh();
-      navigate(`/asso/${assoc.id}/synthese`, { replace: true });
+      // Onboarding: declare the starting balances of the seeded accounts.
+      navigate(`/asso/${assoc.id}/bienvenue`, { replace: true });
     },
   });
 
