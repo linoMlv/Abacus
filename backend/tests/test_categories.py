@@ -132,6 +132,40 @@ def test_seed_orders_inserts_under_foreign_key_enforcement():
     assert len(categories) == len(DEFAULT_CATEGORIES)
 
 
+def _simple_entry(admin: TestClient, assoc: str, libelle: str) -> dict:
+    cat = next(
+        c
+        for c in admin.get(f"/api/asso/{assoc}/categories").json()
+        if c["libelle"] == libelle
+    )
+    banque = next(
+        r
+        for r in admin.get(f"/api/asso/{assoc}/tresorerie").json()
+        if r["numero"] == "512"
+    )
+    resp = admin.post(
+        f"/api/asso/{assoc}/ecritures/simple",
+        json={
+            "categorie_id": cat["id"],
+            "compte_tresorerie_id": banque["id"],
+            "montant": "10.00",
+            "date": "2026-06-28",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    return {"cat": cat, "entry": resp.json()}
+
+
+def test_simple_entry_records_its_category():
+    admin, assoc = _admin_with_association("admin@example.com", "a@example.com")
+    result = _simple_entry(admin, assoc, "Cotisations")
+
+    # The entry keeps the category used, unblocking "by category" views.
+    assert result["entry"]["categorie_id"] == result["cat"]["id"]
+    row = admin.get(f"/api/asso/{assoc}/ecritures").json()[0]
+    assert row["categorie_id"] == result["cat"]["id"]
+
+
 # --- Read endpoint --------------------------------------------------------
 
 

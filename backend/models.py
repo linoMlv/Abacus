@@ -392,6 +392,11 @@ class Ecriture(SQLModel, table=True):
     association_id: str = Field(foreign_key="association.id", index=True)
     exercice_id: str = Field(foreign_key="exercice.id", index=True)
     journal_id: str = Field(foreign_key="journal.id", index=True)
+    # Plain-language category used by the assisted screen (null on manual entries),
+    # memorised for "by category" views. The accounting truth stays on the lines.
+    categorie_id: str | None = Field(
+        default=None, foreign_key="categorie_saisie.id", index=True
+    )
     date: date
     numero_piece: int  # séquentiel sans trou par association
     libelle: str
@@ -519,6 +524,7 @@ class EcritureRead(SQLModel):
     id: str
     exercice_id: str
     journal_id: str
+    categorie_id: str | None
     date: date
     numero_piece: int
     libelle: str

@@ -187,6 +187,7 @@ def creer_saisie_simple(
     except EntryError as exc:
         raise _bad_request(str(exc))
 
+    ecriture.categorie_id = categorie.id  # remembered for "by category" views
     session.add(ecriture)
     _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_SIMPLE, ecriture)
     session.commit()
@@ -321,6 +322,7 @@ def list_ecritures(
             id=e.id,
             exercice_id=e.exercice_id,
             journal_id=e.journal_id,
+            categorie_id=e.categorie_id,
             date=e.date,
             numero_piece=e.numero_piece,
             libelle=e.libelle,
