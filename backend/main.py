@@ -27,6 +27,7 @@ from routers import (
     categories,
     ecritures,
     evenements,
+    exports,
     identity,
     justificatifs,
     logs,
@@ -111,6 +112,7 @@ _fastapi_app.include_router(categories.router)
 _fastapi_app.include_router(tiers.router)
 _fastapi_app.include_router(evenements.router)
 _fastapi_app.include_router(synthese.router)
+_fastapi_app.include_router(exports.router)
 _fastapi_app.include_router(justificatifs.router)
 _fastapi_app.include_router(auth.router)
 _fastapi_app.include_router(associations.router)
