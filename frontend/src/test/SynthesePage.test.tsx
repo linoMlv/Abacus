@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const listTresorerie = vi.fn();
+const listEvenements = vi.fn();
 const creerCompteTresorerie = vi.fn();
 const modifierCompteTresorerie = vi.fn();
 
@@ -14,6 +15,7 @@ vi.mock('@/api/accounting', async (importOriginal) => {
     ...actual,
     accountingApi: {
       listTresorerie: (...args: unknown[]) => listTresorerie(...args),
+      listEvenements: (...args: unknown[]) => listEvenements(...args),
       creerCompteTresorerie: (...args: unknown[]) => creerCompteTresorerie(...args),
       modifierCompteTresorerie: (...args: unknown[]) => modifierCompteTresorerie(...args),
     },
@@ -67,6 +69,7 @@ function renderPage() {
 beforeEach(() => {
   vi.clearAllMocks();
   listTresorerie.mockResolvedValue(TRESORERIE);
+  listEvenements.mockResolvedValue([]);
   creerCompteTresorerie.mockResolvedValue({ ...TRESORERIE[0], id: 'new' });
 });
 

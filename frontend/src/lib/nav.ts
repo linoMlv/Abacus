@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Building2,
+  CalendarRange,
   HeartHandshake,
   LayoutDashboard,
   ListTree,
@@ -35,6 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { segment: 'saisie', label: 'Saisie', icon: PencilLine },
       { segment: 'journal', label: 'Journal', icon: BookOpen },
+      { segment: 'evenements', label: 'Événements', icon: CalendarRange },
       { segment: 'comptes', label: 'Comptes', icon: ListTree },
       { segment: 'tiers', label: 'Tiers', icon: Users },
       { segment: 'banque', label: 'Banque', icon: Building2 },

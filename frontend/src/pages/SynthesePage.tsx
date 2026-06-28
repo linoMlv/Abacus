@@ -3,7 +3,12 @@ import { ArrowRight, Pencil, Plus, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { accountingApi, type CompteTresorerie, TYPE_TRESORERIE_LABELS } from '@/api/accounting';
+import {
+  accountingApi,
+  type CompteTresorerie,
+  type Evenement,
+  TYPE_TRESORERIE_LABELS,
+} from '@/api/accounting';
 import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -69,6 +74,27 @@ function sumSoldes(comptes: CompteTresorerie[]): number {
   return comptes.reduce((total, c) => total + Number(c.solde), 0);
 }
 
+function EvenementMiniCard({ evenement }: { evenement: Evenement }) {
+  const value = Number(evenement.resultat);
+  const tone = value > 0 ? 'text-recette' : value < 0 ? 'text-depense' : 'text-ink';
+  return (
+    <Card className="flex items-center gap-3 p-4">
+      <span
+        className="h-8 w-1.5 shrink-0 rounded-full"
+        style={{ backgroundColor: evenement.couleur ?? 'var(--color-accent)' }}
+        aria-hidden
+      />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-ink">{evenement.nom}</p>
+        <p className="text-xs text-muted">Résultat</p>
+      </div>
+      <p className={`tabular shrink-0 text-base font-semibold ${tone}`}>
+        {formatEUR(evenement.resultat)}
+      </p>
+    </Card>
+  );
+}
+
 export function SynthesePage() {
   const { associationId } = useParams() as { associationId: string };
   const navigate = useNavigate();
@@ -84,6 +110,12 @@ export function SynthesePage() {
   });
   const comptes = tresorerieQuery.data ?? [];
   const total = sumSoldes(comptes);
+
+  const evenementsQuery = useQuery({
+    queryKey: ['evenements', associationId, 'actif'],
+    queryFn: () => accountingApi.listEvenements(associationId, 'actif'),
+  });
+  const evenements = evenementsQuery.data ?? [];
 
   function openCreate() {
     setEditing(null);
@@ -145,6 +177,26 @@ export function SynthesePage() {
           </div>
         )}
       </section>
+
+      {evenements.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-ink-soft">Événements en cours</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/asso/${associationId}/evenements`)}
+            >
+              Voir tout
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {evenements.slice(0, 6).map((evenement) => (
+              <EvenementMiniCard key={evenement.id} evenement={evenement} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <Card className="flex flex-col items-center gap-4 px-6 py-12 text-center">
         <div>
