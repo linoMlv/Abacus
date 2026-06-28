@@ -335,3 +335,103 @@ def test_journal_can_be_filtered_by_treasury_account():
     ).json()
     assert len(only_bank) == 1
     assert len(admin.get(f"/api/asso/{assoc}/ecritures").json()) == 2
+
+
+# --- Opening balance on an existing account (T1.1) -------------------------
+
+
+def _bank(client: TestClient, assoc: str) -> dict:
+    return next(
+        r
+        for r in client.get(f"/api/asso/{assoc}/tresorerie").json()
+        if r["numero"] == "512"
+    )
+
+
+def test_set_opening_balance_on_a_seeded_account():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    bank = _bank(admin, assoc)
+    assert _dec(bank["solde"]) == Decimal("0")
+
+    resp = admin.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "1000.00", "date_solde_initial": TODAY},
+    )
+    assert resp.status_code == 200, resp.text
+    assert _dec(resp.json()["solde"]) == Decimal("1000.00")
+
+    # One à-nouveau entry, counterpart on report à nouveau (110).
+    entries = admin.get(f"/api/asso/{assoc}/ecritures").json()
+    an = [e for e in entries if e["origine"] == "a_nouveau"]
+    assert len(an) == 1
+    balance = admin.get(f"/api/asso/{assoc}/balance").json()
+    assert _dec(next(r for r in balance if r["numero"] == "110")["solde"]) == Decimal(
+        "-1000.00"
+    )
+
+
+def test_set_opening_balance_replaces_a_previous_draft():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    bank = _bank(admin, assoc)
+    admin.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "1000.00", "date_solde_initial": TODAY},
+    )
+    resp = admin.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "1500.00", "date_solde_initial": TODAY},
+    )
+    assert resp.status_code == 200, resp.text
+    assert _dec(resp.json()["solde"]) == Decimal("1500.00")
+    # Still a single à-nouveau entry (the previous draft was replaced).
+    entries = admin.get(f"/api/asso/{assoc}/ecritures").json()
+    assert len([e for e in entries if e["origine"] == "a_nouveau"]) == 1
+
+
+def test_zero_removes_the_opening_balance():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    bank = _bank(admin, assoc)
+    admin.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "1000.00", "date_solde_initial": TODAY},
+    )
+    resp = admin.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "0", "date_solde_initial": TODAY},
+    )
+    assert resp.status_code == 200, resp.text
+    assert _dec(resp.json()["solde"]) == Decimal("0")
+    entries = admin.get(f"/api/asso/{assoc}/ecritures").json()
+    assert [e for e in entries if e["origine"] == "a_nouveau"] == []
+
+
+def test_cannot_change_a_validated_opening_balance():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    bank = _bank(admin, assoc)
+    admin.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "1000.00", "date_solde_initial": TODAY},
+    )
+    an = next(
+        e
+        for e in admin.get(f"/api/asso/{assoc}/ecritures").json()
+        if e["origine"] == "a_nouveau"
+    )
+    admin.post(f"/api/asso/{assoc}/ecritures/{an['id']}/validation")
+
+    resp = admin.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "2000.00", "date_solde_initial": TODAY},
+    )
+    assert resp.status_code == 409
+
+
+def test_set_opening_balance_requires_permission(session: Session):
+    _, assoc = _admin_with_association("admin@example.com", "alpha")
+    viewer = _member_client(session, assoc, "view@example.com", Role.VIEWER)
+    bank = _bank(viewer, assoc)
+    resp = viewer.post(
+        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
+        json={"montant": "100.00"},
+    )
+    assert resp.status_code == 403

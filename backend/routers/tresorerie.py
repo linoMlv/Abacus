@@ -34,6 +34,8 @@ from models import (
     CompteTresorerieRead,
     CompteType,
     Ecriture,
+    EcritureOrigine,
+    EcritureStatut,
     Journal,
     LigneEcriture,
     TypeTresorerie,
@@ -76,6 +78,11 @@ class UpdateTresorerieRequest(SQLModel):
     couleur: str | None = None
     ordre: int | None = None
     is_active: bool | None = None
+
+
+class SetSoldeInitialRequest(SQLModel):
+    montant: Decimal  # 0 removes the opening balance
+    date_solde_initial: date | None = None
 
 
 # --- Helpers --------------------------------------------------------------
@@ -150,6 +157,25 @@ def _owned_treasury(session: Session, association_id: str, compte_id: str) -> Co
             detail="Compte de trésorerie introuvable",
         )
     return compte
+
+
+def _a_nouveau_entries(
+    session: Session, association_id: str, compte_id: str
+) -> list[Ecriture]:
+    """Opening-balance (à-nouveau) entries touching ``compte_id``."""
+    return list(
+        session.exec(
+            select(Ecriture).where(
+                Ecriture.association_id == association_id,
+                Ecriture.origine == EcritureOrigine.A_NOUVEAU,
+                Ecriture.id.in_(
+                    select(LigneEcriture.ecriture_id).where(
+                        LigneEcriture.compte_id == compte_id
+                    )
+                ),
+            )
+        ).all()
+    )
 
 
 def _post_solde_initial(
@@ -272,6 +298,58 @@ def create_tresorerie(
         target_type="compte",
         target_id=compte.id,
         detail=f"{numero} {nom}",
+    )
+    session.commit()
+    session.refresh(compte)
+
+    solde = _treasury_soldes(session, ctx.association_id, [compte.id]).get(
+        compte.id, ZERO
+    )
+    return _to_read(compte, solde)
+
+
+@router.post(
+    "/tresorerie/{compte_id}/solde-initial", response_model=CompteTresorerieRead
+)
+def set_solde_initial(
+    compte_id: str,
+    body: SetSoldeInitialRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.TRESORERIE_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    """Set (or remove, with 0) the opening balance of an existing treasury account.
+
+    Useful at onboarding for the seeded Banque/Caisse. Replaces a previous *draft*
+    à-nouveau entry; a *validated* opening balance is immutable (409 — a
+    contre-passation is required). The opening balance posts D account / C report à
+    nouveau (110); 0 simply removes the draft entry.
+    """
+    compte = _owned_treasury(session, ctx.association_id, compte_id)
+
+    existing = _a_nouveau_entries(session, ctx.association_id, compte.id)
+    if any(e.statut == EcritureStatut.VALIDEE for e in existing):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Le solde initial est validé et ne peut plus être modifié "
+            "(contre-passation requise).",
+        )
+    for entry in existing:
+        session.delete(entry)
+    session.flush()  # apply the deletions before re-posting / renumbering
+
+    montant = body.montant.quantize(Decimal("0.01"))
+    if montant != ZERO:
+        jour = body.date_solde_initial or date.today()
+        _post_solde_initial(session, ctx, compte, montant, jour)
+
+    record_audit(
+        session,
+        association_id=ctx.association_id,
+        actor_user_id=ctx.user.id,
+        action=AuditAction.COMPTE_TRESORERIE_UPDATE,
+        target_type="compte",
+        target_id=compte.id,
+        detail=f"solde initial {montant}",
     )
     session.commit()
     session.refresh(compte)
