@@ -102,6 +102,10 @@ def _serve(
     }
     if inline:
         headers["Content-Security-Policy"] = "sandbox"
+        # Override the middleware's default X-Frame-Options: DENY so the preview
+        # can be framed by our own SPA (same-origin), while cross-origin framing
+        # stays blocked. The sandbox + nosniff posture is unchanged.
+        headers["X-Frame-Options"] = "SAMEORIGIN"
     return Response(content=data, media_type=justificatif.content_type, headers=headers)
 
 

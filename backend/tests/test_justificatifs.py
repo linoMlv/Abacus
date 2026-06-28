@@ -160,6 +160,8 @@ def test_preview_serves_inline_sandboxed():
     assert "inline" in ap.headers["content-disposition"]
     assert ap.headers["x-content-type-options"] == "nosniff"
     assert ap.headers["content-security-policy"] == "sandbox"
+    # Same-origin framing allowed (so the PDF iframe renders), cross-origin denied.
+    assert ap.headers["x-frame-options"] == "SAMEORIGIN"
 
 
 def test_preview_is_tenant_scoped():
