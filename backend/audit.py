@@ -27,6 +27,8 @@ class AuditAction:
     TIERS_CREATE = "tiers.create"
     JUSTIFICATIF_UPLOAD = "justificatif.upload"
     JUSTIFICATIF_DELETE = "justificatif.delete"
+    EVENEMENT_CREATE = "evenement.create"
+    EVENEMENT_UPDATE = "evenement.update"
 
 
 def record_audit(

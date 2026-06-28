@@ -15,6 +15,7 @@ from models import (  # noqa: F401
     Association,
     Balance,
     Compte,
+    Evenement,
     Exercice,
     Invitation,
     Journal,

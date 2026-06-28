@@ -40,6 +40,7 @@ from models import (
     EcritureListItem,
     EcritureOrigine,
     EcritureStatut,
+    Evenement,
     Exercice,
     Journal,
     LigneEcriture,
@@ -105,6 +106,7 @@ class SaisieSimpleRequest(SQLModel):
     date: date
     libelle: str | None = None
     tiers_id: str | None = None
+    evenement_id: str | None = None
     reference_externe: str | None = None
     mode_reglement: ModeReglement | None = None
 
@@ -132,6 +134,7 @@ class SaisieManuelleRequest(SQLModel):
     libelle: str
     lignes: list[LigneInput]
     tiers_id: str | None = None
+    evenement_id: str | None = None
     reference_externe: str | None = None
     mode_reglement: ModeReglement | None = None
 
@@ -198,6 +201,23 @@ def _resolve_tiers_id(
     if tiers is None:
         raise _bad_request("Tiers introuvable ou inactif.")
     return tiers.id
+
+
+def _resolve_evenement_id(
+    session: Session, association_id: str, evenement_id: str | None
+) -> str | None:
+    """Validate an optional event reference belongs to the association (else 400)."""
+    if evenement_id is None:
+        return None
+    evenement = session.exec(
+        select(Evenement).where(
+            Evenement.id == evenement_id,
+            Evenement.association_id == association_id,
+        )
+    ).first()
+    if evenement is None:
+        raise _bad_request("Événement introuvable.")
+    return evenement.id
 
 
 def _journal_by_code(session: Session, association_id: str, code: str) -> Journal:
@@ -290,6 +310,9 @@ def creer_saisie_simple(
 
     ecriture.categorie_id = categorie.id  # remembered for "by category" views
     ecriture.tiers_id = _resolve_tiers_id(session, ctx.association_id, body.tiers_id)
+    ecriture.evenement_id = _resolve_evenement_id(
+        session, ctx.association_id, body.evenement_id
+    )
     ecriture.reference_externe = body.reference_externe
     ecriture.mode_reglement = body.mode_reglement
     session.add(ecriture)
@@ -406,6 +429,9 @@ def creer_saisie_manuelle(
         numero_piece=next_numero_piece(session, ctx.association_id),
         libelle=body.libelle,
         tiers_id=_resolve_tiers_id(session, ctx.association_id, body.tiers_id),
+        evenement_id=_resolve_evenement_id(
+            session, ctx.association_id, body.evenement_id
+        ),
         reference_externe=body.reference_externe,
         mode_reglement=body.mode_reglement,
         origine=EcritureOrigine.MANUELLE,
@@ -430,6 +456,7 @@ def list_ecritures(
     type_operation: list[TypeOperationFilter] | None = Query(None),
     categorie_id: list[str] | None = Query(None),
     tiers_id: list[str] | None = Query(None),
+    evenement_id: list[str] | None = Query(None),
     date_from: date | None = None,
     date_to: date | None = None,
     statut: list[EcritureStatut] | None = Query(None),
@@ -445,8 +472,8 @@ def list_ecritures(
     scope and composes with the others (AND): an id from another tenant simply
     matches nothing, never widening access. The faceted filters (journal,
     ``compte_id`` — any account touched, e.g. a treasury account —, operation
-    ``type_operation`` Recette/Dépense/Virement §15.3, category, tiers, statut)
-    accept several values, each an OR *within* the facet. A ``date_from``/
+    ``type_operation`` Recette/Dépense/Virement §15.3, category, tiers, event,
+    statut) accept several values, each an OR *within* the facet. A ``date_from``/
     ``date_to`` range (inclusive) and a free-text libellé search complete them.
     Each row carries its total amount and journal code so the listing needs no
     per-row follow-up.
@@ -471,6 +498,8 @@ def list_ecritures(
         statement = statement.where(Ecriture.categorie_id.in_(categorie_id))
     if tiers_id:
         statement = statement.where(Ecriture.tiers_id.in_(tiers_id))
+    if evenement_id:
+        statement = statement.where(Ecriture.evenement_id.in_(evenement_id))
     if date_from is not None:
         statement = statement.where(Ecriture.date >= date_from)
     if date_to is not None:
@@ -504,6 +533,7 @@ def list_ecritures(
             numero_piece=e.numero_piece,
             libelle=e.libelle,
             tiers_id=e.tiers_id,
+            evenement_id=e.evenement_id,
             reference_externe=e.reference_externe,
             mode_reglement=e.mode_reglement,
             statut=e.statut,
