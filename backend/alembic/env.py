@@ -18,6 +18,7 @@ from models import (  # noqa: F401
     Exercice,
     Invitation,
     Journal,
+    Justificatif,
     LogEntry,
     Membership,
     Operation,

@@ -25,6 +25,8 @@ class AuditAction:
     CATEGORIE_CREATE = "categorie.create"
     CATEGORIE_UPDATE = "categorie.update"
     TIERS_CREATE = "tiers.create"
+    JUSTIFICATIF_UPLOAD = "justificatif.upload"
+    JUSTIFICATIF_DELETE = "justificatif.delete"
 
 
 def record_audit(
