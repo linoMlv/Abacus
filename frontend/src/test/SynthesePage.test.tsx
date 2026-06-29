@@ -88,6 +88,7 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   listTresorerie.mockResolvedValue(TRESORERIE);
   listEvenements.mockResolvedValue([]);
   getSynthese.mockResolvedValue(EMPTY_SYNTHESE);
@@ -163,6 +164,21 @@ describe('SynthesePage', () => {
     expect(await screen.findByText(/3 écritures en brouillon à valider/)).toBeInTheDocument();
     expect(await screen.findByText(/« Gala » dépasse son budget/)).toBeInTheDocument();
     expect(await screen.findByText(/Exercice « 2025 » échu/)).toBeInTheDocument();
+  });
+
+  it('dismisses an alert so it no longer shows', async () => {
+    getSynthese.mockResolvedValue({
+      ...EMPTY_SYNTHESE,
+      alertes: { brouillons: 3, evenements_depasses: [], exercices_a_cloturer: [] },
+    });
+    renderPage();
+    expect(await screen.findByText(/3 écritures en brouillon à valider/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Masquer cette alerte/ }));
+
+    await waitFor(() =>
+      expect(screen.queryByText(/3 écritures en brouillon à valider/)).not.toBeInTheDocument()
+    );
   });
 
   it('refetches with an explicit period when a preset is chosen', async () => {
