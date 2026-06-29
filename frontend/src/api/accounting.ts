@@ -385,10 +385,11 @@ export const accountingApi = {
     api.get<Synthese>(`${base(associationId)}/synthese${qs({ ...params })}`),
   // Export download URLs (server streams an attachment; the cookie session is
   // sent automatically on a same-origin navigation, so a plain link works).
-  journalPdfUrl: (associationId: string, params: SyntheseParams = {}) =>
-    apiUrl(`${base(associationId)}/exports/journal.pdf${qs({ ...params })}`),
-  journalXlsxUrl: (associationId: string, params: SyntheseParams = {}) =>
-    apiUrl(`${base(associationId)}/exports/journal.xlsx${qs({ ...params })}`),
+  // The journal export follows the active journal filters (item 8), not just the period.
+  journalPdfUrl: (associationId: string, filters: JournalFilters = {}) =>
+    apiUrl(`${base(associationId)}/exports/journal.pdf${qs({ ...filters })}`),
+  journalXlsxUrl: (associationId: string, filters: JournalFilters = {}) =>
+    apiUrl(`${base(associationId)}/exports/journal.xlsx${qs({ ...filters })}`),
   grandLivrePdfUrl: (associationId: string, params: SyntheseParams = {}) =>
     apiUrl(`${base(associationId)}/exports/grand-livre.pdf${qs({ ...params })}`),
   grandLivreXlsxUrl: (associationId: string, params: SyntheseParams = {}) =>

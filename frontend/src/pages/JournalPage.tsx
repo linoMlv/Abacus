@@ -24,6 +24,7 @@ import {
   accountingApi,
   type EcritureListItem,
   type EcritureStatut,
+  type JournalFilters,
   type Justificatif,
   JUSTIFICATIF_ACCEPT,
   JUSTIFICATIF_MAX_BYTES,
@@ -144,36 +145,37 @@ export function JournalPage() {
     queryFn: () => accountingApi.listEvenements(associationId),
   });
 
+  // The active filter, shared by the listing query and the (filtered) journal export.
+  const filters: JournalFilters = useMemo(
+    () => ({
+      statut: statuts.length ? statuts : undefined,
+      journal_id: journalIds.length ? journalIds : undefined,
+      compte_id: compteIds.length ? compteIds : undefined,
+      type_operation: typeOperations.length ? typeOperations : undefined,
+      categorie_id: categorieIds.length ? categorieIds : undefined,
+      tiers_id: tiersIds.length ? tiersIds : undefined,
+      evenement_id: evenementIds.length ? evenementIds : undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+      q: q || undefined,
+    }),
+    [
+      statuts,
+      journalIds,
+      compteIds,
+      typeOperations,
+      categorieIds,
+      tiersIds,
+      evenementIds,
+      dateFrom,
+      dateTo,
+      q,
+    ]
+  );
+
   const ecrituresQuery = useQuery({
-    queryKey: [
-      'ecritures',
-      associationId,
-      {
-        statuts,
-        journalIds,
-        compteIds,
-        typeOperations,
-        categorieIds,
-        tiersIds,
-        evenementIds,
-        dateFrom,
-        dateTo,
-        q,
-      },
-    ],
-    queryFn: () =>
-      accountingApi.listEcritures(associationId, {
-        statut: statuts.length ? statuts : undefined,
-        journal_id: journalIds.length ? journalIds : undefined,
-        compte_id: compteIds.length ? compteIds : undefined,
-        type_operation: typeOperations.length ? typeOperations : undefined,
-        categorie_id: categorieIds.length ? categorieIds : undefined,
-        tiers_id: tiersIds.length ? tiersIds : undefined,
-        evenement_id: evenementIds.length ? evenementIds : undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        q: q || undefined,
-      }),
+    queryKey: ['ecritures', associationId, filters],
+    queryFn: () => accountingApi.listEcritures(associationId, filters),
   });
 
   const rows = useMemo(() => ecrituresQuery.data ?? [], [ecrituresQuery.data]);
@@ -311,8 +313,8 @@ export function JournalPage() {
     setSearch('');
   }
 
-  // Exports follow the date range from the filters (the export endpoints scope
-  // by period; the facet filters are a future enhancement on the export side).
+  // The grand livre export scopes by period only; the journal export follows the
+  // full active filter (item 8) so the document matches the on-screen journal.
   const exportParams = { date_from: dateFrom || undefined, date_to: dateTo || undefined };
 
   return (
@@ -329,15 +331,15 @@ export function JournalPage() {
             <ExportMenu
               groups={[
                 {
-                  heading: 'Journal',
+                  heading: 'Journal (filtres appliqués)',
                   items: [
                     {
                       label: 'Journal (PDF)',
-                      url: accountingApi.journalPdfUrl(associationId, exportParams),
+                      url: accountingApi.journalPdfUrl(associationId, filters),
                     },
                     {
                       label: 'Journal (Excel)',
-                      url: accountingApi.journalXlsxUrl(associationId, exportParams),
+                      url: accountingApi.journalXlsxUrl(associationId, filters),
                     },
                   ],
                 },
