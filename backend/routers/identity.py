@@ -115,6 +115,9 @@ class AssociationContext(BaseModel):
     id: str
     name: str
     role: Role
+    # The caller's server-authoritative effective permissions in this association
+    # (role/preset base ± overrides; ADMIN = all). The UI gates on these.
+    permissions: list[str]
 
 
 class MemberRead(BaseModel):
@@ -505,7 +508,12 @@ def association_context(
 ):
     association = session.get(Association, ctx.association_id)
     # An active membership guarantees the association exists.
-    return AssociationContext(id=association.id, name=association.name, role=ctx.role)
+    return AssociationContext(
+        id=association.id,
+        name=association.name,
+        role=ctx.role,
+        permissions=sorted(p.value for p in ctx.permissions),
+    )
 
 
 @router.get("/api/asso/{association_id}/members", response_model=list[MemberRead])

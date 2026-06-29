@@ -32,6 +32,7 @@ from routers import (
     justificatifs,
     logs,
     operations,
+    permissions,
     synthese,
     tiers,
     tresorerie,
@@ -112,6 +113,7 @@ _fastapi_app.include_router(categories.router)
 _fastapi_app.include_router(tiers.router)
 _fastapi_app.include_router(evenements.router)
 _fastapi_app.include_router(synthese.router)
+_fastapi_app.include_router(permissions.router)
 _fastapi_app.include_router(exports.router)
 _fastapi_app.include_router(justificatifs.router)
 _fastapi_app.include_router(auth.router)

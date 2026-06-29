@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
+from authz import Permission
 from database import get_session
 from main import _fastapi_app as app
 from models import Membership, MembershipStatus, Role
@@ -127,7 +128,12 @@ def test_creator_becomes_admin(client: TestClient):
 
     ctx = client.get(f"/api/asso/{assoc_id}")
     assert ctx.status_code == 200
-    assert ctx.json() == {"id": assoc_id, "name": "Asso One", "role": "admin"}
+    body = ctx.json()
+    assert body["id"] == assoc_id
+    assert body["name"] == "Asso One"
+    assert body["role"] == "admin"
+    # The creator is an admin: effective permissions are the full superset.
+    assert set(body["permissions"]) == {p.value for p in Permission}
 
 
 # --------------------------------------------------------------------------- #
