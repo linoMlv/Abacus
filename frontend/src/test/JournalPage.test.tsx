@@ -14,6 +14,7 @@ const listEvenements = vi.fn();
 const getEcriture = vi.fn();
 const validerEcriture = vi.fn();
 const supprimerEcriture = vi.fn();
+const contrepasserEcriture = vi.fn();
 const validerEcrituresGroupe = vi.fn();
 const supprimerEcrituresGroupe = vi.fn();
 const listJustificatifs = vi.fn();
@@ -35,6 +36,7 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       getEcriture: (...a: unknown[]) => getEcriture(...a),
       validerEcriture: (...a: unknown[]) => validerEcriture(...a),
       supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
+      contrepasserEcriture: (...a: unknown[]) => contrepasserEcriture(...a),
       validerEcrituresGroupe: (...a: unknown[]) => validerEcrituresGroupe(...a),
       supprimerEcrituresGroupe: (...a: unknown[]) => supprimerEcrituresGroupe(...a),
       listJustificatifs: (...a: unknown[]) => listJustificatifs(...a),
@@ -331,6 +333,21 @@ describe('JournalPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Valider/ }));
     await waitFor(() => expect(validerEcriture).toHaveBeenCalledWith('A', 'e2'));
+  });
+
+  it('contre-passes a validated entry from the detail drawer', async () => {
+    const validated = { ...DETAIL, id: 'e1', numero_piece: 1, statut: 'validee' };
+    getEcriture.mockResolvedValue(validated);
+    contrepasserEcriture.mockResolvedValue({
+      extourne: { ...validated, id: 'ext', origine: 'extourne', statut: 'brouillon' },
+      remplacement: null,
+    });
+    renderPage();
+    await userEvent.click(await screen.findByText('Loyer'));
+    await screen.findByRole('dialog');
+
+    await userEvent.click(screen.getByRole('button', { name: /Contre-passer/ }));
+    await waitFor(() => expect(contrepasserEcriture).toHaveBeenCalledWith('A', 'e1'));
   });
 
   it('uploads a justificatif from the detail drawer', async () => {

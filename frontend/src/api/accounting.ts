@@ -432,6 +432,11 @@ export const accountingApi = {
     api.get<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}`),
   validerEcriture: (associationId: string, ecritureId: string) =>
     api.post<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}/validation`),
+  /** Reverse a validated entry (contre-passation); creates a linked extourne draft. */
+  contrepasserEcriture: (associationId: string, ecritureId: string) =>
+    api.post<{ extourne: Ecriture; remplacement: Ecriture | null }>(
+      `${base(associationId)}/ecritures/${ecritureId}/contrepassation`
+    ),
   supprimerEcriture: (associationId: string, ecritureId: string) =>
     api.del<void>(`${base(associationId)}/ecritures/${ecritureId}`),
   validerEcrituresGroupe: (associationId: string, ids: string[]) =>

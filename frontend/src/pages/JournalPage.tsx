@@ -7,6 +7,7 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
+  Undo2,
   X,
 } from 'lucide-react';
 import {
@@ -908,6 +909,7 @@ function EcritureDrawer({
   const invalidateLists = () => {
     queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
     queryClient.invalidateQueries({ queryKey: ['balance', associationId] });
+    queryClient.invalidateQueries({ queryKey: ['synthese', associationId] });
   };
 
   const validate = useMutation({
@@ -924,6 +926,13 @@ function EcritureDrawer({
       onClose();
     },
   });
+  const contrepasser = useMutation({
+    mutationFn: () => accountingApi.contrepasserEcriture(associationId, ecritureId),
+    onSuccess: () => {
+      invalidateLists();
+      onClose();
+    },
+  });
 
   const entry = detailQuery.data;
   const isDraft = entry?.statut === 'brouillon';
@@ -931,7 +940,8 @@ function EcritureDrawer({
   const canDelete = has(PERMISSIONS.ENTRY_DELETE);
   const actionError =
     apiErrorMessage(validate, 'Validation impossible.') ??
-    apiErrorMessage(remove, 'Suppression impossible.');
+    apiErrorMessage(remove, 'Suppression impossible.') ??
+    apiErrorMessage(contrepasser, 'Contre-passation impossible.');
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -998,9 +1008,23 @@ function EcritureDrawer({
           <footer className="space-y-3 border-t border-hairline px-5 py-4">
             {actionError && <Alert>{actionError}</Alert>}
             {!isDraft ? (
-              <p className="text-xs text-muted">
-                Écriture validée : immuable (une correction passe par contre-passation).
-              </p>
+              <div className="space-y-2.5">
+                <p className="text-xs text-muted">
+                  Écriture validée : immuable. La corriger crée une extourne en brouillon
+                  (contre-passation), à valider ensuite.
+                </p>
+                {canDelete && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={contrepasser.isPending}
+                    onClick={() => contrepasser.mutate()}
+                  >
+                    <Undo2 className="h-4 w-4" aria-hidden />
+                    Contre-passer
+                  </Button>
+                )}
+              </div>
             ) : confirmingDelete ? (
               <div className="flex items-center gap-2">
                 <span className="flex-1 text-sm text-ink">Supprimer ce brouillon ?</span>
