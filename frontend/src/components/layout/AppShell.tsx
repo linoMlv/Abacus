@@ -19,7 +19,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh bg-canvas">
-      <div className="hidden lg:block">
+      <div className="sticky top-0 hidden h-dvh self-start lg:block">
         <Sidebar />
       </div>
 
