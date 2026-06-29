@@ -313,10 +313,6 @@ export function JournalPage() {
     setSearch('');
   }
 
-  // The grand livre export scopes by period only; the journal export follows the
-  // full active filter (item 8) so the document matches the on-screen journal.
-  const exportParams = { date_from: dateFrom || undefined, date_to: dateTo || undefined };
-
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -329,6 +325,7 @@ export function JournalPage() {
         <div className="flex items-center gap-2">
           {canExport && (
             <ExportMenu
+              label="Exporter"
               groups={[
                 {
                   heading: 'Journal (filtres appliqués)',
@@ -340,19 +337,6 @@ export function JournalPage() {
                     {
                       label: 'Journal (Excel)',
                       url: accountingApi.journalXlsxUrl(associationId, filters),
-                    },
-                  ],
-                },
-                {
-                  heading: 'Grand livre',
-                  items: [
-                    {
-                      label: 'Grand livre (PDF)',
-                      url: accountingApi.grandLivrePdfUrl(associationId, exportParams),
-                    },
-                    {
-                      label: 'Grand livre (Excel)',
-                      url: accountingApi.grandLivreXlsxUrl(associationId, exportParams),
                     },
                   ],
                 },

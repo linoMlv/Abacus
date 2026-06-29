@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarClock,
-  Download,
   FileClock,
   Pencil,
   Plus,
@@ -20,14 +19,12 @@ import {
   type SyntheseParams,
   TYPE_TRESORERIE_LABELS,
 } from '@/api/accounting';
-import { ExportMenu } from '@/components/ExportMenu';
 import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PERMISSIONS } from '@/lib/permissions';
-import { triggerDownload } from '@/lib/download';
 import { formatDate, formatEUR } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -89,17 +86,7 @@ function StatTile({
   );
 }
 
-function TreasuryCard({
-  compte,
-  onEdit,
-  releveHref,
-  canExport,
-}: {
-  compte: CompteTresorerie;
-  onEdit?: () => void;
-  releveHref?: string;
-  canExport: boolean;
-}) {
+function TreasuryCard({ compte, onEdit }: { compte: CompteTresorerie; onEdit?: () => void }) {
   return (
     <Card className="flex items-center gap-4 p-4">
       <span
@@ -117,16 +104,6 @@ function TreasuryCard({
         <p className="text-xs text-muted">{TYPE_TRESORERIE_LABELS[compte.type_tresorerie]}</p>
       </div>
       <p className="tabular shrink-0 text-base font-semibold text-ink">{formatEUR(compte.solde)}</p>
-      {canExport && (
-        <button
-          type="button"
-          onClick={() => triggerDownload(releveHref ?? '')}
-          aria-label={`Relevé PDF de ${compte.libelle}`}
-          className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <Download className="h-4 w-4" />
-        </button>
-      )}
       {onEdit && (
         <button
           type="button"
@@ -341,7 +318,6 @@ export function SynthesePage() {
   const association = useActiveAssociation();
   const { has } = usePermissions();
   const canManage = has(PERMISSIONS.TRESORERIE_MANAGE);
-  const canExport = has(PERMISSIONS.REPORT_VIEW);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CompteTresorerie | null>(null);
@@ -403,33 +379,14 @@ export function SynthesePage() {
               : 'Vue d’ensemble'}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <PeriodControl
-            preset={preset}
-            onPreset={setPreset}
-            customFrom={customFrom}
-            customTo={customTo}
-            onCustomFrom={setCustomFrom}
-            onCustomTo={setCustomTo}
-          />
-          {canExport && (
-            <ExportMenu
-              label="États"
-              groups={[
-                {
-                  heading: 'États comptables',
-                  items: [
-                    {
-                      label: 'Compte de résultat (PDF)',
-                      url: accountingApi.compteResultatPdfUrl(associationId, params),
-                    },
-                    { label: 'Bilan (PDF)', url: accountingApi.bilanPdfUrl(associationId, params) },
-                  ],
-                },
-              ]}
-            />
-          )}
-        </div>
+        <PeriodControl
+          preset={preset}
+          onPreset={setPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFrom={setCustomFrom}
+          onCustomTo={setCustomTo}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -485,8 +442,6 @@ export function SynthesePage() {
                 key={compte.id}
                 compte={compte}
                 onEdit={canManage ? () => openEdit(compte) : undefined}
-                releveHref={accountingApi.relevePdfUrl(associationId, compte.id, params)}
-                canExport={canExport}
               />
             ))}
           </div>
