@@ -5,7 +5,14 @@ hierarchy is monotonic, ADMIN is a complete superset, and read-only roles never
 gain a write capability by accident.
 """
 
-from authz import ROLE_PERMISSIONS, Permission, has_permission, permissions_for
+from authz import (
+    PERMISSION_CATALOG,
+    ROLE_PERMISSIONS,
+    Permission,
+    effective_permissions,
+    has_permission,
+    permissions_for,
+)
 from models import Role
 
 # Permissions that must never be granted to a read-only (VIEWER) role.
@@ -118,3 +125,68 @@ def test_role_values_are_stable():
         "treasurer",
         "viewer",
     }
+
+
+# --------------------------------------------------------------------------- #
+# Effective permissions (T8): per-member overrides + custom preset base.
+# --------------------------------------------------------------------------- #
+def test_effective_without_override_equals_role():
+    for role in Role:
+        assert effective_permissions(role) == permissions_for(role)
+        assert effective_permissions(role, None, {}) == permissions_for(role)
+
+
+def test_admin_is_immune_to_overrides():
+    # An admin always holds every permission; a revoke override cannot strip it,
+    # so an association can never be locked out of administration.
+    overrides = {p.value: False for p in Permission}
+    assert effective_permissions(Role.ADMIN, None, overrides) == frozenset(Permission)
+    # Even with a restrictive custom preset, an admin stays a full superset.
+    assert effective_permissions(
+        Role.ADMIN, frozenset({Permission.DASHBOARD_VIEW}), overrides
+    ) == frozenset(Permission)
+
+
+def test_grant_override_adds_a_permission_above_the_role():
+    # A viewer granted TIERS_MANAGE gains exactly that, nothing else.
+    eff = effective_permissions(
+        Role.VIEWER, None, {Permission.TIERS_MANAGE.value: True}
+    )
+    assert Permission.TIERS_MANAGE in eff
+    assert eff == permissions_for(Role.VIEWER) | {Permission.TIERS_MANAGE}
+
+
+def test_revoke_override_removes_a_permission_from_the_role():
+    # A treasurer can have a single capability revoked.
+    eff = effective_permissions(
+        Role.TREASURER, None, {Permission.DONATION_MANAGE.value: False}
+    )
+    assert Permission.DONATION_MANAGE not in eff
+    assert eff == permissions_for(Role.TREASURER) - {Permission.DONATION_MANAGE}
+
+
+def test_custom_preset_replaces_the_role_base():
+    # With a preset assigned, the base is the preset's set (not the role's),
+    # then overrides apply on top.
+    preset = frozenset({Permission.DASHBOARD_VIEW, Permission.REPORT_VIEW})
+    eff = effective_permissions(
+        Role.VIEWER, preset, {Permission.BUDGET_MANAGE.value: True}
+    )
+    assert eff == preset | {Permission.BUDGET_MANAGE}
+
+
+def test_unknown_override_keys_are_ignored():
+    # Defensive: a stale/forged key in the stored overrides changes nothing.
+    eff = effective_permissions(
+        Role.TREASURER, None, {"not:a:permission": True, "also-bogus": False}
+    )
+    assert eff == permissions_for(Role.TREASURER)
+
+
+def test_permission_catalog_covers_every_permission_once():
+    catalog_perms = [info.permission for info in PERMISSION_CATALOG]
+    assert set(catalog_perms) == set(Permission)
+    assert len(catalog_perms) == len(Permission)  # no duplicates
+    # Every entry carries a human group + label for the admin UI.
+    for info in PERMISSION_CATALOG:
+        assert info.group and info.label

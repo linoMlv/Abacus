@@ -27,10 +27,10 @@ from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
 from sqlmodel import Session, select
 
-from authz import Permission, has_permission
+from authz import Permission, effective_permissions
 from database import get_session
 from dependencies import get_token
-from models import Membership, MembershipStatus, Role, User
+from models import Membership, MembershipStatus, PermissionPreset, Role, User
 from security import ALGORITHM, SECRET_KEY
 
 USER_TOKEN_TYPE = "user"
@@ -111,12 +111,38 @@ def owned_or_404(
 
 @dataclass(frozen=True)
 class AccessContext:
-    """Authenticated user resolved against one association they may access."""
+    """Authenticated user resolved against one association they may access.
+
+    ``permissions`` is the server-authoritative effective set for this membership
+    (role/preset base ± per-member overrides; ADMIN immune) — the single source
+    every route and the UI gating should rely on.
+    """
 
     user: User
     association_id: str
     role: Role
     membership: Membership
+    permissions: frozenset[Permission]
+
+
+def _resolve_permissions(
+    session: Session, membership: Membership, association_id: str
+) -> frozenset[Permission]:
+    """Compute the effective permissions of ``membership`` (T8).
+
+    Loads the assigned custom preset (tenant-scoped; a foreign or missing preset
+    is ignored, falling back to the role base) and applies the per-member
+    overrides via :func:`authz.effective_permissions`.
+    """
+    preset_permissions: frozenset[Permission] | None = None
+    if membership.preset_id is not None:
+        preset = session.get(PermissionPreset, membership.preset_id)
+        if preset is not None and preset.association_id == association_id:
+            values = set(preset.permissions)
+            preset_permissions = frozenset(p for p in Permission if p.value in values)
+    return effective_permissions(
+        membership.role, preset_permissions, membership.permission_overrides
+    )
 
 
 def get_active_membership(
@@ -151,6 +177,7 @@ def get_active_membership(
         association_id=association_id,
         role=membership.role,
         membership=membership,
+        permissions=_resolve_permissions(session, membership, association_id),
     )
 
 
@@ -167,7 +194,7 @@ def require_permission(permission: Permission):
     def _dependency(
         ctx: AccessContext = Depends(get_active_membership),
     ) -> AccessContext:
-        if not has_permission(ctx.role, permission):
+        if permission not in ctx.permissions:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Insufficient permissions",

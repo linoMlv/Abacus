@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import JSON, Column, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -234,6 +234,39 @@ class Membership(SQLModel, table=True):
     role: Role
     status: MembershipStatus = Field(default=MembershipStatus.ACTIVE)
     invited_by: str | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(default_factory=_utcnow)
+    # Fine-grained access (T8): an optional custom preset that replaces the role's
+    # permission base, plus a per-member ``{permission_value: bool}`` override map
+    # (grant=True / revoke=False). Effective permissions are computed server-side
+    # in ``authz.effective_permissions`` (ADMIN stays immune). Cf. plan §2/§15.10.
+    preset_id: str | None = Field(
+        default=None, foreign_key="permission_preset.id", index=True
+    )
+    permission_overrides: dict[str, bool] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+
+
+class PermissionPreset(SQLModel, table=True):
+    """A reusable, association-owned named permission set (custom role, T8).
+
+    Assigned to a ``Membership`` via ``preset_id`` to replace the built-in role's
+    permission base; per-member overrides then refine it. Tenant-scoped; its name
+    is unique per association. ``permissions`` holds stable permission *values*
+    (``domain:action``); unknown values are ignored when computing effective sets.
+    """
+
+    __tablename__ = "permission_preset"
+    __table_args__ = (
+        UniqueConstraint("association_id", "nom", name="uq_preset_assoc_nom"),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    nom: str
+    permissions: list[str] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False)
+    )
     created_at: datetime = Field(default_factory=_utcnow)
 
 
