@@ -10,6 +10,7 @@ import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
 import { EvenementsPage } from '@/pages/EvenementsPage';
 import { JournalPage } from '@/pages/JournalPage';
 import { OnboardingSoldesPage } from '@/pages/OnboardingSoldesPage';
+import { ParametresPage } from '@/pages/ParametresPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { SaisiePage } from '@/pages/SaisiePage';
 import { SynthesePage } from '@/pages/SynthesePage';
@@ -42,8 +43,12 @@ export default function App() {
             <Route path="journal" element={<JournalPage />} />
             <Route path="evenements" element={<EvenementsPage />} />
             <Route path="categories" element={<CategoriesPage />} />
+            <Route path="parametres" element={<ParametresPage />} />
             {ALL_NAV_ITEMS.filter(
-              (item) => !['synthese', 'saisie', 'journal', 'evenements'].includes(item.segment)
+              (item) =>
+                !['synthese', 'saisie', 'journal', 'evenements', 'parametres'].includes(
+                  item.segment
+                )
             ).map((item) => (
               <Route key={item.segment} path={item.segment} element={<PlaceholderPage />} />
             ))}
