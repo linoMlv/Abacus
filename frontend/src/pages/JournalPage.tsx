@@ -357,7 +357,7 @@ export function JournalPage() {
       <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-6">
         {/* Faceted filters: a sidebar on desktop, a drawer on small screens. */}
         <aside className="hidden lg:block">
-          <Card className="sticky top-6 max-h-[calc(100dvh-3rem)] overflow-y-auto p-4">
+          <Card className="sticky top-6 p-4">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-ink">Filtres</h3>
               {activeCount > 0 && <ResetButton onClick={resetFilters} />}
@@ -537,7 +537,7 @@ function FilterGroup({
   count?: number;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
     <section className="border-t border-hairline pt-4 first:border-0 first:pt-0">
       <button

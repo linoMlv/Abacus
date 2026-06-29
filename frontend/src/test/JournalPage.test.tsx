@@ -176,6 +176,11 @@ beforeEach(() => {
   });
 });
 
+/** Filter sections are accordions, collapsed by default: open one to reach its controls. */
+async function openFilterSection(name: RegExp) {
+  await userEvent.click(screen.getByRole('button', { name }));
+}
+
 describe('JournalPage', () => {
   it('lists the entries with their journal code', async () => {
     renderPage();
@@ -188,6 +193,7 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
+    await openFilterSection(/Statut/);
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Brouillon' }));
 
     await waitFor(() =>
@@ -202,6 +208,7 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
+    await openFilterSection(/Compte de trésorerie/);
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Banque' }));
 
     await waitFor(() =>
@@ -216,6 +223,7 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
+    await openFilterSection(/Type/);
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Recette' }));
     await userEvent.click(screen.getByRole('checkbox', { name: 'Virement' }));
 
@@ -231,8 +239,11 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
+    await openFilterSection(/Catégorie/);
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Cotisations' }));
+    await openFilterSection(/Tiers/);
     await userEvent.click(screen.getByRole('checkbox', { name: 'M. Dupont' }));
+    await openFilterSection(/Période/);
     await userEvent.type(screen.getByLabelText('Date de début'), '2026-06-01');
     await userEvent.type(screen.getByLabelText('Date de fin'), '2026-06-30');
 
@@ -253,6 +264,7 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
+    await openFilterSection(/Événement/);
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Gala' }));
 
     await waitFor(() =>
@@ -267,6 +279,7 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
+    await openFilterSection(/Type/);
     const virement = await screen.findByRole('checkbox', { name: 'Virement' });
     await userEvent.click(virement);
     const reset = await screen.findByRole('button', { name: /Réinitialiser/ });
@@ -280,18 +293,18 @@ describe('JournalPage', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
-    // Sections are expanded by default: the Type options are visible.
-    expect(screen.getByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
+    // Sections are collapsed by default: the Type options are hidden.
+    expect(screen.queryByRole('checkbox', { name: 'Recette' })).not.toBeInTheDocument();
 
-    // Collapsing the "Type" section removes its options from the DOM.
+    // Expanding the "Type" section reveals its options.
+    await userEvent.click(screen.getByRole('button', { name: /Type/ }));
+    expect(await screen.findByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
+
+    // Collapsing it again removes them from the DOM.
     await userEvent.click(screen.getByRole('button', { name: /Type/ }));
     await waitFor(() =>
       expect(screen.queryByRole('checkbox', { name: 'Recette' })).not.toBeInTheDocument()
     );
-
-    // Expanding it again brings them back.
-    await userEvent.click(screen.getByRole('button', { name: /Type/ }));
-    expect(await screen.findByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
   });
 
   it('opens the filters in a drawer on small screens', async () => {
@@ -300,8 +313,9 @@ describe('JournalPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Filtres/ }));
     const drawer = await screen.findByRole('dialog');
-    // The same faceted filters are available inside the drawer.
-    expect(within(drawer).getByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
+    // The same faceted filters are available inside the drawer (accordion, collapsed).
+    await userEvent.click(within(drawer).getByRole('button', { name: /Type/ }));
+    expect(await within(drawer).findByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
   });
 
   it('validates the selected entries in bulk', async () => {
