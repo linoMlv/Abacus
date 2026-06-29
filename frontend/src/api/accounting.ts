@@ -210,6 +210,12 @@ export interface JournalFilters {
   offset?: number;
 }
 
+/** Outcome of a best-effort bulk action: ids processed and ids ignored (with reason). */
+export interface BulkResult {
+  traitees: string[];
+  ignorees: { id: string; raison: string }[];
+}
+
 /** Body of an assisted (simple) recette/dépense entry. Amount as a decimal string. */
 export interface SaisieSimpleInput {
   categorie_id: string;
@@ -427,6 +433,10 @@ export const accountingApi = {
     api.post<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}/validation`),
   supprimerEcriture: (associationId: string, ecritureId: string) =>
     api.del<void>(`${base(associationId)}/ecritures/${ecritureId}`),
+  validerEcrituresGroupe: (associationId: string, ids: string[]) =>
+    api.post<BulkResult>(`${base(associationId)}/ecritures/validation-groupee`, { ids }),
+  supprimerEcrituresGroupe: (associationId: string, ids: string[]) =>
+    api.post<BulkResult>(`${base(associationId)}/ecritures/suppression-groupee`, { ids }),
   listTresorerie: (associationId: string, includeInactive = false) =>
     api.get<CompteTresorerie[]>(
       `${base(associationId)}/tresorerie${includeInactive ? '?include_inactive=true' : ''}`

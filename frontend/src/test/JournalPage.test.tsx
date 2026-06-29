@@ -14,6 +14,8 @@ const listEvenements = vi.fn();
 const getEcriture = vi.fn();
 const validerEcriture = vi.fn();
 const supprimerEcriture = vi.fn();
+const validerEcrituresGroupe = vi.fn();
+const supprimerEcrituresGroupe = vi.fn();
 const listJustificatifs = vi.fn();
 const uploadJustificatif = vi.fn();
 const supprimerJustificatif = vi.fn();
@@ -33,6 +35,8 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       getEcriture: (...a: unknown[]) => getEcriture(...a),
       validerEcriture: (...a: unknown[]) => validerEcriture(...a),
       supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
+      validerEcrituresGroupe: (...a: unknown[]) => validerEcrituresGroupe(...a),
+      supprimerEcrituresGroupe: (...a: unknown[]) => supprimerEcrituresGroupe(...a),
       listJustificatifs: (...a: unknown[]) => listJustificatifs(...a),
       uploadJustificatif: (...a: unknown[]) => uploadJustificatif(...a),
       supprimerJustificatif: (...a: unknown[]) => supprimerJustificatif(...a),
@@ -290,6 +294,30 @@ describe('JournalPage', () => {
     const drawer = await screen.findByRole('dialog');
     // The same faceted filters are available inside the drawer.
     expect(within(drawer).getByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
+  });
+
+  it('validates the selected entries in bulk', async () => {
+    validerEcrituresGroupe.mockResolvedValue({ traitees: ['e2'], ignorees: [] });
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /Sélectionner.*Cotisation Mars/ })
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Valider la sélection/ }));
+
+    await waitFor(() => expect(validerEcrituresGroupe).toHaveBeenCalledWith('A', ['e2']));
+  });
+
+  it('selecting a row does not open the detail drawer', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /Sélectionner.*Cotisation Mars/ })
+    );
+    // The detail dialog must not have opened from ticking the row.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('opens the detail and validates a draft', async () => {

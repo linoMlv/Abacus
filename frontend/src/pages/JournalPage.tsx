@@ -97,8 +97,12 @@ function useDebounced<T>(value: T, delayMs = 250): T {
 export function JournalPage() {
   const { associationId } = useParams() as { associationId: string };
   const { has } = usePermissions();
+  const queryClient = useQueryClient();
   const canExport = has(PERMISSIONS.REPORT_VIEW);
   const canCreate = has(PERMISSIONS.ENTRY_CREATE_SIMPLE);
+  const canValidate = has(PERMISSIONS.ENTRY_VALIDATE);
+  const canDelete = has(PERMISSIONS.ENTRY_DELETE);
+  const canSelect = canValidate || canDelete;
   const navigate = useNavigate();
 
   const [statuts, setStatuts] = useState<EcritureStatut[]>([]);
@@ -172,7 +176,56 @@ export function JournalPage() {
       }),
   });
 
-  const rows = ecrituresQuery.data ?? [];
+  const rows = useMemo(() => ecrituresQuery.data ?? [], [ecrituresQuery.data]);
+
+  // Bulk selection: kept as a set of ids, intersected with the visible rows so a
+  // filter change never carries a stale, off-screen selection into an action.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
+  const [bulkNotice, setBulkNotice] = useState<string | null>(null);
+  const rowIds = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
+  const selected = useMemo(() => selectedIds.filter((id) => rowIds.has(id)), [selectedIds, rowIds]);
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+  function toggleAll() {
+    setSelectedIds((prev) => (prev.length >= rows.length ? [] : rows.map((r) => r.id)));
+  }
+  function clearSelection() {
+    setSelectedIds([]);
+    setConfirmingBulkDelete(false);
+  }
+
+  const invalidateAfterBulk = () => {
+    queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
+    queryClient.invalidateQueries({ queryKey: ['balance', associationId] });
+    queryClient.invalidateQueries({ queryKey: ['synthese', associationId] });
+  };
+
+  function bulkSummary(verb: string, result: { traitees: string[]; ignorees: unknown[] }) {
+    const ignored = result.ignorees.length;
+    return ignored > 0
+      ? `${result.traitees.length} ${verb}, ${ignored} ignorée${ignored > 1 ? 's' : ''}.`
+      : `${result.traitees.length} ${verb}.`;
+  }
+
+  const bulkValidate = useMutation({
+    mutationFn: (ids: string[]) => accountingApi.validerEcrituresGroupe(associationId, ids),
+    onSuccess: (result) => {
+      invalidateAfterBulk();
+      clearSelection();
+      setBulkNotice(bulkSummary('validée(s)', result));
+    },
+  });
+  const bulkDelete = useMutation({
+    mutationFn: (ids: string[]) => accountingApi.supprimerEcrituresGroupe(associationId, ids),
+    onSuccess: (result) => {
+      invalidateAfterBulk();
+      clearSelection();
+      setBulkNotice(bulkSummary('supprimée(s)', result));
+    },
+  });
 
   const facets: Facet[] = [
     {
@@ -360,12 +413,86 @@ export function JournalPage() {
             </button>
           </div>
 
+          {bulkNotice && (
+            <div
+              role="status"
+              className="rounded-lg border border-recette/20 bg-recette-soft px-3.5 py-2.5 text-sm text-recette"
+            >
+              {bulkNotice}
+            </div>
+          )}
+
+          {canSelect && selected.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent-soft px-4 py-2.5 text-sm">
+              {confirmingBulkDelete ? (
+                <>
+                  <span className="flex-1 font-medium text-ink">
+                    Supprimer {selected.length} écriture{selected.length > 1 ? 's' : ''} ?
+                    (brouillons uniquement)
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={() => setConfirmingBulkDelete(false)}>
+                    Annuler
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={bulkDelete.isPending}
+                    onClick={() => bulkDelete.mutate(selected)}
+                  >
+                    Confirmer la suppression
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 font-medium text-ink">
+                    {selected.length} sélectionnée{selected.length > 1 ? 's' : ''}
+                  </span>
+                  {canValidate && (
+                    <Button
+                      variant="accent"
+                      size="sm"
+                      disabled={bulkValidate.isPending}
+                      onClick={() => bulkValidate.mutate(selected)}
+                    >
+                      <Check className="h-4 w-4" aria-hidden />
+                      Valider la sélection
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setConfirmingBulkDelete(true)}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                      Supprimer la sélection
+                    </Button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-xs font-medium text-muted hover:text-ink"
+                  >
+                    Désélectionner
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {ecrituresQuery.isError ? (
             <Alert>Impossible de charger les écritures.</Alert>
           ) : rows.length === 0 ? (
             <EmptyState associationId={associationId} filtered={hasFilters} />
           ) : (
-            <JournalTable rows={rows} onSelect={setSelectedId} />
+            <JournalTable
+              rows={rows}
+              onSelect={setSelectedId}
+              selectable={canSelect}
+              selectedIds={selected}
+              onToggleRow={toggleRow}
+              onToggleAll={toggleAll}
+            />
           )}
         </div>
       </div>
@@ -547,16 +674,37 @@ function EmptyState({ associationId, filtered }: { associationId: string; filter
 function JournalTable({
   rows,
   onSelect,
+  selectable,
+  selectedIds,
+  onToggleRow,
+  onToggleAll,
 }: {
   rows: EcritureListItem[];
   onSelect: (id: string) => void;
+  selectable: boolean;
+  selectedIds: string[];
+  onToggleRow: (id: string) => void;
+  onToggleAll: () => void;
 }) {
+  const selectedSet = new Set(selectedIds);
+  const allSelected = rows.length > 0 && selectedIds.length >= rows.length;
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] text-sm">
           <thead>
             <tr className="border-b border-hairline text-left text-xs uppercase tracking-wider text-faint">
+              {selectable && (
+                <th className="w-10 px-4 py-2.5">
+                  <input
+                    type="checkbox"
+                    aria-label="Tout sélectionner"
+                    className="h-4 w-4 rounded border-hairline accent-accent"
+                    checked={allSelected}
+                    onChange={onToggleAll}
+                  />
+                </th>
+              )}
               <th className="px-4 py-2.5 font-medium">Date</th>
               <th className="px-4 py-2.5 font-medium">Pièce</th>
               <th className="px-4 py-2.5 font-medium">Journal</th>
@@ -572,6 +720,17 @@ function JournalTable({
                 onClick={() => onSelect(e.id)}
                 className="cursor-pointer border-b border-hairline last:border-0 hover:bg-hover"
               >
+                {selectable && (
+                  <td className="px-4 py-2.5" onClick={(ev) => ev.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      aria-label={`Sélectionner « ${e.libelle} »`}
+                      className="h-4 w-4 rounded border-hairline accent-accent"
+                      checked={selectedSet.has(e.id)}
+                      onChange={() => onToggleRow(e.id)}
+                    />
+                  </td>
+                )}
                 <td className="whitespace-nowrap px-4 py-2.5 text-muted">{formatDate(e.date)}</td>
                 <td className="px-4 py-2.5 font-mono text-xs tabular-nums text-muted">
                   {e.numero_piece}
