@@ -109,6 +109,40 @@ def owned_or_404(
     return obj
 
 
+def find_membership(
+    session: Session, association_id: str, user_id: str
+) -> Membership | None:
+    """The membership of ``user_id`` in ``association_id``, or ``None``.
+
+    The shared (association, user) lookup — distinct from :func:`owned_or_404`,
+    which keys on a primary id.
+    """
+    return session.exec(
+        select(Membership).where(
+            Membership.association_id == association_id,
+            Membership.user_id == user_id,
+        )
+    ).first()
+
+
+def preset_permission_set(
+    session: Session, association_id: str, preset_id: str | None
+) -> frozenset[Permission] | None:
+    """The tenant-scoped permission set of a custom preset, or ``None``.
+
+    ``None`` when there is no preset, or the referenced preset is missing or
+    belongs to another association — the caller then falls back to the role base.
+    The single resolver shared by request authorization and the permissions API.
+    """
+    if preset_id is None:
+        return None
+    preset = session.get(PermissionPreset, preset_id)
+    if preset is None or preset.association_id != association_id:
+        return None
+    values = set(preset.permissions)
+    return frozenset(p for p in Permission if p.value in values)
+
+
 @dataclass(frozen=True)
 class AccessContext:
     """Authenticated user resolved against one association they may access.
@@ -130,16 +164,13 @@ def _resolve_permissions(
 ) -> frozenset[Permission]:
     """Compute the effective permissions of ``membership`` (T8).
 
-    Loads the assigned custom preset (tenant-scoped; a foreign or missing preset
-    is ignored, falling back to the role base) and applies the per-member
-    overrides via :func:`authz.effective_permissions`.
+    Resolves the assigned custom preset (tenant-scoped; a foreign or missing
+    preset falls back to the role base) and applies the per-member overrides via
+    :func:`authz.effective_permissions`.
     """
-    preset_permissions: frozenset[Permission] | None = None
-    if membership.preset_id is not None:
-        preset = session.get(PermissionPreset, membership.preset_id)
-        if preset is not None and preset.association_id == association_id:
-            values = set(preset.permissions)
-            preset_permissions = frozenset(p for p in Permission if p.value in values)
+    preset_permissions = preset_permission_set(
+        session, association_id, membership.preset_id
+    )
     return effective_permissions(
         membership.role, preset_permissions, membership.permission_overrides
     )

@@ -22,6 +22,7 @@ from auth_context import (
     USER_TOKEN_TYPE,
     AccessContext,
     decode_user_token,
+    find_membership,
     get_active_membership,
     get_current_user,
     owned_or_404,
@@ -252,17 +253,6 @@ def _optional_current_user(request: Request, session: Session) -> User | None:
         return None
     token = raw.split(" ", 1)[1] if raw.startswith("Bearer ") else raw
     return decode_user_token(token, session)
-
-
-def _get_membership(
-    session: Session, association_id: str, user_id: str
-) -> Membership | None:
-    return session.exec(
-        select(Membership).where(
-            Membership.association_id == association_id,
-            Membership.user_id == user_id,
-        )
-    ).first()
 
 
 def _is_last_active_admin(session: Session, membership: Membership) -> bool:
@@ -552,7 +542,7 @@ def update_member(
     ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
     session: Session = Depends(get_session),
 ):
-    membership = _get_membership(session, ctx.association_id, user_id)
+    membership = find_membership(session, ctx.association_id, user_id)
     if membership is None:
         raise HTTPException(status_code=404, detail="Member not found")
 
@@ -588,7 +578,7 @@ def remove_member(
     ctx: AccessContext = Depends(require_permission(Permission.MEMBER_MANAGE)),
     session: Session = Depends(get_session),
 ):
-    membership = _get_membership(session, ctx.association_id, user_id)
+    membership = find_membership(session, ctx.association_id, user_id)
     if membership is None:
         raise HTTPException(status_code=404, detail="Member not found")
 
@@ -630,7 +620,7 @@ def create_invitation(
 
     # Reject inviting someone who is already a member of this association.
     existing_user = session.exec(select(User).where(User.email == email)).first()
-    if existing_user and _get_membership(session, ctx.association_id, existing_user.id):
+    if existing_user and find_membership(session, ctx.association_id, existing_user.id):
         raise HTTPException(status_code=400, detail="This person is already a member")
 
     # Keep a single live invitation per (association, email): drop prior ones.
@@ -780,7 +770,7 @@ def accept_invitation(
         session.refresh(acting)
         issue_session = True
 
-    if _get_membership(session, invitation.association_id, acting.id) is None:
+    if find_membership(session, invitation.association_id, acting.id) is None:
         session.add(
             Membership(
                 user_id=acting.id,

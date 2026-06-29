@@ -19,15 +19,12 @@ from sqlmodel import Session, select
 
 from auth_context import (
     AccessContext,
+    find_membership,
     owned_or_404,
+    preset_permission_set,
     require_permission,
 )
-from authz import (
-    PERMISSION_CATALOG,
-    ROLE_PERMISSIONS,
-    Permission,
-    effective_permissions,
-)
+from authz import PERMISSION_CATALOG, Permission, effective_permissions
 from database import get_session
 from models import Membership, PermissionPreset, Role
 
@@ -80,14 +77,19 @@ class UpdatePresetRequest(BaseModel):
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
-def _validate_permission_values(values: list[str]) -> list[str]:
-    """Canonicalize a list of permission values, or ``422`` on an unknown one."""
+def _reject_unknown_permissions(values: list[str]) -> None:
+    """Raise ``422`` if any value is not a known permission (``domain:action``)."""
     unknown = [v for v in values if v not in _PERMISSION_VALUES]
     if unknown:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Permissions inconnues : {', '.join(sorted(set(unknown)))}",
         )
+
+
+def _validate_permission_values(values: list[str]) -> list[str]:
+    """Canonicalize a list of permission values, or ``422`` on an unknown one."""
+    _reject_unknown_permissions(values)
     # Stable order following the catalog; de-duplicated.
     seen = set(values)
     return [
@@ -98,50 +100,27 @@ def _validate_permission_values(values: list[str]) -> list[str]:
 
 
 def _member_or_404(session: Session, association_id: str, user_id: str) -> Membership:
-    membership = session.exec(
-        select(Membership).where(
-            Membership.association_id == association_id,
-            Membership.user_id == user_id,
-        )
-    ).first()
+    membership = find_membership(session, association_id, user_id)
     if membership is None:
         raise HTTPException(status_code=404, detail="Member not found")
     return membership
 
 
-def _preset_permission_set(
-    session: Session, association_id: str, preset_id: str | None
-) -> frozenset[Permission] | None:
-    if preset_id is None:
-        return None
-    preset = session.get(PermissionPreset, preset_id)
-    if preset is None or preset.association_id != association_id:
-        return None
-    values = set(preset.permissions)
-    return frozenset(p for p in Permission if p.value in values)
-
-
 def _member_permissions_read(
     session: Session, association_id: str, membership: Membership
 ) -> MemberPermissionsRead:
-    is_admin = membership.role is Role.ADMIN
-    preset_set = _preset_permission_set(session, association_id, membership.preset_id)
-    # Base shown to the UI before overrides: all (admin), the preset set when one
-    # is assigned, else the built-in role's set.
-    if is_admin:
-        base_set: frozenset[Permission] = frozenset(Permission)
-    elif preset_set is not None:
-        base_set = preset_set
-    else:
-        base_set = ROLE_PERMISSIONS[membership.role]
-    role_set = frozenset(Permission) if is_admin else ROLE_PERMISSIONS[membership.role]
+    # Base/role sets reuse the single engine (admin → all, preset replaces role),
+    # so the admin-immunity invariant lives only in effective_permissions.
+    preset_set = preset_permission_set(session, association_id, membership.preset_id)
+    base_set = effective_permissions(membership.role, preset_set)
+    role_set = effective_permissions(membership.role)
     effective = effective_permissions(
         membership.role, preset_set, membership.permission_overrides
     )
     return MemberPermissionsRead(
         user_id=membership.user_id,
         role=membership.role,
-        is_admin=is_admin,
+        is_admin=membership.role is Role.ADMIN,
         preset_id=membership.preset_id,
         role_permissions=sorted(p.value for p in role_set),
         base_permissions=sorted(p.value for p in base_set),
@@ -205,13 +184,8 @@ def set_member_permissions(
             "Preset introuvable",
         )
 
-    # Only keep known overrides; reject unknown keys explicitly.
-    unknown = [k for k in body.overrides if k not in _PERMISSION_VALUES]
-    if unknown:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Permissions inconnues : {', '.join(sorted(set(unknown)))}",
-        )
+    # Reject unknown override keys explicitly.
+    _reject_unknown_permissions(list(body.overrides))
 
     membership.preset_id = body.preset_id
     membership.permission_overrides = dict(body.overrides)
