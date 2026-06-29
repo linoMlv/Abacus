@@ -8,6 +8,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   accountingApi,
   type Categorie,
+  type CompteTresorerie,
   type Ecriture,
   type EcritureContenu,
   type Evenement,
@@ -48,6 +49,20 @@ function today(): string {
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="mt-1 text-xs text-depense">{message}</p>;
+}
+
+/** The named treasury accounts as <option>s (with a placeholder when empty). */
+function CompteOptions({ comptes }: { comptes: CompteTresorerie[] }) {
+  return (
+    <>
+      {comptes.length === 0 && <option value="">—</option>}
+      {comptes.map((c) => (
+        <option key={c.id} value={c.id}>
+          {c.libelle}
+        </option>
+      ))}
+    </>
+  );
 }
 
 /** The total amount of an entry (Σ debit = Σ credit), as a "0.00" string. */
@@ -311,28 +326,11 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
 
     setSuccess(null);
     setBusy(true);
-    const common = {
-      montant: amountToDecimalString(values.montant),
-      date: values.date,
-      libelle: values.libelle?.trim() || undefined,
-      reference_externe: values.reference_externe?.trim() || undefined,
-      mode_reglement: values.mode_reglement || undefined,
-    };
+    const contenu = contenuFor(values);
     try {
-      const ecriture =
-        values.type === 'virement'
-          ? await virementMutation.mutateAsync({
-              compte_source_id: values.compte_source_id,
-              compte_destination_id: values.compte_destination_id,
-              ...common,
-            })
-          : await simpleMutation.mutateAsync({
-              categorie_id: values.categorie_id,
-              compte_tresorerie_id: values.compte_tresorerie_id,
-              tiers_id: values.tiers_id || undefined,
-              evenement_id: values.evenement_id || undefined,
-              ...common,
-            });
+      const ecriture = contenu.virement
+        ? await virementMutation.mutateAsync(contenu.virement)
+        : await simpleMutation.mutateAsync(contenu.simple!);
 
       // The entry now exists: attach the chosen files to it.
       let failed = 0;
@@ -460,12 +458,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
             <div>
               <Label htmlFor="compte_source_id">Compte de départ</Label>
               <Select id="compte_source_id" className="mt-1.5" {...register('compte_source_id')}>
-                {comptes.length === 0 && <option value="">—</option>}
-                {comptes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.libelle}
-                  </option>
-                ))}
+                <CompteOptions comptes={comptes} />
               </Select>
               <FieldError message={errors.compte_source_id?.message} />
             </div>
@@ -476,12 +469,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
                 className="mt-1.5"
                 {...register('compte_destination_id')}
               >
-                {comptes.length === 0 && <option value="">—</option>}
-                {comptes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.libelle}
-                  </option>
-                ))}
+                <CompteOptions comptes={comptes} />
               </Select>
               <FieldError message={errors.compte_destination_id?.message} />
             </div>
@@ -540,12 +528,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
               className="mt-1.5"
               {...register('compte_tresorerie_id')}
             >
-              {comptes.length === 0 && <option value="">—</option>}
-              {comptes.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.libelle}
-                </option>
-              ))}
+              <CompteOptions comptes={comptes} />
             </Select>
             <FieldError message={errors.compte_tresorerie_id?.message} />
           </div>

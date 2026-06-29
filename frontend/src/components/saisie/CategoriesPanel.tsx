@@ -45,10 +45,12 @@ export function CategoriesPanel() {
   });
 
   const reorder = useMutation({
-    mutationFn: async ({ a, b }: { a: Categorie; b: Categorie }) => {
-      await accountingApi.modifierCategorie(associationId, a.id, { ordre: b.ordre });
-      await accountingApi.modifierCategorie(associationId, b.id, { ordre: a.ordre });
-    },
+    // The two swaps are independent — run them together rather than back to back.
+    mutationFn: ({ a, b }: { a: Categorie; b: Categorie }) =>
+      Promise.all([
+        accountingApi.modifierCategorie(associationId, a.id, { ordre: b.ordre }),
+        accountingApi.modifierCategorie(associationId, b.id, { ordre: a.ordre }),
+      ]),
     onSuccess: invalidate,
   });
 
