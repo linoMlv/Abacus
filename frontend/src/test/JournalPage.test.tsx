@@ -264,6 +264,24 @@ describe('JournalPage', () => {
     expect(screen.queryByRole('button', { name: /Réinitialiser/ })).not.toBeInTheDocument();
   });
 
+  it('collapses and expands a filter section (accordion)', async () => {
+    renderPage();
+    await screen.findByText('Cotisation Mars');
+
+    // Sections are expanded by default: the Type options are visible.
+    expect(screen.getByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
+
+    // Collapsing the "Type" section removes its options from the DOM.
+    await userEvent.click(screen.getByRole('button', { name: /Type/ }));
+    await waitFor(() =>
+      expect(screen.queryByRole('checkbox', { name: 'Recette' })).not.toBeInTheDocument()
+    );
+
+    // Expanding it again brings them back.
+    await userEvent.click(screen.getByRole('button', { name: /Type/ }));
+    expect(await screen.findByRole('checkbox', { name: 'Recette' })).toBeInTheDocument();
+  });
+
   it('opens the filters in a drawer on small screens', async () => {
     renderPage();
     await screen.findByText('Cotisation Mars');

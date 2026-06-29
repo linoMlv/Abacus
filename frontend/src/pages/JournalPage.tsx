@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Eye, Paperclip, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Eye,
+  Paperclip,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from 'lucide-react';
 import {
   type Dispatch,
   type ReactNode,
@@ -412,17 +421,27 @@ function FilterGroup({
   count?: number;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(true);
   return (
     <section className="border-t border-hairline pt-4 first:border-0 first:pt-0">
-      <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-faint">
-        {title}
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center gap-2 text-xs font-semibold uppercase tracking-wider text-faint transition-colors hover:text-muted"
+      >
+        <ChevronDown
+          className={cn('h-3.5 w-3.5 shrink-0 transition-transform', !open && '-rotate-90')}
+          aria-hidden
+        />
+        <span className="flex-1 text-left">{title}</span>
         {count ? (
           <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-soft px-1 text-[10px] font-semibold normal-case text-accent">
             {count}
           </span>
         ) : null}
-      </h4>
-      {children}
+      </button>
+      {open && <div className="mt-2">{children}</div>}
     </section>
   );
 }
