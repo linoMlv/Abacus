@@ -15,6 +15,8 @@ from sqlalchemy import func
 from sqlmodel import Session, SQLModel, asc, select
 
 from accounting_engine import (
+    CENTS,
+    ZERO,
     EntryError,
     build_ecriture_a_nouveau,
     find_open_exercice,
@@ -42,8 +44,6 @@ from models import (
 )
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["tresorerie"])
-
-ZERO = Decimal("0.00")
 
 # ANC account-number prefix per treasury type: physical cash -> 531, everything
 # financial (bank, online, savings, other) -> 512 (cf. §15.4 "512/551").
@@ -337,7 +337,7 @@ def set_solde_initial(
         session.delete(entry)
     session.flush()  # apply the deletions before re-posting / renumbering
 
-    montant = body.montant.quantize(Decimal("0.01"))
+    montant = body.montant.quantize(CENTS)
     if montant != ZERO:
         jour = body.date_solde_initial or date.today()
         _post_solde_initial(session, ctx, compte, montant, jour)

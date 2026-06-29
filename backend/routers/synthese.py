@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlmodel import Session, asc, select
 
-from accounting_engine import find_open_exercice
+from accounting_engine import CENTS, ZERO, find_open_exercice
 from auth_context import AccessContext, require_permission
 from authz import Permission
 from database import get_session
@@ -46,8 +46,6 @@ from models import (
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["synthese"])
 
-CENTS = Decimal("0.01")
-ZERO = Decimal("0.00")
 # Income-statement classes: charges (6) and produits (7).
 _CHARGE, _PRODUIT = 6, 7
 

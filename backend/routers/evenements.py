@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, SQLModel, asc, select
 
+from accounting_engine import CENTS, ZERO
 from audit import AuditAction, record_audit
 from auth_context import (
     AccessContext,
@@ -34,8 +35,8 @@ from models import (
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["evenements"])
 
-CENTS = Decimal("0.01")
-ZERO = Decimal("0.00")
+# Income-statement classes: charges (6) and produits (7).
+_CHARGE, _PRODUIT = 6, 7
 
 # Fields a PATCH may set directly (None = left unchanged). ``nom`` is handled
 # apart because it is trimmed and checked for uniqueness.
@@ -96,7 +97,7 @@ def _realise(
         .where(
             Ecriture.association_id == association_id,
             Ecriture.evenement_id.is_not(None),
-            Compte.classe.in_([6, 7]),
+            Compte.classe.in_([_CHARGE, _PRODUIT]),
         )
         .group_by(Ecriture.evenement_id, Compte.classe)
     ).all()
@@ -105,9 +106,9 @@ def _realise(
         debit = Decimal(str(total_debit))
         credit = Decimal(str(total_credit))
         acc = out.setdefault(evenement_id, {"recettes": ZERO, "depenses": ZERO})
-        if classe == 7:
+        if classe == _PRODUIT:
             acc["recettes"] += credit - debit
-        else:  # classe 6
+        else:  # charge
             acc["depenses"] += debit - credit
     return {k: (v["recettes"], v["depenses"]) for k, v in out.items()}
 
