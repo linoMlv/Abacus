@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, ChevronDown, Paperclip, Plus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import {
   accountingApi,
@@ -19,6 +19,9 @@ import {
 import { apiErrorMessage } from '@/api/client';
 import { CategorieDialog } from '@/components/CategorieDialog';
 import { EvenementDialog } from '@/components/EvenementDialog';
+import { CategoriesPanel } from '@/components/saisie/CategoriesPanel';
+import { EvenementsPanel } from '@/components/saisie/EvenementsPanel';
+import { TiersPanel } from '@/components/saisie/TiersPanel';
 import { TiersDialog } from '@/components/TiersDialog';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -38,6 +41,70 @@ import {
   type SaisieForm,
 } from './saisie.schema';
 
+const SAISIE_TABS = [
+  { key: 'operations', label: 'Opérations' },
+  { key: 'categories', label: 'Catégories' },
+  { key: 'tiers', label: 'Tiers' },
+  { key: 'evenements', label: 'Événements' },
+] as const;
+type SaisieTab = (typeof SAISIE_TABS)[number]['key'];
+
+/**
+ * The "create / modify" hub: operations plus the management of the things an
+ * operation references (categories, tiers, events). The active tab is reflected
+ * in the URL (`?tab=`) so deep links (e.g. "manage events" from the dashboard)
+ * land on the right section.
+ */
+export function SaisiePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const raw = searchParams.get('tab');
+  const active: SaisieTab = SAISIE_TABS.some((t) => t.key === raw)
+    ? (raw as SaisieTab)
+    : 'operations';
+
+  function selectTab(key: SaisieTab) {
+    setSearchParams(key === 'operations' ? {} : { tab: key }, { replace: true });
+  }
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight text-ink">Saisie</h2>
+        <p className="mt-1 text-sm text-muted">
+          Enregistrez vos opérations et gérez catégories, tiers et événements.
+        </p>
+      </div>
+
+      <div className="border-b border-hairline">
+        <div role="tablist" aria-label="Sections de saisie" className="-mb-px flex flex-wrap gap-1">
+          {SAISIE_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={active === t.key}
+              onClick={() => selectTab(t.key)}
+              className={cn(
+                'border-b-2 px-3.5 py-2 text-sm font-medium transition-colors',
+                active === t.key
+                  ? 'border-accent text-accent'
+                  : 'border-transparent text-muted hover:text-ink'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {active === 'operations' && <OperationsTab />}
+      {active === 'categories' && <CategoriesPanel />}
+      {active === 'tiers' && <TiersPanel />}
+      {active === 'evenements' && <EvenementsPanel />}
+    </div>
+  );
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -48,7 +115,7 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-1 text-xs text-depense">{message}</p>;
 }
 
-export function SaisiePage() {
+function OperationsTab() {
   const { associationId } = useParams() as { associationId: string };
   const { has } = usePermissions();
   const queryClient = useQueryClient();
@@ -284,12 +351,9 @@ export function SaisiePage() {
 
   if (!canEnter) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <Header />
-        <Card className="mt-6 p-6 text-sm text-muted">
-          Vous n’avez pas l’autorisation de saisir des opérations.
-        </Card>
-      </div>
+      <Card className="p-6 text-sm text-muted">
+        Vous n’avez pas l’autorisation de saisir des opérations.
+      </Card>
     );
   }
 
@@ -299,9 +363,7 @@ export function SaisiePage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <Header />
-
-      <Card className="mt-6 p-6">
+      <Card className="p-6">
         {/* Operation type — the only "accounting" concept a volunteer sees. */}
         <div className="grid grid-cols-3 gap-2" role="group" aria-label="Type d’opération">
           <TypeButton
@@ -627,7 +689,7 @@ export function SaisiePage() {
           <>
             {' · '}
             <Link
-              to={`/asso/${associationId}/categories`}
+              to={`/asso/${associationId}/saisie?tab=categories`}
               className="text-accent hover:text-accent-hover"
             >
               Gérer les catégories
@@ -665,17 +727,6 @@ export function SaisiePage() {
           onSaved={onEvenementCreated}
         />
       )}
-    </div>
-  );
-}
-
-function Header() {
-  return (
-    <div>
-      <h2 className="text-xl font-semibold tracking-tight text-ink">Saisie</h2>
-      <p className="mt-1 text-sm text-muted">
-        Enregistrez une recette, une dépense ou un virement ; la comptabilité suit toute seule.
-      </p>
     </div>
   );
 }

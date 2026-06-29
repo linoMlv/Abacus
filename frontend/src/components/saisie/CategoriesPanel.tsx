@@ -18,7 +18,8 @@ const SENS_SECTIONS: Array<{ sens: Sens; title: string }> = [
   { sens: 'depense', title: 'Dépenses' },
 ];
 
-export function CategoriesPage() {
+/** Manage the saisie categories (create / rename / reorder / archive). */
+export function CategoriesPanel() {
   const { associationId } = useParams() as { associationId: string };
   const { has } = usePermissions();
   const canManage = has(PERMISSIONS.CATEGORIE_MANAGE);
@@ -65,16 +66,11 @@ export function CategoriesPage() {
   const error = toggleActive.isError || reorder.isError ? 'Action impossible. Réessayez.' : null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight text-ink">Catégories</h2>
-          <p className="mt-1 text-sm text-muted">
-            Les natures d’opération de la saisie. Désactiver une catégorie la retire de la saisie
-            sans toucher aux écritures passées.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <p className="text-sm text-muted">
+        Les natures d’opération de la saisie. Désactiver une catégorie la retire de la saisie sans
+        toucher aux écritures passées.
+      </p>
 
       {error && <Alert>{error}</Alert>}
       {query.isError && <Alert>Impossible de charger les catégories.</Alert>}

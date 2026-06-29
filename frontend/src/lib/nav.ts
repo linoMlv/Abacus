@@ -1,7 +1,6 @@
 import {
   BookOpen,
   Building2,
-  CalendarRange,
   HeartHandshake,
   LayoutDashboard,
   ListTree,
@@ -11,7 +10,6 @@ import {
   Repeat,
   Settings,
   FileBarChart,
-  Users,
 } from 'lucide-react';
 
 import { PERMISSIONS, type Permission } from '@/lib/permissions';
@@ -52,14 +50,7 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: PERMISSIONS.ENTRY_CREATE_SIMPLE,
       },
       { segment: 'journal', label: 'Journal', icon: BookOpen, permission: PERMISSIONS.REPORT_VIEW },
-      {
-        segment: 'evenements',
-        label: 'Événements',
-        icon: CalendarRange,
-        permission: PERMISSIONS.REPORT_VIEW,
-      },
       { segment: 'comptes', label: 'Comptes', icon: ListTree, permission: PERMISSIONS.REPORT_VIEW },
-      { segment: 'tiers', label: 'Tiers', icon: Users, permission: PERMISSIONS.TIERS_MANAGE },
       {
         segment: 'banque',
         label: 'Banque',

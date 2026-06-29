@@ -24,7 +24,7 @@ vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Asso', role: 'treasurer', status: 'active' }),
 }));
 
-import { CategoriesPage } from '@/pages/CategoriesPage';
+import { CategoriesPanel } from '@/components/saisie/CategoriesPanel';
 
 const cat = (over: Partial<Record<string, unknown>>) => ({
   id: 'x',
@@ -47,9 +47,9 @@ function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/asso/A/categories']}>
+      <MemoryRouter initialEntries={['/asso/A/saisie']}>
         <Routes>
-          <Route path="/asso/:associationId/categories" element={<CategoriesPage />} />
+          <Route path="/asso/:associationId/saisie" element={<CategoriesPanel />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>

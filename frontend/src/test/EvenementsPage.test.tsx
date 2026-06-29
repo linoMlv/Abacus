@@ -30,7 +30,7 @@ vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Asso', role: 'treasurer', status: 'active' }),
 }));
 
-import { EvenementsPage } from '@/pages/EvenementsPage';
+import { EvenementsPanel } from '@/components/saisie/EvenementsPanel';
 
 const GALA = {
   id: 'ev1',
@@ -51,9 +51,9 @@ function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/asso/A/evenements']}>
+      <MemoryRouter initialEntries={['/asso/A/saisie']}>
         <Routes>
-          <Route path="/asso/:associationId/evenements" element={<EvenementsPage />} />
+          <Route path="/asso/:associationId/saisie" element={<EvenementsPanel />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>

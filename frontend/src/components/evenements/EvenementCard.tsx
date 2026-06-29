@@ -1,7 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CalendarRange, Download, Pencil, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { ArrowLeft, Pencil } from 'lucide-react';
 
 import {
   accountingApi,
@@ -9,15 +7,11 @@ import {
   type Evenement,
   EVENEMENT_STATUT_LABELS,
 } from '@/api/accounting';
-import { EvenementDialog } from '@/components/EvenementDialog';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { usePermissions } from '@/hooks/usePermissions';
-import { triggerDownload } from '@/lib/download';
 import { formatDate, formatEUR } from '@/lib/format';
-import { PERMISSIONS } from '@/lib/permissions';
 
 const ACCENT = 'var(--color-accent)';
 
@@ -25,7 +19,7 @@ function accentOf(evenement: Evenement): string {
   return evenement.couleur ?? ACCENT;
 }
 
-function StatutBadge({ evenement }: { evenement: Evenement }) {
+export function StatutBadge({ evenement }: { evenement: Evenement }) {
   return (
     <Badge variant={evenement.statut === 'actif' ? 'recette' : 'neutral'}>
       {EVENEMENT_STATUT_LABELS[evenement.statut]}
@@ -34,7 +28,7 @@ function StatutBadge({ evenement }: { evenement: Evenement }) {
 }
 
 /** A budget line: réalisé vs budget, with a progress bar tinted by direction. */
-function BudgetRow({
+export function BudgetRow({
   label,
   realise,
   budget,
@@ -79,7 +73,7 @@ function BudgetRow({
   );
 }
 
-function ResultatLine({ evenement }: { evenement: Evenement }) {
+export function ResultatLine({ evenement }: { evenement: Evenement }) {
   const value = Number(evenement.resultat);
   const tone = value > 0 ? 'text-recette' : value < 0 ? 'text-depense' : 'text-ink';
   return (
@@ -92,18 +86,15 @@ function ResultatLine({ evenement }: { evenement: Evenement }) {
   );
 }
 
-function EvenementCard({
+/** A budget-vs-réalisé card. ``onEdit`` is shown only where management is allowed. */
+export function EvenementCard({
   evenement,
   onOpen,
   onEdit,
-  bilanHref,
-  canExport,
 }: {
   evenement: Evenement;
   onOpen: () => void;
   onEdit?: () => void;
-  bilanHref: string;
-  canExport: boolean;
 }) {
   return (
     <Card className="flex flex-col overflow-hidden">
@@ -128,16 +119,6 @@ function EvenementCard({
           </button>
           <div className="flex shrink-0 items-center gap-1.5">
             <StatutBadge evenement={evenement} />
-            {canExport && (
-              <button
-                type="button"
-                onClick={() => triggerDownload(bilanHref)}
-                aria-label={`Bilan PDF de ${evenement.nom}`}
-                className="rounded-md p-1 text-faint transition-colors hover:bg-hover hover:text-ink"
-              >
-                <Download className="h-4 w-4" />
-              </button>
-            )}
             {onEdit && (
               <button
                 type="button"
@@ -171,8 +152,8 @@ function EvenementCard({
   );
 }
 
-/** Operations tagged to the open event (read-only). */
-function EvenementOperations({
+/** Operations tagged to an event (read-only). */
+export function EvenementOperations({
   associationId,
   evenementId,
 }: {
@@ -222,126 +203,17 @@ function EvenementOperations({
   );
 }
 
-export function EvenementsPage() {
-  const { associationId } = useParams() as { associationId: string };
-  const { has } = usePermissions();
-  const canManage = has(PERMISSIONS.EVENT_MANAGE);
-  const canExport = has(PERMISSIONS.REPORT_VIEW);
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Evenement | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  const query = useQuery({
-    queryKey: ['evenements', associationId],
-    queryFn: () => accountingApi.listEvenements(associationId),
-  });
-  const evenements = useMemo(() => query.data ?? [], [query.data]);
-  const open = openId ? (evenements.find((e) => e.id === openId) ?? null) : null;
-
-  function openCreate() {
-    setEditing(null);
-    setDialogOpen(true);
-  }
-
-  function openEdit(evenement: Evenement) {
-    setEditing(evenement);
-    setDialogOpen(true);
-  }
-
-  return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      {open ? (
-        <EvenementDetail
-          associationId={associationId}
-          evenement={open}
-          canManage={canManage}
-          onBack={() => setOpenId(null)}
-          onEdit={() => openEdit(open)}
-        />
-      ) : (
-        <>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight text-ink">Événements</h2>
-              <p className="mt-1 text-sm text-muted">
-                Suivez les recettes et dépenses de vos actions, budget à l’appui.
-              </p>
-            </div>
-            {canManage && (
-              <Button variant="accent" onClick={openCreate}>
-                <Plus className="h-4 w-4" aria-hidden />
-                Nouvel événement
-              </Button>
-            )}
-          </div>
-
-          {query.isError ? (
-            <Alert>Impossible de charger les événements.</Alert>
-          ) : evenements.length === 0 && !query.isLoading ? (
-            <EmptyState canManage={canManage} onCreate={openCreate} />
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {evenements.map((evenement) => (
-                <EvenementCard
-                  key={evenement.id}
-                  evenement={evenement}
-                  onOpen={() => setOpenId(evenement.id)}
-                  onEdit={canManage ? () => openEdit(evenement) : undefined}
-                  bilanHref={accountingApi.evenementBilanPdfUrl(associationId, evenement.id)}
-                  canExport={canExport}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {canManage && (
-        <EvenementDialog
-          associationId={associationId}
-          evenement={editing}
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-        />
-      )}
-    </div>
-  );
-}
-
-function EmptyState({ canManage, onCreate }: { canManage: boolean; onCreate: () => void }) {
-  return (
-    <Card className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent">
-        <CalendarRange className="h-5 w-5" aria-hidden />
-      </span>
-      <h3 className="text-base font-semibold text-ink">Aucun événement pour l’instant</h3>
-      <p className="max-w-sm text-sm text-muted">
-        Créez un événement (Gala, sortie, tournoi…) puis rattachez-y vos opérations pour suivre son
-        budget.
-      </p>
-      {canManage && (
-        <Button variant="accent" onClick={onCreate}>
-          <Plus className="h-4 w-4" aria-hidden />
-          Nouvel événement
-        </Button>
-      )}
-    </Card>
-  );
-}
-
-function EvenementDetail({
+/** Full event view: budget summary + tagged operations. Read-only unless ``onEdit``. */
+export function EvenementDetail({
   associationId,
   evenement,
-  canManage,
   onBack,
   onEdit,
 }: {
   associationId: string;
   evenement: Evenement;
-  canManage: boolean;
   onBack: () => void;
-  onEdit: () => void;
+  onEdit?: () => void;
 }) {
   return (
     <div className="space-y-6">
@@ -351,7 +223,7 @@ function EvenementDetail({
         className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
-        Tous les événements
+        Retour
       </button>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -371,7 +243,7 @@ function EvenementDetail({
             )}
           </div>
         </div>
-        {canManage && (
+        {onEdit && (
           <Button variant="outline" size="sm" onClick={onEdit}>
             <Pencil className="h-4 w-4" aria-hidden />
             Modifier

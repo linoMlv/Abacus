@@ -19,6 +19,7 @@ import {
   type SyntheseParams,
   TYPE_TRESORERIE_LABELS,
 } from '@/api/accounting';
+import { EvenementCard } from '@/components/evenements/EvenementCard';
 import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -255,7 +256,7 @@ function AlertesPanel({ synthese, associationId }: { synthese: Synthese; associa
       tone: 'depense',
       text: `« ${ev.nom} » dépasse son budget (${formatEUR(ev.realise_depenses)} / ${formatEUR(ev.budget_depenses)})`,
       action: 'Voir les événements',
-      onClick: () => navigate(`/asso/${associationId}/evenements`),
+      onClick: () => navigate(`/asso/${associationId}/saisie?tab=evenements`),
     });
   }
 
@@ -342,6 +343,13 @@ export function SynthesePage() {
     queryFn: () => accountingApi.getSynthese(associationId, params),
   });
   const synthese = syntheseQuery.data;
+
+  const evenementsQuery = useQuery({
+    queryKey: ['evenements', associationId],
+    queryFn: () => accountingApi.listEvenements(associationId),
+  });
+  const evenements = evenementsQuery.data ?? [];
+  const gererEvenements = () => navigate(`/asso/${associationId}/saisie?tab=evenements`);
 
   function openCreate() {
     setEditing(null);
@@ -447,6 +455,22 @@ export function SynthesePage() {
           </div>
         )}
       </section>
+
+      {evenements.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-ink-soft">Événements</h3>
+            <Button variant="ghost" size="sm" onClick={gererEvenements}>
+              Gérer
+            </Button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {evenements.map((evenement) => (
+              <EvenementCard key={evenement.id} evenement={evenement} onOpen={gererEvenements} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {syntheseQuery.isError ? (
         <Card className="p-5 text-sm text-muted">Impossible de charger la synthèse.</Card>
