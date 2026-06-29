@@ -124,9 +124,7 @@ def test_edit_validated_entry_is_409():
     admin, assoc = _admin_with_association("admin@example.com", "alpha")
     draft = _create_simple_draft(admin, assoc, "150.00")
     assert (
-        admin.post(
-            f"/api/asso/{assoc}/ecritures/{draft['id']}/validation"
-        ).status_code
+        admin.post(f"/api/asso/{assoc}/ecritures/{draft['id']}/validation").status_code
         == 200
     )
 

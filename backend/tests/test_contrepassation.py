@@ -99,9 +99,7 @@ def _validated_simple(client: TestClient, assoc_id: str, montant: str) -> dict:
     )
     assert created.status_code == 201, created.text
     entry = created.json()
-    validated = client.post(
-        f"/api/asso/{assoc_id}/ecritures/{entry['id']}/validation"
-    )
+    validated = client.post(f"/api/asso/{assoc_id}/ecritures/{entry['id']}/validation")
     assert validated.status_code == 200, validated.text
     return validated.json()
 
@@ -118,7 +116,7 @@ def test_contrepasser_validated_creates_a_linked_reversal_draft():
     assert extourne["extourne_de_id"] == original["id"]
     assert extourne["numero_piece"] != original["numero_piece"]
 
-    # Lines are the original's, swapped: original D 512 / C 75x → extourne D 75x / C 512.
+    # Lines are the original's, with debit/credit swapped.
     orig_lines = {
         ligne["compte_id"]: (ligne["debit"], ligne["credit"])
         for ligne in original["lignes"]
@@ -211,7 +209,5 @@ def test_contrepasser_requires_entry_delete(session: Session):
     original = _validated_simple(admin, assoc, "150.00")
     viewer = _member_client(session, assoc, "viewer@example.com", Role.VIEWER)
 
-    resp = viewer.post(
-        f"/api/asso/{assoc}/ecritures/{original['id']}/contrepassation"
-    )
+    resp = viewer.post(f"/api/asso/{assoc}/ecritures/{original['id']}/contrepassation")
     assert resp.status_code == 403, resp.text

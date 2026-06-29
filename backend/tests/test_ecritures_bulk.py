@@ -99,9 +99,7 @@ def _make_draft(client: TestClient, assoc_id: str, montant: str) -> str:
 
 def _validate(client: TestClient, assoc_id: str, entry_id: str) -> None:
     assert (
-        client.post(
-            f"/api/asso/{assoc_id}/ecritures/{entry_id}/validation"
-        ).status_code
+        client.post(f"/api/asso/{assoc_id}/ecritures/{entry_id}/validation").status_code
         == 200
     )
 
