@@ -14,7 +14,10 @@ const listEvenements = vi.fn();
 const getEcriture = vi.fn();
 const validerEcriture = vi.fn();
 const supprimerEcriture = vi.fn();
+const modifierEcriture = vi.fn();
 const contrepasserEcriture = vi.fn();
+const creerSaisieSimple = vi.fn();
+const creerVirement = vi.fn();
 const validerEcrituresGroupe = vi.fn();
 const supprimerEcrituresGroupe = vi.fn();
 const listJustificatifs = vi.fn();
@@ -36,7 +39,10 @@ vi.mock('@/api/accounting', async (importOriginal) => {
       getEcriture: (...a: unknown[]) => getEcriture(...a),
       validerEcriture: (...a: unknown[]) => validerEcriture(...a),
       supprimerEcriture: (...a: unknown[]) => supprimerEcriture(...a),
+      modifierEcriture: (...a: unknown[]) => modifierEcriture(...a),
       contrepasserEcriture: (...a: unknown[]) => contrepasserEcriture(...a),
+      creerSaisieSimple: (...a: unknown[]) => creerSaisieSimple(...a),
+      creerVirement: (...a: unknown[]) => creerVirement(...a),
       validerEcrituresGroupe: (...a: unknown[]) => validerEcrituresGroupe(...a),
       supprimerEcrituresGroupe: (...a: unknown[]) => supprimerEcrituresGroupe(...a),
       listJustificatifs: (...a: unknown[]) => listJustificatifs(...a),
@@ -348,6 +354,32 @@ describe('JournalPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Contre-passer/ }));
     await waitFor(() => expect(contrepasserEcriture).toHaveBeenCalledWith('A', 'e1'));
+  });
+
+  it('edits a draft inline from the drawer', async () => {
+    getEcriture.mockResolvedValue({ ...DETAIL, categorie_id: 'cat-co' });
+    modifierEcriture.mockResolvedValue({ ...DETAIL });
+    renderPage();
+    await userEvent.click(await screen.findByText('Cotisation Mars'));
+    await screen.findByRole('dialog');
+
+    await userEvent.click(screen.getByRole('button', { name: /Modifier/ }));
+
+    // The operation form opens, pre-filled from the entry (same form as creating).
+    await waitFor(() =>
+      expect((screen.getByLabelText('Catégorie') as HTMLSelectElement).value).toBe('cat-co')
+    );
+    const montant = screen.getByLabelText('Montant (€)');
+    await userEvent.clear(montant);
+    await userEvent.type(montant, '250,00');
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer les modifications/ }));
+
+    await waitFor(() => expect(modifierEcriture).toHaveBeenCalled());
+    const [assoc, id, contenu] = modifierEcriture.mock.calls[0];
+    expect(assoc).toBe('A');
+    expect(id).toBe('e2');
+    expect(contenu.simple.montant).toBe('250.00');
+    expect(contenu.simple.categorie_id).toBe('cat-co');
   });
 
   it('uploads a justificatif from the detail drawer', async () => {

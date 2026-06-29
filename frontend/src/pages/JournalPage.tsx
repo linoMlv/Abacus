@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Eye,
   Paperclip,
+  Pencil,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -35,6 +36,7 @@ import {
 import { apiErrorMessage } from '@/api/client';
 import { ExportMenu } from '@/components/ExportMenu';
 import { JustificatifViewer } from '@/components/JustificatifViewer';
+import { OperationForm } from '@/components/saisie/OperationForm';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -882,12 +884,14 @@ function EcritureDrawer({
   const queryClient = useQueryClient();
   const { has } = usePermissions();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) =>
+      e.key === 'Escape' && (editing ? setEditing(false) : onClose());
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, editing]);
 
   const detailQuery = useQuery({
     queryKey: ['ecriture', associationId, ecritureId],
@@ -938,6 +942,15 @@ function EcritureDrawer({
   const isDraft = entry?.statut === 'brouillon';
   const canValidate = has(PERMISSIONS.ENTRY_VALIDATE);
   const canDelete = has(PERMISSIONS.ENTRY_DELETE);
+  // Only saisie_simple / virement drafts are editable inline (the operation form
+  // handles those two origines); editing requires that origine's create permission.
+  const canEditEntry =
+    isDraft &&
+    (entry?.origine === 'virement'
+      ? has(PERMISSIONS.ENTRY_CREATE_TRANSFER)
+      : entry?.origine === 'saisie_simple'
+        ? has(PERMISSIONS.ENTRY_CREATE_SIMPLE)
+        : false);
   const actionError =
     apiErrorMessage(validate, 'Validation impossible.') ??
     apiErrorMessage(remove, 'Suppression impossible.') ??
@@ -959,7 +972,9 @@ function EcritureDrawer({
       >
         <header className="flex items-center justify-between border-b border-hairline px-5 py-4">
           <h3 className="text-base font-semibold text-ink">
-            {entry ? `Pièce n° ${entry.numero_piece}` : 'Détail'}
+            {entry
+              ? `${editing ? 'Modifier la pièce' : 'Pièce'} n° ${entry.numero_piece}`
+              : 'Détail'}
           </h3>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fermer">
             <X className="h-4 w-4" aria-hidden />
@@ -968,7 +983,20 @@ function EcritureDrawer({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {detailQuery.isError && <Alert>Écriture introuvable.</Alert>}
-          {entry && (
+          {entry && editing && (
+            <OperationForm
+              mode="edit"
+              entry={entry}
+              onSaved={() => {
+                setEditing(false);
+                queryClient.invalidateQueries({
+                  queryKey: ['ecriture', associationId, ecritureId],
+                });
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          )}
+          {entry && !editing && (
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">{formatDate(entry.date)}</span>
@@ -1004,7 +1032,7 @@ function EcritureDrawer({
           )}
         </div>
 
-        {entry && (
+        {entry && !editing && (
           <footer className="space-y-3 border-t border-hairline px-5 py-4">
             {actionError && <Alert>{actionError}</Alert>}
             {!isDraft ? (
@@ -1040,7 +1068,7 @@ function EcritureDrawer({
                 </Button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {canValidate && (
                   <Button
                     variant="accent"
@@ -1050,6 +1078,12 @@ function EcritureDrawer({
                   >
                     <Check className="h-4 w-4" aria-hidden />
                     Valider
+                  </Button>
+                )}
+                {canEditEntry && (
+                  <Button variant="outline" onClick={() => setEditing(true)}>
+                    <Pencil className="h-4 w-4" aria-hidden />
+                    Modifier
                   </Button>
                 )}
                 {canDelete && (
