@@ -1,13 +1,31 @@
+import { Lock } from 'lucide-react';
 import { NavLink, useParams } from 'react-router-dom';
 
 import { BrandWordmark } from '@/components/Brand';
+import { usePermissions } from '@/hooks/usePermissions';
 import { NAV_SECTIONS, SETTINGS_ITEM, type NavItem } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
 import { AssociationSwitcher } from './AssociationSwitcher';
 
-function NavRow({ item, base, onNavigate }: NavRowProps) {
+function NavRow({ item, base, allowed, onNavigate }: NavRowProps) {
   const Icon = item.icon;
+
+  // Inaccessible page: greyed out and not navigable (the server also denies it).
+  if (!allowed) {
+    return (
+      <div
+        aria-disabled
+        title="Accès non autorisé"
+        className="group relative flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-faint/60"
+      >
+        <Icon className="h-[18px] w-[18px] shrink-0 text-faint/50" aria-hidden />
+        <span className="flex-1">{item.label}</span>
+        <Lock className="h-3.5 w-3.5 text-faint/50" aria-hidden />
+      </div>
+    );
+  }
+
   return (
     <NavLink
       to={`${base}/${item.segment}`}
@@ -41,12 +59,17 @@ function NavRow({ item, base, onNavigate }: NavRowProps) {
 interface NavRowProps {
   item: NavItem;
   base: string;
+  allowed: boolean;
   onNavigate?: () => void;
 }
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { associationId } = useParams();
   const base = `/asso/${associationId}`;
+  const { has, isLoading } = usePermissions();
+  // While permissions load, allow rows (avoids a flash of locked items); the
+  // server still enforces, and the page itself handles its own loading state.
+  const allows = (item: NavItem) => isLoading || has(item.permission);
 
   return (
     <aside className="flex h-dvh w-64 shrink-0 flex-col border-r border-hairline bg-surface">
@@ -67,7 +90,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             )}
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavRow key={item.segment} item={item} base={base} onNavigate={onNavigate} />
+                <NavRow
+                  key={item.segment}
+                  item={item}
+                  base={base}
+                  allowed={allows(item)}
+                  onNavigate={onNavigate}
+                />
               ))}
             </div>
           </div>
@@ -75,7 +104,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="border-t border-hairline px-3 py-3">
-        <NavRow item={SETTINGS_ITEM} base={base} onNavigate={onNavigate} />
+        <NavRow
+          item={SETTINGS_ITEM}
+          base={base}
+          allowed={allows(SETTINGS_ITEM)}
+          onNavigate={onNavigate}
+        />
       </div>
     </aside>
   );

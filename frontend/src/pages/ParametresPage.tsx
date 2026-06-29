@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { Alert } from '@/components/ui/alert';
 import { MembresPanel } from '@/components/parametres/MembresPanel';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
-import { useActivePermissions } from '@/hooks/useActivePermissions';
+import { usePermissions } from '@/hooks/usePermissions';
+import { PERMISSIONS } from '@/lib/permissions';
 
 /**
  * Association settings. Today it surfaces the Members tab (members, roles,
@@ -13,8 +14,8 @@ import { useActivePermissions } from '@/hooks/useActivePermissions';
 export function ParametresPage() {
   const { associationId } = useParams() as { associationId: string };
   const association = useActiveAssociation();
-  const { has, isLoading } = useActivePermissions(associationId);
-  const canManageMembers = has('member:manage');
+  const { has, isLoading } = usePermissions();
+  const canManageMembers = has(PERMISSIONS.MEMBER_MANAGE);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

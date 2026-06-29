@@ -26,15 +26,9 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { usePermissions } from '@/hooks/usePermissions';
 import { formatBytes } from '@/lib/format';
-import {
-  canCreateSimpleEntry,
-  canManageAttachment,
-  canManageCategorie,
-  canManageEvenement,
-  canManageTiers,
-} from '@/lib/roles';
+import { PERMISSIONS } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
 import {
@@ -56,16 +50,18 @@ function FieldError({ message }: { message?: string }) {
 
 export function SaisiePage() {
   const { associationId } = useParams() as { associationId: string };
-  const association = useActiveAssociation();
+  const { has } = usePermissions();
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const canCreate = association ? canCreateSimpleEntry(association.role) : false;
-  const canAddCategorie = association ? canManageCategorie(association.role) : false;
-  const canAddTiers = association ? canManageTiers(association.role) : false;
-  const canAddEvenement = association ? canManageEvenement(association.role) : false;
-  const canAddJustificatif = association ? canManageAttachment(association.role) : false;
+  const canCreate = has(PERMISSIONS.ENTRY_CREATE_SIMPLE);
+  const canTransfer = has(PERMISSIONS.ENTRY_CREATE_TRANSFER);
+  const canEnter = canCreate || canTransfer;
+  const canAddCategorie = has(PERMISSIONS.CATEGORIE_MANAGE);
+  const canAddTiers = has(PERMISSIONS.TIERS_MANAGE);
+  const canAddEvenement = has(PERMISSIONS.EVENT_MANAGE);
+  const canAddJustificatif = has(PERMISSIONS.ATTACHMENT_MANAGE);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [tiersDialogOpen, setTiersDialogOpen] = useState(false);
   const [evenementDialogOpen, setEvenementDialogOpen] = useState(false);
@@ -77,22 +73,22 @@ export function SaisiePage() {
   const categoriesQuery = useQuery({
     queryKey: ['categories', associationId],
     queryFn: () => accountingApi.listCategories(associationId),
-    enabled: canCreate,
+    enabled: canEnter,
   });
   const comptesQuery = useQuery({
     queryKey: ['tresorerie', associationId],
     queryFn: () => accountingApi.listTresorerie(associationId),
-    enabled: canCreate,
+    enabled: canEnter,
   });
   const tiersQuery = useQuery({
     queryKey: ['tiers', associationId],
     queryFn: () => accountingApi.listTiers(associationId),
-    enabled: canCreate,
+    enabled: canEnter,
   });
   const evenementsQuery = useQuery({
     queryKey: ['evenements', associationId, 'actif'],
     queryFn: () => accountingApi.listEvenements(associationId, 'actif'),
-    enabled: canCreate,
+    enabled: canEnter,
   });
 
   const form = useForm<SaisieForm>({
@@ -246,11 +242,22 @@ export function SaisiePage() {
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
+  const typeAllowed = (t: SaisieForm['type']) => (t === 'virement' ? canTransfer : canCreate);
+
   function selectType(next: SaisieForm['type']) {
-    if (next === type) return;
+    if (next === type || !typeAllowed(next)) return;
     setSuccess(null);
     setValue('type', next);
   }
+
+  // If the current type is not permitted (e.g. only virement is granted), switch
+  // to a permitted one so the form is usable.
+  useEffect(() => {
+    if (!typeAllowed(type)) {
+      setValue('type', canCreate ? 'recette' : 'virement', { shouldValidate: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, canCreate, canTransfer]);
 
   function onCategorieCreated(cat: Categorie) {
     // Surface the new category immediately, then select it (the invalidation
@@ -275,12 +282,12 @@ export function SaisiePage() {
     setValue('evenement_id', evenement.id, { shouldValidate: false });
   }
 
-  if (!canCreate) {
+  if (!canEnter) {
     return (
       <div className="mx-auto max-w-2xl">
         <Header />
         <Card className="mt-6 p-6 text-sm text-muted">
-          Votre rôle est en consultation seule : la saisie d’opérations n’est pas disponible.
+          Vous n’avez pas l’autorisation de saisir des opérations.
         </Card>
       </div>
     );
@@ -302,6 +309,7 @@ export function SaisiePage() {
             tone="recette"
             label="Recette"
             hint="Argent reçu"
+            disabled={!canCreate}
             onClick={() => selectType('recette')}
           />
           <TypeButton
@@ -309,6 +317,7 @@ export function SaisiePage() {
             tone="depense"
             label="Dépense"
             hint="Argent versé"
+            disabled={!canCreate}
             onClick={() => selectType('depense')}
           />
           <TypeButton
@@ -316,6 +325,7 @@ export function SaisiePage() {
             tone="neutre"
             label="Virement"
             hint="Entre comptes"
+            disabled={!canTransfer}
             onClick={() => selectType('virement')}
           />
         </div>
@@ -594,7 +604,12 @@ export function SaisiePage() {
             </div>
           )}
 
-          <Button type="submit" variant="accent" className="w-full" disabled={busy}>
+          <Button
+            type="submit"
+            variant="accent"
+            className="w-full"
+            disabled={busy || !typeAllowed(type)}
+          >
             {busy
               ? 'Enregistrement…'
               : isVirement
@@ -670,12 +685,14 @@ function TypeButton({
   tone,
   label,
   hint,
+  disabled,
   onClick,
 }: {
   active: boolean;
   tone: 'recette' | 'depense' | 'neutre';
   label: string;
   hint: string;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   const activeRing = {
@@ -687,10 +704,13 @@ function TypeButton({
     <button
       type="button"
       aria-pressed={active}
+      disabled={disabled}
+      title={disabled ? 'Action non autorisée' : undefined}
       onClick={onClick}
       className={cn(
         'rounded-lg border px-4 py-3 text-left transition-colors',
-        active ? activeRing : 'border-hairline bg-surface text-ink-soft hover:bg-hover'
+        active ? activeRing : 'border-hairline bg-surface text-ink-soft hover:bg-hover',
+        disabled && 'cursor-not-allowed opacity-50 hover:bg-surface'
       )}
     >
       <span className="block text-sm font-semibold">{label}</span>

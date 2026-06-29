@@ -38,6 +38,10 @@ const EMPTY_SYNTHESE = {
   alertes: { brouillons: 0, evenements_depasses: [], exercices_a_cloturer: [] },
 };
 
+vi.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({ has: () => true, isLoading: false }),
+}));
+
 vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Mon Asso', role: 'treasurer', status: 'active' }),
 }));

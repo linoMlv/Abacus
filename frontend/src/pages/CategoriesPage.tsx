@@ -9,8 +9,8 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { useActiveAssociation } from '@/hooks/useActiveAssociation';
-import { canManageCategorie } from '@/lib/roles';
+import { usePermissions } from '@/hooks/usePermissions';
+import { PERMISSIONS } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
 const SENS_SECTIONS: Array<{ sens: Sens; title: string }> = [
@@ -20,8 +20,8 @@ const SENS_SECTIONS: Array<{ sens: Sens; title: string }> = [
 
 export function CategoriesPage() {
   const { associationId } = useParams() as { associationId: string };
-  const association = useActiveAssociation();
-  const canManage = association ? canManageCategorie(association.role) : false;
+  const { has } = usePermissions();
+  const canManage = has(PERMISSIONS.CATEGORIE_MANAGE);
   const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);

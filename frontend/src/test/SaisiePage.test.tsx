@@ -36,6 +36,10 @@ vi.mock('@/api/accounting', async (importOriginal) => {
   };
 });
 
+vi.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({ has: () => true, isLoading: false }),
+}));
+
 vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Asso', role: 'treasurer', status: 'active' }),
 }));

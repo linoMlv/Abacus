@@ -24,9 +24,10 @@ import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { usePermissions } from '@/hooks/usePermissions';
+import { PERMISSIONS } from '@/lib/permissions';
 import { triggerDownload } from '@/lib/download';
 import { formatDate, formatEUR } from '@/lib/format';
-import { canManageTresorerie } from '@/lib/roles';
 import { cn } from '@/lib/utils';
 
 // Charts live in a lazily-loaded chunk so recharts never weighs on the main bundle.
@@ -91,10 +92,12 @@ function TreasuryCard({
   compte,
   onEdit,
   releveHref,
+  canExport,
 }: {
   compte: CompteTresorerie;
   onEdit?: () => void;
   releveHref?: string;
+  canExport: boolean;
 }) {
   return (
     <Card className="flex items-center gap-4 p-4">
@@ -113,14 +116,16 @@ function TreasuryCard({
         <p className="text-xs text-muted">{TYPE_TRESORERIE_LABELS[compte.type_tresorerie]}</p>
       </div>
       <p className="tabular shrink-0 text-base font-semibold text-ink">{formatEUR(compte.solde)}</p>
-      <button
-        type="button"
-        onClick={() => triggerDownload(releveHref ?? '')}
-        aria-label={`Relevé PDF de ${compte.libelle}`}
-        className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      >
-        <Download className="h-4 w-4" />
-      </button>
+      {canExport && (
+        <button
+          type="button"
+          onClick={() => triggerDownload(releveHref ?? '')}
+          aria-label={`Relevé PDF de ${compte.libelle}`}
+          className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <Download className="h-4 w-4" />
+        </button>
+      )}
       {onEdit && (
         <button
           type="button"
@@ -289,7 +294,9 @@ export function SynthesePage() {
   const { associationId } = useParams() as { associationId: string };
   const navigate = useNavigate();
   const association = useActiveAssociation();
-  const canManage = association ? canManageTresorerie(association.role) : false;
+  const { has } = usePermissions();
+  const canManage = has(PERMISSIONS.TRESORERIE_MANAGE);
+  const canExport = has(PERMISSIONS.REPORT_VIEW);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CompteTresorerie | null>(null);
@@ -360,21 +367,23 @@ export function SynthesePage() {
             onCustomFrom={setCustomFrom}
             onCustomTo={setCustomTo}
           />
-          <ExportMenu
-            label="États"
-            groups={[
-              {
-                heading: 'États comptables',
-                items: [
-                  {
-                    label: 'Compte de résultat (PDF)',
-                    url: accountingApi.compteResultatPdfUrl(associationId, params),
-                  },
-                  { label: 'Bilan (PDF)', url: accountingApi.bilanPdfUrl(associationId, params) },
-                ],
-              },
-            ]}
-          />
+          {canExport && (
+            <ExportMenu
+              label="États"
+              groups={[
+                {
+                  heading: 'États comptables',
+                  items: [
+                    {
+                      label: 'Compte de résultat (PDF)',
+                      url: accountingApi.compteResultatPdfUrl(associationId, params),
+                    },
+                    { label: 'Bilan (PDF)', url: accountingApi.bilanPdfUrl(associationId, params) },
+                  ],
+                },
+              ]}
+            />
+          )}
         </div>
       </div>
 
@@ -432,6 +441,7 @@ export function SynthesePage() {
                 compte={compte}
                 onEdit={canManage ? () => openEdit(compte) : undefined}
                 releveHref={accountingApi.relevePdfUrl(associationId, compte.id, params)}
+                canExport={canExport}
               />
             ))}
           </div>

@@ -14,10 +14,10 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { usePermissions } from '@/hooks/usePermissions';
 import { triggerDownload } from '@/lib/download';
 import { formatDate, formatEUR } from '@/lib/format';
-import { canManageEvenement } from '@/lib/roles';
+import { PERMISSIONS } from '@/lib/permissions';
 
 const ACCENT = 'var(--color-accent)';
 
@@ -97,11 +97,13 @@ function EvenementCard({
   onOpen,
   onEdit,
   bilanHref,
+  canExport,
 }: {
   evenement: Evenement;
   onOpen: () => void;
   onEdit?: () => void;
   bilanHref: string;
+  canExport: boolean;
 }) {
   return (
     <Card className="flex flex-col overflow-hidden">
@@ -126,14 +128,16 @@ function EvenementCard({
           </button>
           <div className="flex shrink-0 items-center gap-1.5">
             <StatutBadge evenement={evenement} />
-            <button
-              type="button"
-              onClick={() => triggerDownload(bilanHref)}
-              aria-label={`Bilan PDF de ${evenement.nom}`}
-              className="rounded-md p-1 text-faint transition-colors hover:bg-hover hover:text-ink"
-            >
-              <Download className="h-4 w-4" />
-            </button>
+            {canExport && (
+              <button
+                type="button"
+                onClick={() => triggerDownload(bilanHref)}
+                aria-label={`Bilan PDF de ${evenement.nom}`}
+                className="rounded-md p-1 text-faint transition-colors hover:bg-hover hover:text-ink"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            )}
             {onEdit && (
               <button
                 type="button"
@@ -220,8 +224,9 @@ function EvenementOperations({
 
 export function EvenementsPage() {
   const { associationId } = useParams() as { associationId: string };
-  const association = useActiveAssociation();
-  const canManage = association ? canManageEvenement(association.role) : false;
+  const { has } = usePermissions();
+  const canManage = has(PERMISSIONS.EVENT_MANAGE);
+  const canExport = has(PERMISSIONS.REPORT_VIEW);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Evenement | null>(null);
@@ -284,6 +289,7 @@ export function EvenementsPage() {
                   onOpen={() => setOpenId(evenement.id)}
                   onEdit={canManage ? () => openEdit(evenement) : undefined}
                   bilanHref={accountingApi.evenementBilanPdfUrl(associationId, evenement.id)}
+                  canExport={canExport}
                 />
               ))}
             </div>

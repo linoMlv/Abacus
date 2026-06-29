@@ -31,8 +31,8 @@ vi.mock('@/api/members', () => ({
 }));
 
 let canManage = true;
-vi.mock('@/hooks/useActivePermissions', () => ({
-  useActivePermissions: () => ({
+vi.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({
     has: (p: string) => (p === 'member:manage' ? canManage : false),
     isLoading: false,
   }),

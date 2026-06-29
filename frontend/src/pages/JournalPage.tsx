@@ -21,7 +21,6 @@ import {
   type TypeOperation,
   TYPE_OPERATION_LABELS,
 } from '@/api/accounting';
-import type { Role } from '@/api/auth';
 import { apiErrorMessage } from '@/api/client';
 import { ExportMenu } from '@/components/ExportMenu';
 import { JustificatifViewer } from '@/components/JustificatifViewer';
@@ -31,9 +30,9 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { usePermissions } from '@/hooks/usePermissions';
 import { formatAmount, formatBytes, formatDate, formatEUR } from '@/lib/format';
-import { canDeleteEntry, canManageAttachment, canValidateEntry } from '@/lib/roles';
+import { PERMISSIONS } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
 const STATUT_LABELS: Record<EcritureStatut, string> = {
@@ -88,7 +87,9 @@ function useDebounced<T>(value: T, delayMs = 250): T {
 
 export function JournalPage() {
   const { associationId } = useParams() as { associationId: string };
-  const association = useActiveAssociation();
+  const { has } = usePermissions();
+  const canExport = has(PERMISSIONS.REPORT_VIEW);
+  const canCreate = has(PERMISSIONS.ENTRY_CREATE_SIMPLE);
   const navigate = useNavigate();
 
   const [statuts, setStatuts] = useState<EcritureStatut[]>([]);
@@ -262,39 +263,43 @@ export function JournalPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <ExportMenu
-            groups={[
-              {
-                heading: 'Journal',
-                items: [
-                  {
-                    label: 'Journal (PDF)',
-                    url: accountingApi.journalPdfUrl(associationId, exportParams),
-                  },
-                  {
-                    label: 'Journal (Excel)',
-                    url: accountingApi.journalXlsxUrl(associationId, exportParams),
-                  },
-                ],
-              },
-              {
-                heading: 'Grand livre',
-                items: [
-                  {
-                    label: 'Grand livre (PDF)',
-                    url: accountingApi.grandLivrePdfUrl(associationId, exportParams),
-                  },
-                  {
-                    label: 'Grand livre (Excel)',
-                    url: accountingApi.grandLivreXlsxUrl(associationId, exportParams),
-                  },
-                ],
-              },
-            ]}
-          />
-          <Button variant="accent" onClick={() => navigate(`/asso/${associationId}/saisie`)}>
-            Nouvelle opération
-          </Button>
+          {canExport && (
+            <ExportMenu
+              groups={[
+                {
+                  heading: 'Journal',
+                  items: [
+                    {
+                      label: 'Journal (PDF)',
+                      url: accountingApi.journalPdfUrl(associationId, exportParams),
+                    },
+                    {
+                      label: 'Journal (Excel)',
+                      url: accountingApi.journalXlsxUrl(associationId, exportParams),
+                    },
+                  ],
+                },
+                {
+                  heading: 'Grand livre',
+                  items: [
+                    {
+                      label: 'Grand livre (PDF)',
+                      url: accountingApi.grandLivrePdfUrl(associationId, exportParams),
+                    },
+                    {
+                      label: 'Grand livre (Excel)',
+                      url: accountingApi.grandLivreXlsxUrl(associationId, exportParams),
+                    },
+                  ],
+                },
+              ]}
+            />
+          )}
+          {canCreate && (
+            <Button variant="accent" onClick={() => navigate(`/asso/${associationId}/saisie`)}>
+              Nouvelle opération
+            </Button>
+          )}
         </div>
       </div>
 
@@ -378,7 +383,6 @@ export function JournalPage() {
         <EcritureDrawer
           associationId={associationId}
           ecritureId={selectedId}
-          role={association?.role}
           onClose={() => setSelectedId(null)}
         />
       )}
@@ -576,17 +580,16 @@ function JournalTable({
 function JustificatifsSection({
   associationId,
   ecritureId,
-  role,
 }: {
   associationId: string;
   ecritureId: string;
-  role?: Role;
 }) {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<Justificatif | null>(null);
-  const canManage = role ? canManageAttachment(role) : false;
+  const { has } = usePermissions();
+  const canManage = has(PERMISSIONS.ATTACHMENT_MANAGE);
 
   const listQuery = useQuery({
     queryKey: ['justificatifs', associationId, ecritureId],
@@ -705,15 +708,14 @@ function JustificatifsSection({
 function EcritureDrawer({
   associationId,
   ecritureId,
-  role,
   onClose,
 }: {
   associationId: string;
   ecritureId: string;
-  role?: Role;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { has } = usePermissions();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
@@ -761,8 +763,8 @@ function EcritureDrawer({
 
   const entry = detailQuery.data;
   const isDraft = entry?.statut === 'brouillon';
-  const canValidate = role ? canValidateEntry(role) : false;
-  const canDelete = role ? canDeleteEntry(role) : false;
+  const canValidate = has(PERMISSIONS.ENTRY_VALIDATE);
+  const canDelete = has(PERMISSIONS.ENTRY_DELETE);
   const actionError =
     apiErrorMessage(validate, 'Validation impossible.') ??
     apiErrorMessage(remove, 'Suppression impossible.');
@@ -823,11 +825,7 @@ function EcritureDrawer({
                 </tbody>
               </table>
 
-              <JustificatifsSection
-                associationId={associationId}
-                ecritureId={ecritureId}
-                role={role}
-              />
+              <JustificatifsSection associationId={associationId} ecritureId={ecritureId} />
             </div>
           )}
         </div>
