@@ -1,23 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { membersApi, type PermissionInfo, type Preset } from '@/api/members';
+import { membersApi, type Preset } from '@/api/members';
 import { apiErrorMessage } from '@/api/client';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-function groupCatalog(catalog: PermissionInfo[]): Array<[string, PermissionInfo[]]> {
-  const groups = new Map<string, PermissionInfo[]>();
-  for (const info of catalog) {
-    const list = groups.get(info.group) ?? [];
-    list.push(info);
-    groups.set(info.group, list);
-  }
-  return [...groups.entries()];
-}
+import { groupCatalog } from '@/lib/permissions';
 
 export function PresetDialog({
   associationId,
@@ -71,7 +62,7 @@ export function PresetDialog({
     });
   }
 
-  const catalog = catalogQuery.data ?? [];
+  const groups = useMemo(() => groupCatalog(catalogQuery.data ?? []), [catalogQuery.data]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,7 +93,7 @@ export function PresetDialog({
           </div>
 
           <div className="max-h-[44vh] space-y-4 overflow-y-auto pr-1">
-            {groupCatalog(catalog).map(([group, items]) => (
+            {groups.map(([group, items]) => (
               <fieldset key={group} className="space-y-1.5">
                 <legend className="text-xs font-semibold uppercase tracking-wide text-faint">
                   {group}

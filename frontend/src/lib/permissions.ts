@@ -1,3 +1,5 @@
+import type { PermissionInfo } from '@/api/members';
+
 /**
  * Fine-grained permission values, mirrored from the backend `Permission` enum
  * (`backend/authz.py`). These are the stable `domain:action` strings the server
@@ -32,3 +34,17 @@ export const PERMISSIONS = {
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+/**
+ * Group permission catalog entries by their `group`, preserving the order in
+ * which groups first appear. Shared by the permission-editing dialogs.
+ */
+export function groupCatalog(catalog: PermissionInfo[]): Array<[string, PermissionInfo[]]> {
+  const groups = new Map<string, PermissionInfo[]>();
+  for (const info of catalog) {
+    const list = groups.get(info.group) ?? [];
+    list.push(info);
+    groups.set(info.group, list);
+  }
+  return [...groups.entries()];
+}
