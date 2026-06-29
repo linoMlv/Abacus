@@ -50,7 +50,8 @@ class MemberPermissionsRead(BaseModel):
     role: Role
     is_admin: bool
     preset_id: str | None
-    base_permissions: list[str]  # role or preset set, before overrides
+    role_permissions: list[str]  # the built-in role's set (base when no preset)
+    base_permissions: list[str]  # current base (role or preset), before overrides
     overrides: dict[str, bool]
     effective: list[str]
 
@@ -133,6 +134,7 @@ def _member_permissions_read(
         base_set = preset_set
     else:
         base_set = ROLE_PERMISSIONS[membership.role]
+    role_set = frozenset(Permission) if is_admin else ROLE_PERMISSIONS[membership.role]
     effective = effective_permissions(
         membership.role, preset_set, membership.permission_overrides
     )
@@ -141,6 +143,7 @@ def _member_permissions_read(
         role=membership.role,
         is_admin=is_admin,
         preset_id=membership.preset_id,
+        role_permissions=sorted(p.value for p in role_set),
         base_permissions=sorted(p.value for p in base_set),
         overrides=dict(membership.permission_overrides),
         effective=sorted(p.value for p in effective),
