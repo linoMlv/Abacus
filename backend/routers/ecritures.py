@@ -256,19 +256,17 @@ def _audit_ecriture(
     )
 
 
-# --- Creation -------------------------------------------------------------
+# --- Entry builders (shared by creation, edition and replacement) ---------
+#
+# Each returns an unsaved ``Ecriture`` (lignes attached, balance-validated) for a
+# single voucher number; the caller owns auditing and the transaction. Sharing
+# them keeps creation, brouillon edition and contre-passation replacement in
+# lockstep — one resolution/validation path per origine, no drift.
 
 
-@router.post(
-    "/ecritures/simple",
-    response_model=EcritureDetailRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def creer_saisie_simple(
-    body: SaisieSimpleRequest,
-    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_CREATE_SIMPLE)),
-    session: Session = Depends(get_session),
-):
+def _build_simple_entry(
+    session: Session, ctx: AccessContext, body: SaisieSimpleRequest, numero_piece: int
+) -> Ecriture:
     categorie = session.exec(
         select(CategorieSaisie).where(
             CategorieSaisie.id == body.categorie_id,
@@ -301,7 +299,7 @@ def creer_saisie_simple(
             montant=body.montant,
             date_ecriture=body.date,
             libelle=libelle,
-            numero_piece=next_numero_piece(session, ctx.association_id),
+            numero_piece=numero_piece,
             created_by=ctx.user.id,
         )
     except EntryError as exc:
@@ -314,29 +312,12 @@ def creer_saisie_simple(
     )
     ecriture.reference_externe = body.reference_externe
     ecriture.mode_reglement = body.mode_reglement
-    session.add(ecriture)
-    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_SIMPLE, ecriture)
-    session.commit()
-    session.refresh(ecriture)
     return ecriture
 
 
-@router.post(
-    "/ecritures/virement",
-    response_model=EcritureDetailRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def creer_virement(
-    body: VirementRequest,
-    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_CREATE_TRANSFER)),
-    session: Session = Depends(get_session),
-):
-    """Internal transfer between two of the association's treasury accounts.
-
-    Books a single balanced OD entry (D destination / C source) with no impact on
-    the result. Both accounts are re-resolved against the active association and
-    must be treasury accounts; an id from another tenant is rejected.
-    """
+def _build_virement_entry(
+    session: Session, ctx: AccessContext, body: VirementRequest, numero_piece: int
+) -> Ecriture:
     source = _owned_treasury(session, ctx.association_id, body.compte_source_id)
     destination = _owned_treasury(
         session, ctx.association_id, body.compte_destination_id
@@ -357,7 +338,7 @@ def creer_virement(
             montant=body.montant,
             date_ecriture=body.date,
             libelle=libelle,
-            numero_piece=next_numero_piece(session, ctx.association_id),
+            numero_piece=numero_piece,
             created_by=ctx.user.id,
         )
     except EntryError as exc:
@@ -365,23 +346,12 @@ def creer_virement(
 
     ecriture.reference_externe = body.reference_externe
     ecriture.mode_reglement = body.mode_reglement
-    session.add(ecriture)
-    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_VIREMENT, ecriture)
-    session.commit()
-    session.refresh(ecriture)
     return ecriture
 
 
-@router.post(
-    "/ecritures",
-    response_model=EcritureDetailRead,
-    status_code=status.HTTP_201_CREATED,
-)
-def creer_saisie_manuelle(
-    body: SaisieManuelleRequest,
-    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_CREATE_MANUAL)),
-    session: Session = Depends(get_session),
-):
+def _build_manuelle_entry(
+    session: Session, ctx: AccessContext, body: SaisieManuelleRequest, numero_piece: int
+) -> Ecriture:
     journal = _owned_journal(session, ctx.association_id, body.journal_id)
     exercice = _open_exercice(session, ctx.association_id, body.date)
 
@@ -420,12 +390,12 @@ def creer_saisie_manuelle(
     except EntryError as exc:
         raise _bad_request(str(exc))
 
-    ecriture = Ecriture(
+    return Ecriture(
         association_id=ctx.association_id,
         exercice_id=exercice.id,
         journal_id=journal.id,
         date=body.date,
-        numero_piece=next_numero_piece(session, ctx.association_id),
+        numero_piece=numero_piece,
         libelle=body.libelle,
         tiers_id=_resolve_tiers_id(session, ctx.association_id, body.tiers_id),
         evenement_id=_resolve_evenement_id(
@@ -436,6 +406,70 @@ def creer_saisie_manuelle(
         origine=EcritureOrigine.MANUELLE,
         created_by=ctx.user.id,
         lignes=lignes,
+    )
+
+
+# --- Creation -------------------------------------------------------------
+
+
+@router.post(
+    "/ecritures/simple",
+    response_model=EcritureDetailRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def creer_saisie_simple(
+    body: SaisieSimpleRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_CREATE_SIMPLE)),
+    session: Session = Depends(get_session),
+):
+    ecriture = _build_simple_entry(
+        session, ctx, body, next_numero_piece(session, ctx.association_id)
+    )
+    session.add(ecriture)
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_SIMPLE, ecriture)
+    session.commit()
+    session.refresh(ecriture)
+    return ecriture
+
+
+@router.post(
+    "/ecritures/virement",
+    response_model=EcritureDetailRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def creer_virement(
+    body: VirementRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_CREATE_TRANSFER)),
+    session: Session = Depends(get_session),
+):
+    """Internal transfer between two of the association's treasury accounts.
+
+    Books a single balanced OD entry (D destination / C source) with no impact on
+    the result. Both accounts are re-resolved against the active association and
+    must be treasury accounts; an id from another tenant is rejected.
+    """
+    ecriture = _build_virement_entry(
+        session, ctx, body, next_numero_piece(session, ctx.association_id)
+    )
+    session.add(ecriture)
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_VIREMENT, ecriture)
+    session.commit()
+    session.refresh(ecriture)
+    return ecriture
+
+
+@router.post(
+    "/ecritures",
+    response_model=EcritureDetailRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def creer_saisie_manuelle(
+    body: SaisieManuelleRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_CREATE_MANUAL)),
+    session: Session = Depends(get_session),
+):
+    ecriture = _build_manuelle_entry(
+        session, ctx, body, next_numero_piece(session, ctx.association_id)
     )
     session.add(ecriture)
     _audit_ecriture(session, ctx, AuditAction.ECRITURE_CREATE_MANUAL, ecriture)
