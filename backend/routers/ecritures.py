@@ -26,6 +26,7 @@ from accounting_engine import (
 from audit import AuditAction, record_audit
 from auth_context import (
     AccessContext,
+    get_active_membership,
     owned_or_404,
     require_permission,
 )
@@ -136,6 +137,27 @@ class SaisieManuelleRequest(SQLModel):
     evenement_id: str | None = None
     reference_externe: str | None = None
     mode_reglement: ModeReglement | None = None
+
+
+class EcritureContenu(SQLModel):
+    """Origine-specific entry content; exactly one variant must be set.
+
+    Reused by draft edition (``PATCH``) and contre-passation replacement: the
+    variant provided must match the entry's origine, so the same builder/validation
+    path produces the lines whatever the write path.
+    """
+
+    simple: SaisieSimpleRequest | None = None
+    virement: VirementRequest | None = None
+    manuelle: SaisieManuelleRequest | None = None
+
+
+# Origine ↔ the permission that authorizes creating/editing that kind of entry.
+_CONTENU_PERMISSION = {
+    EcritureOrigine.SAISIE_SIMPLE: Permission.ENTRY_CREATE_SIMPLE,
+    EcritureOrigine.VIREMENT: Permission.ENTRY_CREATE_TRANSFER,
+    EcritureOrigine.MANUELLE: Permission.ENTRY_CREATE_MANUAL,
+}
 
 
 # --- Tenant-scoped resolution helpers -------------------------------------
@@ -409,6 +431,43 @@ def _build_manuelle_entry(
     )
 
 
+def _require(ctx: AccessContext, permission: Permission) -> None:
+    """Server-side permission check on the effective set (zero trust on the client)."""
+    if permission not in ctx.permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+
+
+def _resolve_contenu(contenu: EcritureContenu) -> tuple[EcritureOrigine, SQLModel]:
+    """Return the single provided content variant as ``(origine, body)`` (else 400)."""
+    variants = [
+        (EcritureOrigine.SAISIE_SIMPLE, contenu.simple),
+        (EcritureOrigine.VIREMENT, contenu.virement),
+        (EcritureOrigine.MANUELLE, contenu.manuelle),
+    ]
+    provided = [(origine, body) for origine, body in variants if body is not None]
+    if len(provided) != 1:
+        raise _bad_request(
+            "Fournir exactement une variante de contenu (simple, virement ou manuelle)."
+        )
+    return provided[0]
+
+
+def _build_entry_from_contenu(
+    session: Session,
+    ctx: AccessContext,
+    origine: EcritureOrigine,
+    body: SQLModel,
+    numero_piece: int,
+) -> Ecriture:
+    if origine is EcritureOrigine.SAISIE_SIMPLE:
+        return _build_simple_entry(session, ctx, body, numero_piece)
+    if origine is EcritureOrigine.VIREMENT:
+        return _build_virement_entry(session, ctx, body, numero_piece)
+    return _build_manuelle_entry(session, ctx, body, numero_piece)
+
+
 # --- Creation -------------------------------------------------------------
 
 
@@ -587,6 +646,66 @@ def get_ecriture(
     session: Session = Depends(get_session),
 ):
     return _owned_ecriture(session, ctx.association_id, ecriture_id)
+
+
+@router.patch("/ecritures/{ecriture_id}", response_model=EcritureDetailRead)
+def modifier_ecriture(
+    ecriture_id: str,
+    contenu: EcritureContenu,
+    ctx: AccessContext = Depends(get_active_membership),
+    session: Session = Depends(get_session),
+):
+    """Edit a *draft* entry: its content is rebuilt in place from ``contenu``.
+
+    Only a brouillon is editable (a validated entry is immutable — correction goes
+    through contre-passation, 409). The provided content variant must match the
+    entry's origine, and editing requires that origine's create permission. The
+    voucher number, id and creation metadata are preserved; the lines are rebuilt
+    through the same balance-validated builder as creation.
+    """
+    original = _owned_ecriture(session, ctx.association_id, ecriture_id)
+    if original.statut == EcritureStatut.VALIDEE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=("Une écriture validée est immuable (contre-passation requise)."),
+        )
+
+    origine, body = _resolve_contenu(contenu)
+    if origine is not original.origine:
+        raise _bad_request("Le type de contenu ne correspond pas à l'écriture.")
+    _require(ctx, _CONTENU_PERMISSION[origine])
+
+    built = _build_entry_from_contenu(
+        session, ctx, origine, body, original.numero_piece
+    )
+    # Replace the content in place (keep id / numero_piece / created_at / created_by).
+    # Clearing the collection lets the delete-orphan cascade remove the old lines.
+    original.lignes.clear()
+    session.flush()
+    original.date = built.date
+    original.libelle = built.libelle
+    original.journal_id = built.journal_id
+    original.exercice_id = built.exercice_id
+    original.categorie_id = built.categorie_id
+    original.tiers_id = built.tiers_id
+    original.evenement_id = built.evenement_id
+    original.reference_externe = built.reference_externe
+    original.mode_reglement = built.mode_reglement
+    session.add(original)
+    for src in built.lignes:
+        session.add(
+            LigneEcriture(
+                ecriture_id=original.id,
+                compte_id=src.compte_id,
+                libelle=src.libelle,
+                debit=src.debit,
+                credit=src.credit,
+            )
+        )
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_UPDATE, original)
+    session.commit()
+    session.refresh(original)
+    return original
 
 
 @router.post("/ecritures/{ecriture_id}/validation", response_model=EcritureDetailRead)
