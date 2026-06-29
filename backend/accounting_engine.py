@@ -219,6 +219,49 @@ def build_ecriture_virement(
     )
 
 
+def build_ecriture_extourne(
+    *,
+    original: Ecriture,
+    numero_piece: int,
+    date_ecriture: date | None = None,
+    libelle: str | None = None,
+    created_by: str | None = None,
+) -> Ecriture:
+    """Contre-passation of a posted entry: same lines with debit/credit swapped.
+
+    The reversal nets the original to zero. It is returned unsaved as a *brouillon*
+    (origine EXTOURNE, linked to the original via ``extourne_de_id``) for the caller
+    to review and validate. Nothing is deleted — the original stays and the reversal
+    takes its own voucher number, so numbering stays gapless (FEC, plan §10). Dated
+    on the original's date by default, keeping the net effect within its period.
+    """
+    lignes = [
+        LigneEcriture(
+            compte_id=ligne.compte_id,
+            libelle=ligne.libelle,
+            debit=ligne.credit,
+            credit=ligne.debit,
+        )
+        for ligne in original.lignes
+    ]
+    validate_lignes(lignes)
+
+    return Ecriture(
+        association_id=original.association_id,
+        exercice_id=original.exercice_id,
+        journal_id=original.journal_id,
+        date=date_ecriture or original.date,
+        numero_piece=numero_piece,
+        libelle=(
+            libelle or f"Extourne pièce n°{original.numero_piece} — {original.libelle}"
+        ),
+        origine=EcritureOrigine.EXTOURNE,
+        extourne_de_id=original.id,
+        created_by=created_by,
+        lignes=lignes,
+    )
+
+
 def build_ecriture_simple(
     *,
     association_id: str,

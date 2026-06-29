@@ -17,6 +17,7 @@ from sqlmodel import Session, SQLModel, desc, select
 
 from accounting_engine import (
     EntryError,
+    build_ecriture_extourne,
     build_ecriture_simple,
     build_ecriture_virement,
     find_open_exercice,
@@ -152,11 +153,31 @@ class EcritureContenu(SQLModel):
     manuelle: SaisieManuelleRequest | None = None
 
 
+class ContrepassationRequest(SQLModel):
+    """Optional corrected entry to book alongside the reversal (annule-et-remplace)."""
+
+    remplacement: EcritureContenu | None = None
+
+
+class ContrepassationRead(SQLModel):
+    """The reversal (always) and, for annule-et-remplace, the corrected entry."""
+
+    extourne: EcritureDetailRead
+    remplacement: EcritureDetailRead | None = None
+
+
 # Origine ↔ the permission that authorizes creating/editing that kind of entry.
 _CONTENU_PERMISSION = {
     EcritureOrigine.SAISIE_SIMPLE: Permission.ENTRY_CREATE_SIMPLE,
     EcritureOrigine.VIREMENT: Permission.ENTRY_CREATE_TRANSFER,
     EcritureOrigine.MANUELLE: Permission.ENTRY_CREATE_MANUAL,
+}
+
+# Origine ↔ the audit action recorded when an entry of that kind is created.
+_CREATE_AUDIT = {
+    EcritureOrigine.SAISIE_SIMPLE: AuditAction.ECRITURE_CREATE_SIMPLE,
+    EcritureOrigine.VIREMENT: AuditAction.ECRITURE_CREATE_VIREMENT,
+    EcritureOrigine.MANUELLE: AuditAction.ECRITURE_CREATE_MANUAL,
 }
 
 
@@ -630,6 +651,7 @@ def list_ecritures(
             mode_reglement=e.mode_reglement,
             statut=e.statut,
             origine=e.origine,
+            extourne_de_id=e.extourne_de_id,
             created_at=e.created_at,
             validated_at=e.validated_at,
             montant=sum((ligne.debit for ligne in e.lignes), Decimal("0")),
@@ -728,6 +750,79 @@ def valider_ecriture(
     session.commit()
     session.refresh(ecriture)
     return ecriture
+
+
+@router.post(
+    "/ecritures/{ecriture_id}/contrepassation",
+    response_model=ContrepassationRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def contrepasser_ecriture(
+    ecriture_id: str,
+    body: ContrepassationRequest | None = None,
+    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_DELETE)),
+    session: Session = Depends(get_session),
+):
+    """Contre-passe a validated entry; optionally book the corrected one in one call.
+
+    The reversal (extourne) swaps the original's debit/credit, links back to it and
+    lands as a brouillon to validate — the original is never touched (plan §10). A
+    brouillon is not contre-passed (it is deleted, 409); an already-reversed entry
+    is rejected (409). With ``remplacement`` (matching the original's origine), the
+    corrected entry is also booked as a brouillon (annule-et-remplace), which extra
+    requires that origine's create permission.
+    """
+    original = _owned_ecriture(session, ctx.association_id, ecriture_id)
+    if original.statut != EcritureStatut.VALIDEE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Seule une écriture validée se contre-passe "
+                "(un brouillon se supprime)."
+            ),
+        )
+    already_reversed = session.exec(
+        select(Ecriture.id).where(
+            Ecriture.association_id == ctx.association_id,
+            Ecriture.extourne_de_id == original.id,
+        )
+    ).first()
+    if already_reversed is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Écriture déjà contre-passée.",
+        )
+
+    piece = next_numero_piece(session, ctx.association_id)
+    try:
+        extourne = build_ecriture_extourne(
+            original=original, numero_piece=piece, created_by=ctx.user.id
+        )
+    except EntryError as exc:
+        raise _bad_request(str(exc))
+    session.add(extourne)
+    _audit_ecriture(session, ctx, AuditAction.ECRITURE_CONTREPASSATION, original)
+
+    remplacement_entry: Ecriture | None = None
+    remplacement = body.remplacement if body is not None else None
+    if remplacement is not None:
+        origine, content = _resolve_contenu(remplacement)
+        if origine is not original.origine:
+            raise _bad_request(
+                "Le remplacement doit être du même type que l'écriture d'origine."
+            )
+        _require(ctx, _CONTENU_PERMISSION[origine])
+        remplacement_entry = _build_entry_from_contenu(
+            session, ctx, origine, content, piece + 1
+        )
+        session.add(remplacement_entry)
+        _audit_ecriture(session, ctx, _CREATE_AUDIT[origine], remplacement_entry)
+
+    session.commit()
+    session.refresh(extourne)
+    if remplacement_entry is not None:
+        session.refresh(remplacement_entry)
+    return ContrepassationRead(extourne=extourne, remplacement=remplacement_entry)
 
 
 @router.delete("/ecritures/{ecriture_id}", status_code=status.HTTP_204_NO_CONTENT)

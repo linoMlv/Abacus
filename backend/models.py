@@ -410,6 +410,7 @@ class EcritureOrigine(str, Enum):
     IMPORT = "import"  # rapprochement bancaire
     RECURRENCE = "recurrence"  # générée par une Recurrence
     A_NOUVEAU = "a_nouveau"  # solde initial d'un compte de trésorerie (§15.4)
+    EXTOURNE = "extourne"  # contre-passation d'une écriture validée (§10)
 
 
 class ModeReglement(str, Enum):
@@ -458,6 +459,12 @@ class Ecriture(SQLModel, table=True):
     mode_reglement: ModeReglement | None = None
     statut: EcritureStatut = Field(default=EcritureStatut.BROUILLON)
     origine: EcritureOrigine
+    # When this entry is the contre-passation (extourne) of another, the id of the
+    # entry it reverses. Set only on EXTOURNE entries; preserves the audit trail
+    # of a correction (the original stays, nothing is silently edited — plan §10).
+    extourne_de_id: str | None = Field(
+        default=None, foreign_key="ecriture.id", index=True
+    )
     created_by: str | None = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(default_factory=_utcnow)
     validated_by: str | None = Field(default=None, foreign_key="user.id")
@@ -786,6 +793,7 @@ class EcritureRead(SQLModel):
     mode_reglement: ModeReglement | None
     statut: EcritureStatut
     origine: EcritureOrigine
+    extourne_de_id: str | None
     created_at: datetime
     validated_at: datetime | None
 
