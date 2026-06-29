@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, asc, select
 
 from accounting_engine import find_open_exercice
+from accounting_filters import JournalFilter, journal_filter_clauses
 from models import Compte, Ecriture, Evenement, Journal, LigneEcriture
 
 ZERO = Decimal("0.00")
@@ -219,14 +220,18 @@ def releve_data(
 
 
 def journal_data(
-    session: Session, association_id: str, date_from: date, date_to: date
+    session: Session, association_id: str, filtre: JournalFilter
 ) -> JournalData:
+    """Journal export over ``filtre``'s period, honoring its faceted filters.
+
+    Uses the same ``journal_filter_clauses`` as the journal listing, so the
+    exported document matches exactly what the user filtered on screen.
+    """
     ecritures = session.exec(
         select(Ecriture)
         .where(
             Ecriture.association_id == association_id,
-            Ecriture.date >= date_from,
-            Ecriture.date <= date_to,
+            *journal_filter_clauses(association_id, filtre),
         )
         .order_by(asc(Ecriture.date), asc(Ecriture.numero_piece))
         .options(selectinload(Ecriture.lignes))
@@ -269,7 +274,9 @@ def journal_data(
                 )
             )
 
-    return JournalData(date_from, date_to, lignes, total_debit, total_credit)
+    return JournalData(
+        filtre.date_from, filtre.date_to, lignes, total_debit, total_credit
+    )
 
 
 def grand_livre_data(

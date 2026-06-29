@@ -10,9 +10,10 @@ re-checked via ``owned_or_404``.
 from datetime import date
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import Session
 
+from accounting_filters import JournalFilter, TypeOperationFilter
 from auth_context import AccessContext, owned_or_404, require_permission
 from authz import Permission
 from database import get_session
@@ -27,7 +28,7 @@ from exports.data import (
     resolve_period,
 )
 from exports.xlsx import XLSX_MEDIA_TYPE
-from models import Association, Compte, Evenement
+from models import Association, Compte, EcritureStatut, Evenement
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["exports"])
 
@@ -55,6 +56,33 @@ def _file_response(content: bytes, filename: str, media_type: str) -> Response:
 def _association_name(session: Session, association_id: str) -> str:
     association = session.get(Association, association_id)
     return association.name if association else "Association"
+
+
+def journal_filter_query(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    journal_id: list[str] | None = Query(None),
+    compte_id: list[str] | None = Query(None),
+    type_operation: list[TypeOperationFilter] | None = Query(None),
+    categorie_id: list[str] | None = Query(None),
+    tiers_id: list[str] | None = Query(None),
+    evenement_id: list[str] | None = Query(None),
+    statut: list[EcritureStatut] | None = Query(None),
+    q: str | None = None,
+) -> JournalFilter:
+    """The journal export's faceted filter, mirroring ``GET /ecritures`` params."""
+    return JournalFilter(
+        journal_id=journal_id,
+        compte_id=compte_id,
+        type_operation=type_operation,
+        categorie_id=categorie_id,
+        tiers_id=tiers_id,
+        evenement_id=evenement_id,
+        date_from=date_from,
+        date_to=date_to,
+        statut=statut,
+        q=q,
+    )
 
 
 @router.get("/exports/tresorerie/{compte_id}/releve.pdf")
@@ -87,26 +115,30 @@ def export_releve_pdf(
 
 @router.get("/exports/journal.pdf")
 def export_journal_pdf(
-    date_from: date | None = None,
-    date_to: date | None = None,
+    filtre: JournalFilter = Depends(journal_filter_query),
     ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
-    df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
-    data = journal_data(session, ctx.association_id, df, dt)
+    df, dt = resolve_period(
+        session, ctx.association_id, filtre.date_from, filtre.date_to
+    )
+    filtre.date_from, filtre.date_to = df, dt
+    data = journal_data(session, ctx.association_id, filtre)
     pdf = documents.journal_pdf(_association_name(session, ctx.association_id), data)
     return _file_response(pdf, f"journal-{df}-{dt}.pdf", PDF_MEDIA_TYPE)
 
 
 @router.get("/exports/journal.xlsx")
 def export_journal_xlsx(
-    date_from: date | None = None,
-    date_to: date | None = None,
+    filtre: JournalFilter = Depends(journal_filter_query),
     ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
-    df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
-    data = journal_data(session, ctx.association_id, df, dt)
+    df, dt = resolve_period(
+        session, ctx.association_id, filtre.date_from, filtre.date_to
+    )
+    filtre.date_from, filtre.date_to = df, dt
+    data = journal_data(session, ctx.association_id, filtre)
     return _file_response(
         documents.journal_xlsx(data), f"journal-{df}-{dt}.xlsx", XLSX_MEDIA_TYPE
     )
