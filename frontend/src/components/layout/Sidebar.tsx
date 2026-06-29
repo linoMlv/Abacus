@@ -69,7 +69,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { has, isLoading } = usePermissions();
   // While permissions load, allow rows (avoids a flash of locked items); the
   // server still enforces, and the page itself handles its own loading state.
-  const allows = (item: NavItem) => isLoading || has(item.permission);
+  const allows = (item: NavItem) => isLoading || item.permissions.some(has);
 
   return (
     <aside className="flex h-dvh w-64 shrink-0 flex-col border-r border-hairline bg-surface">

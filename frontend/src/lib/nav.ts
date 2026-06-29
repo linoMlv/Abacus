@@ -19,8 +19,14 @@ export interface NavItem {
   segment: string;
   label: string;
   icon: LucideIcon;
-  /** Permission required to access the page; the sidebar greys it out otherwise. */
-  permission: Permission;
+  /**
+   * Permissions that grant access to the page (any one suffices). A page that
+   * groups several features (e.g. Saisie: operations + categories + tiers +
+   * events) lists all of them, so holding any keeps the page reachable; the page
+   * itself then gates each tab/section. The sidebar greys the page out only when
+   * the user has none.
+   */
+  permissions: Permission[];
 }
 
 export interface NavSection {
@@ -36,7 +42,7 @@ export const NAV_SECTIONS: NavSection[] = [
         segment: 'synthese',
         label: 'Synthèse',
         icon: LayoutDashboard,
-        permission: PERMISSIONS.DASHBOARD_VIEW,
+        permissions: [PERMISSIONS.DASHBOARD_VIEW],
       },
     ],
   },
@@ -47,21 +53,38 @@ export const NAV_SECTIONS: NavSection[] = [
         segment: 'saisie',
         label: 'Saisie',
         icon: PencilLine,
-        permission: PERMISSIONS.ENTRY_CREATE_SIMPLE,
+        // Hub: operations + the management of categories / tiers / events.
+        permissions: [
+          PERMISSIONS.ENTRY_CREATE_SIMPLE,
+          PERMISSIONS.ENTRY_CREATE_TRANSFER,
+          PERMISSIONS.CATEGORIE_MANAGE,
+          PERMISSIONS.TIERS_MANAGE,
+          PERMISSIONS.EVENT_MANAGE,
+        ],
       },
-      { segment: 'journal', label: 'Journal', icon: BookOpen, permission: PERMISSIONS.REPORT_VIEW },
-      { segment: 'comptes', label: 'Comptes', icon: ListTree, permission: PERMISSIONS.REPORT_VIEW },
+      {
+        segment: 'journal',
+        label: 'Journal',
+        icon: BookOpen,
+        permissions: [PERMISSIONS.REPORT_VIEW],
+      },
+      {
+        segment: 'comptes',
+        label: 'Comptes',
+        icon: ListTree,
+        permissions: [PERMISSIONS.REPORT_VIEW],
+      },
       {
         segment: 'banque',
         label: 'Banque',
         icon: Building2,
-        permission: PERMISSIONS.BANK_RECONCILE,
+        permissions: [PERMISSIONS.BANK_RECONCILE],
       },
       {
         segment: 'recurrences',
         label: 'Récurrences',
         icon: Repeat,
-        permission: PERMISSIONS.ENTRY_CREATE_SIMPLE,
+        permissions: [PERMISSIONS.ENTRY_CREATE_SIMPLE],
       },
     ],
   },
@@ -72,19 +95,19 @@ export const NAV_SECTIONS: NavSection[] = [
         segment: 'budget',
         label: 'Budget',
         icon: PiggyBank,
-        permission: PERMISSIONS.BUDGET_MANAGE,
+        permissions: [PERMISSIONS.BUDGET_MANAGE],
       },
       {
         segment: 'rapports',
         label: 'Rapports',
         icon: FileBarChart,
-        permission: PERMISSIONS.REPORT_VIEW,
+        permissions: [PERMISSIONS.REPORT_VIEW],
       },
       {
         segment: 'dons',
         label: 'Dons',
         icon: HeartHandshake,
-        permission: PERMISSIONS.DONATION_MANAGE,
+        permissions: [PERMISSIONS.DONATION_MANAGE],
       },
     ],
   },
@@ -95,7 +118,7 @@ export const SETTINGS_ITEM: NavItem = {
   segment: 'parametres',
   label: 'Paramètres',
   icon: Settings,
-  permission: PERMISSIONS.MEMBER_MANAGE,
+  permissions: [PERMISSIONS.MEMBER_MANAGE],
 };
 
 /** Every navigable segment, for route generation and lookups. */

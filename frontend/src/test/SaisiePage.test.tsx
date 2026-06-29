@@ -36,8 +36,12 @@ vi.mock('@/api/accounting', async (importOriginal) => {
   };
 });
 
+const permState = vi.hoisted(() => ({ allowAll: true, allowed: new Set<string>() }));
 vi.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({ has: () => true, isLoading: false }),
+  usePermissions: () => ({
+    has: (p: string) => permState.allowAll || permState.allowed.has(p),
+    isLoading: false,
+  }),
 }));
 
 vi.mock('@/hooks/useActiveAssociation', () => ({
@@ -107,6 +111,8 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  permState.allowAll = true;
+  permState.allowed.clear();
   listCategories.mockResolvedValue(CATEGORIES);
   listTresorerie.mockResolvedValue(TRESORERIE);
   listTiers.mockResolvedValue([{ id: 't1', type: 'donateur', nom: 'M. Dupont', is_active: true }]);
@@ -132,6 +138,17 @@ beforeEach(() => {
 });
 
 describe('SaisiePage', () => {
+  it('shows only the tabs the user has permission for', async () => {
+    // Category management only: the Catégories tab is reachable, Opérations is not.
+    permState.allowAll = false;
+    permState.allowed.add('categorie:manage');
+    renderPage();
+
+    expect(await screen.findByRole('tab', { name: 'Catégories' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Opérations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Tiers' })).not.toBeInTheDocument();
+  });
+
   it('shows the recette categories and treasury accounts once loaded', async () => {
     renderPage();
     expect(await screen.findByRole('option', { name: 'Cotisations' })).toBeInTheDocument();
