@@ -11,7 +11,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlmodel import Session, asc, desc, select
 
-from auth_context import AccessContext, get_active_membership, owned_or_404
+from auth_context import (
+    AccessContext,
+    get_active_membership,
+    owned_or_404,
+    require_permission,
+)
+from authz import Permission
 from database import get_session
 from models import (
     BalanceCompteRead,
@@ -82,7 +88,7 @@ def list_exercices(
 @router.get("/balance", response_model=list[BalanceCompteRead])
 def balance_comptes(
     exercice_id: str | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     """Trial balance: per account, total debit/credit and resulting solde.
@@ -133,7 +139,7 @@ def balance_comptes(
 def grand_livre(
     compte_id: str,
     exercice_id: str | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     """Ledger of one account: its movements in date order, with running balance."""

@@ -1,9 +1,10 @@
 """Document exports (T7): tenant-scoped PDF / Excel downloads.
 
 Generation is server-side and streamed as an attachment (``nosniff``), like the
-justificatifs download. Reading is open to any active member (these are the same
-books the read endpoints already expose); every query is scoped to the active
-association and any id from the client is re-checked via ``owned_or_404``.
+justificatifs download. These documents are the books, so reading requires the
+``REPORT_VIEW`` consultation permission (revoking it denies the exports too);
+every query is scoped to the active association and any id from the client is
+re-checked via ``owned_or_404``.
 """
 
 from datetime import date
@@ -12,7 +13,8 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlmodel import Session
 
-from auth_context import AccessContext, get_active_membership, owned_or_404
+from auth_context import AccessContext, owned_or_404, require_permission
+from authz import Permission
 from database import get_session
 from exports import documents
 from exports.data import (
@@ -60,7 +62,7 @@ def export_releve_pdf(
     compte_id: str,
     date_from: date | None = None,
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     """Bank-statement-style PDF for one treasury account over a period."""
@@ -87,7 +89,7 @@ def export_releve_pdf(
 def export_journal_pdf(
     date_from: date | None = None,
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
@@ -100,7 +102,7 @@ def export_journal_pdf(
 def export_journal_xlsx(
     date_from: date | None = None,
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
@@ -114,7 +116,7 @@ def export_journal_xlsx(
 def export_grand_livre_pdf(
     date_from: date | None = None,
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
@@ -129,7 +131,7 @@ def export_grand_livre_pdf(
 def export_grand_livre_xlsx(
     date_from: date | None = None,
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
@@ -143,7 +145,7 @@ def export_grand_livre_xlsx(
 def export_compte_resultat_pdf(
     date_from: date | None = None,
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     df, dt = resolve_period(session, ctx.association_id, date_from, date_to)
@@ -157,7 +159,7 @@ def export_compte_resultat_pdf(
 @router.get("/exports/bilan.pdf")
 def export_bilan_pdf(
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     """Balance sheet as of ``date_to`` (defaults to the open exercice's end)."""
@@ -170,7 +172,7 @@ def export_bilan_pdf(
 @router.get("/exports/evenements/{evenement_id}/bilan.pdf")
 def export_evenement_bilan_pdf(
     evenement_id: str,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     evenement = owned_or_404(

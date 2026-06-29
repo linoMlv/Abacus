@@ -21,7 +21,8 @@ from sqlalchemy import func
 from sqlmodel import Session, asc, select
 
 from accounting_engine import find_open_exercice
-from auth_context import AccessContext, get_active_membership
+from auth_context import AccessContext, require_permission
+from authz import Permission
 from database import get_session
 from models import (
     AlerteEvenement,
@@ -332,7 +333,7 @@ def _alertes(session: Session, association_id: str) -> SyntheseAlertes:
 def get_synthese(
     date_from: date | None = None,
     date_to: date | None = None,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.DASHBOARD_VIEW)),
     session: Session = Depends(get_session),
 ):
     """Consolidated dashboard for the active association over an optional period.

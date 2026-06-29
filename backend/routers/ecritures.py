@@ -26,7 +26,6 @@ from accounting_engine import (
 from audit import AuditAction, record_audit
 from auth_context import (
     AccessContext,
-    get_active_membership,
     owned_or_404,
     require_permission,
 )
@@ -463,7 +462,7 @@ def list_ecritures(
     q: str | None = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     """The journal: entries of the active association, newest first.
@@ -550,7 +549,7 @@ def list_ecritures(
 @router.get("/ecritures/{ecriture_id}", response_model=EcritureDetailRead)
 def get_ecriture(
     ecriture_id: str,
-    ctx: AccessContext = Depends(get_active_membership),
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
     session: Session = Depends(get_session),
 ):
     return _owned_ecriture(session, ctx.association_id, ecriture_id)
