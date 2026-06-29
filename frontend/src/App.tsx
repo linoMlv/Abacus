@@ -14,6 +14,7 @@ import { ParametresPage } from '@/pages/ParametresPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { SaisiePage } from '@/pages/SaisiePage';
 import { SynthesePage } from '@/pages/SynthesePage';
+import { AcceptInvitationPage } from '@/pages/auth/AcceptInvitationPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 
@@ -30,6 +31,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/invitation" element={<AcceptInvitationPage />} />
 
         <Route element={<RequireAuth />}>
           <Route path="/" element={<HomeRedirect />} />

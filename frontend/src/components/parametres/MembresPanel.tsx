@@ -218,7 +218,7 @@ function InvitationsSection({ associationId }: { associationId: string }) {
     mutationFn: () => membersApi.createInvitation(associationId, { email: email.trim(), role }),
     onSuccess: (inv: InvitationCreated) => {
       setEmail('');
-      setLastLink(`${window.location.origin}/register?invitation=${inv.token}`);
+      setLastLink(`${window.location.origin}/invitation?token=${inv.token}`);
       invalidate();
     },
   });

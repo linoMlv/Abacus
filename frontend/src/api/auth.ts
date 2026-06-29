@@ -33,6 +33,21 @@ export interface RegisterInput {
   name: string;
 }
 
+/** Public preview of a pending invitation, keyed by its token. */
+export interface InvitationPreview {
+  association_id: string;
+  association_name: string;
+  email: string;
+  role: Role;
+}
+
+/** Accept an invitation. name+password are only needed to create the account. */
+export interface AcceptInvitationInput {
+  token: string;
+  name?: string;
+  password?: string;
+}
+
 export const authApi = {
   session: () => api.get<Session>('/auth/session'),
   login: (input: LoginInput) => api.post<Session>('/auth/login', input),
@@ -40,4 +55,8 @@ export const authApi = {
   logout: () => api.post<void>('/auth/logout'),
   createAssociation: (input: { name: string; email: string }) =>
     api.post<AssociationSummary>('/auth/associations', input),
+  invitationPreview: (token: string) =>
+    api.get<InvitationPreview>(`/auth/invitations/${encodeURIComponent(token)}`),
+  acceptInvitation: (input: AcceptInvitationInput) =>
+    api.post<Session>('/auth/invitations/accept', input),
 };
