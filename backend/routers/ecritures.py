@@ -166,6 +166,22 @@ class ContrepassationRead(SQLModel):
     remplacement: EcritureDetailRead | None = None
 
 
+class BulkIdsRequest(SQLModel):
+    ids: list[str]
+
+
+class BulkIgnore(SQLModel):
+    id: str
+    raison: str
+
+
+class BulkResult(SQLModel):
+    """Outcome of a best-effort bulk action: processed ids and ignored ones."""
+
+    traitees: list[str]
+    ignorees: list[BulkIgnore]
+
+
 # Origine ↔ the permission that authorizes creating/editing that kind of entry.
 _CONTENU_PERMISSION = {
     EcritureOrigine.SAISIE_SIMPLE: Permission.ENTRY_CREATE_SIMPLE,
@@ -823,6 +839,89 @@ def contrepasser_ecriture(
     if remplacement_entry is not None:
         session.refresh(remplacement_entry)
     return ContrepassationRead(extourne=extourne, remplacement=remplacement_entry)
+
+
+def _owned_ecritures(
+    session: Session, association_id: str, ids: list[str]
+) -> dict[str, Ecriture]:
+    """Resolve the requested ids that belong to the association, keyed by id.
+
+    A single tenant-scoped query; ids of another tenant (or unknown) are simply
+    absent from the result, so the caller reports them as ignored (no leak).
+    """
+    if not ids:
+        return {}
+    rows = session.exec(
+        select(Ecriture).where(
+            Ecriture.id.in_(ids), Ecriture.association_id == association_id
+        )
+    ).all()
+    return {e.id: e for e in rows}
+
+
+@router.post("/ecritures/validation-groupee", response_model=BulkResult)
+def valider_ecritures_groupe(
+    body: BulkIdsRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_VALIDATE)),
+    session: Session = Depends(get_session),
+):
+    """Validate several drafts at once (best-effort, per id).
+
+    Each id is re-scoped to the association; an unknown/foreign id or an already
+    validated entry is reported as ignored, never affecting another tenant.
+    """
+    owned = _owned_ecritures(session, ctx.association_id, body.ids)
+    traitees: list[str] = []
+    ignorees: list[BulkIgnore] = []
+    now = datetime.now(UTC)
+    for eid in dict.fromkeys(body.ids):  # de-dup, keep order
+        ecriture = owned.get(eid)
+        if ecriture is None:
+            ignorees.append(BulkIgnore(id=eid, raison="Écriture introuvable."))
+            continue
+        if ecriture.statut == EcritureStatut.VALIDEE:
+            ignorees.append(BulkIgnore(id=eid, raison="Déjà validée."))
+            continue
+        ecriture.statut = EcritureStatut.VALIDEE
+        ecriture.validated_by = ctx.user.id
+        ecriture.validated_at = now
+        session.add(ecriture)
+        _audit_ecriture(session, ctx, AuditAction.ECRITURE_VALIDATE, ecriture)
+        traitees.append(eid)
+    session.commit()
+    return BulkResult(traitees=traitees, ignorees=ignorees)
+
+
+@router.post("/ecritures/suppression-groupee", response_model=BulkResult)
+def supprimer_ecritures_groupe(
+    body: BulkIdsRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.ENTRY_DELETE)),
+    session: Session = Depends(get_session),
+):
+    """Delete several drafts at once (best-effort, per id).
+
+    A validated entry is kept and reported as ignored (it can only be reversed via
+    contre-passation); an unknown/foreign id is likewise ignored, never touching
+    another tenant.
+    """
+    owned = _owned_ecritures(session, ctx.association_id, body.ids)
+    traitees: list[str] = []
+    ignorees: list[BulkIgnore] = []
+    for eid in dict.fromkeys(body.ids):  # de-dup, keep order
+        ecriture = owned.get(eid)
+        if ecriture is None:
+            ignorees.append(BulkIgnore(id=eid, raison="Écriture introuvable."))
+            continue
+        if ecriture.statut == EcritureStatut.VALIDEE:
+            ignorees.append(
+                BulkIgnore(id=eid, raison="Validée (contre-passation requise).")
+            )
+            continue
+        _audit_ecriture(session, ctx, AuditAction.ECRITURE_DELETE, ecriture)
+        session.delete(ecriture)
+        traitees.append(eid)
+    session.commit()
+    return BulkResult(traitees=traitees, ignorees=ignorees)
 
 
 @router.delete("/ecritures/{ecriture_id}", status_code=status.HTTP_204_NO_CONTENT)
