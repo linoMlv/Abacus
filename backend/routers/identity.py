@@ -159,6 +159,13 @@ class AcceptInvitationRequest(BaseModel):
     password: str | None = None
 
 
+class InvitationPreview(BaseModel):
+    association_id: str
+    association_name: str
+    email: str
+    role: Role
+
+
 # --------------------------------------------------------------------------- #
 # Helpers
 # --------------------------------------------------------------------------- #
@@ -688,6 +695,35 @@ def revoke_invitation(
     session.delete(invitation)
     session.commit()
     return {"message": "Invitation revoked"}
+
+
+@router.get("/api/auth/invitations/{token}", response_model=InvitationPreview)
+def preview_invitation(token: str, session: Session = Depends(get_session)):
+    """Public preview of a pending invitation, keyed by its (secret) token.
+
+    Lets the acceptance page show the association and the invited e-mail (so the
+    e-mail can be pre-filled and locked) before the user signs in or registers.
+    The token is the credential — no account state is revealed, and an unknown,
+    expired or already-accepted invitation is a uniform ``404``.
+    """
+    invitation = session.exec(
+        select(Invitation).where(Invitation.token_hash == hash_token(token))
+    ).first()
+    now = _utcnow()
+    if (
+        not invitation
+        or invitation.accepted_at is not None
+        or invitation.expires_at < now
+    ):
+        raise HTTPException(status_code=404, detail="Invitation invalide ou expirée")
+
+    association = session.get(Association, invitation.association_id)
+    return InvitationPreview(
+        association_id=invitation.association_id,
+        association_name=association.name if association else "",
+        email=invitation.email,
+        role=invitation.role,
+    )
 
 
 @router.post("/api/auth/invitations/accept", response_model=SessionResponse)

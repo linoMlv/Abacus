@@ -224,6 +224,42 @@ def test_accept_expired_invitation_is_400(session: Session):
 
 
 # --------------------------------------------------------------------------- #
+# Public preview (so the acceptance page can show context + prefill the email)
+# --------------------------------------------------------------------------- #
+def test_preview_returns_invitation_context():
+    admin, assoc_id = _admin_with_association()
+    token = _invite(admin, assoc_id, "Guest@Example.com", "treasurer")
+
+    # No auth needed: the token is the credential.
+    resp = _client().get(f"/api/auth/invitations/{token}")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["association_id"] == assoc_id
+    assert body["association_name"] == "Asso"
+    assert body["email"] == "guest@example.com"  # normalized
+    assert body["role"] == "treasurer"
+
+
+def test_preview_unknown_token_is_404():
+    assert _client().get("/api/auth/invitations/nope").status_code == 404
+
+
+def test_preview_accepted_invitation_is_404(session: Session):
+    admin, assoc_id = _admin_with_association()
+    token = _invite(admin, assoc_id, "guest@example.com", "viewer")
+    accept = _client().post("/api/auth/invitations/accept", json={"token": token})
+    # An existing account is required to be logged in; here no account exists yet,
+    # so creation needs name+password. Provide them to consume the invitation.
+    accept = _client().post(
+        "/api/auth/invitations/accept",
+        json={"token": token, "name": "Guest", "password": PASSWORD},
+    )
+    assert accept.status_code == 200, accept.text
+    # Once consumed, the preview no longer resolves.
+    assert _client().get(f"/api/auth/invitations/{token}").status_code == 404
+
+
+# --------------------------------------------------------------------------- #
 # Cross-tenant isolation
 # --------------------------------------------------------------------------- #
 def test_cannot_invite_or_revoke_across_associations():
