@@ -153,6 +153,9 @@ interface EcritureBase {
   id: string;
   exercice_id: string;
   journal_id: string;
+  categorie_id: string | null;
+  tiers_id: string | null;
+  evenement_id: string | null;
   date: string;
   numero_piece: number;
   libelle: string;
@@ -160,6 +163,7 @@ interface EcritureBase {
   mode_reglement: ModeReglement | null;
   statut: EcritureStatut;
   origine: EcritureOrigine;
+  extourne_de_id: string | null;
   created_at: string;
   validated_at: string | null;
 }
@@ -227,6 +231,12 @@ export interface SaisieSimpleInput {
   evenement_id?: string;
   reference_externe?: string;
   mode_reglement?: ModeReglement;
+}
+
+/** Origine-specific content for editing a draft entry (PATCH); exactly one set. */
+export interface EcritureContenu {
+  simple?: SaisieSimpleInput;
+  virement?: VirementInput;
 }
 
 /** Lifecycle of an event, mirrors the backend `EvenementStatut`. */
@@ -430,6 +440,9 @@ export const accountingApi = {
     api.get<EcritureListItem[]>(`${base(associationId)}/ecritures${qs({ ...filters })}`),
   getEcriture: (associationId: string, ecritureId: string) =>
     api.get<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}`),
+  /** Edit a draft entry in place (same origine); the content variant must match. */
+  modifierEcriture: (associationId: string, ecritureId: string, contenu: EcritureContenu) =>
+    api.patch<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}`, contenu),
   validerEcriture: (associationId: string, ecritureId: string) =>
     api.post<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}/validation`),
   /** Reverse a validated entry (contre-passation); creates a linked extourne draft. */
