@@ -83,9 +83,7 @@ def test_catalog_requires_member_manage(session: Session):
     treasurer, _ = _add_member(
         session, assoc_id, "treasurer@example.com", Role.TREASURER
     )
-    assert (
-        treasurer.get(f"/api/asso/{assoc_id}/permissions/catalog").status_code == 403
-    )
+    assert treasurer.get(f"/api/asso/{assoc_id}/permissions/catalog").status_code == 403
 
 
 # --------------------------------------------------------------------------- #
@@ -220,9 +218,7 @@ def test_preset_lifecycle_and_assignment(session: Session):
     assert set(assign.json()["effective"]) == set(perms)
 
     # The viewer may now manage events (a preset grant), end-to-end.
-    ev = viewer.post(
-        f"/api/asso/{assoc_id}/evenements", json={"nom": "Gala 2026"}
-    )
+    ev = viewer.post(f"/api/asso/{assoc_id}/evenements", json={"nom": "Gala 2026"})
     assert ev.status_code == 201, ev.text
 
     # Deleting the preset detaches it; the member falls back to the role base.
@@ -298,9 +294,7 @@ def test_non_admin_cannot_use_permissions_api(session: Session):
         ).status_code
         == 403
     )
-    assert (
-        treasurer.get(f"/api/asso/{assoc_id}/permission-presets").status_code == 403
-    )
+    assert treasurer.get(f"/api/asso/{assoc_id}/permission-presets").status_code == 403
 
 
 def test_cannot_touch_another_association_member_permissions(session: Session):
@@ -310,9 +304,7 @@ def test_cannot_touch_another_association_member_permissions(session: Session):
 
     # Admin of A, using B's path for a member of B, gets 404 (no member in A).
     assert (
-        admin_a.get(
-            f"/api/asso/{assoc_b}/members/{victim_id}/permissions"
-        ).status_code
+        admin_a.get(f"/api/asso/{assoc_b}/members/{victim_id}/permissions").status_code
         == 404
     )
     assert (
