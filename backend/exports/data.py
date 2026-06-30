@@ -9,11 +9,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, asc, select
 
-from accounting_engine import find_open_exercice
+from accounting_engine import ZERO, find_open_exercice
 from accounting_filters import JournalFilter, journal_filter_clauses
 from models import Compte, Ecriture, Evenement, Journal, LigneEcriture
 
-ZERO = Decimal("0.00")
 _CHARGE, _PRODUIT = 6, 7
 _BALANCE_CLASSES = (1, 2, 3, 4, 5)
 

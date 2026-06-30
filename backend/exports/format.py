@@ -3,7 +3,8 @@
 from datetime import date
 from decimal import Decimal
 
-CENTS = Decimal("0.01")
+from accounting_engine import CENTS
+
 # Narrow-ish grouping: a non-breaking space (present in IBM Plex / cp1252).
 _NBSP = " "
 
