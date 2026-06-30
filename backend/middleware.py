@@ -116,12 +116,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         start_time = time.time()
 
-        # Extract the submitted username from login/signup bodies before they
+        # Extract the submitted email from login/register bodies before they
         # are consumed downstream.
         body_user = None
-        if request.method == "POST" and path in ("/api/login", "/api/signup"):
+        if request.method == "POST" and path in (
+            "/api/auth/login",
+            "/api/auth/register",
+        ):
             try:
-                body_user = json.loads(await request.body()).get("name")
+                body_user = json.loads(await request.body()).get("email")
             except Exception:
                 pass
 
@@ -134,21 +137,21 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         user = _extract_user_from_cookie(request)
         detail = None
 
-        if path == "/api/login" and request.method == "POST":
+        if path == "/api/auth/login" and request.method == "POST":
             user = body_user
             if response.status_code == 200:
                 event_type = "login"
             else:
                 event_type = "login_failed"
                 detail = f"HTTP {response.status_code}"
-        elif path == "/api/logout" and request.method == "POST":
+        elif path == "/api/auth/logout" and request.method == "POST":
             event_type = "logout"
-        elif path == "/api/signup" and request.method == "POST":
+        elif path == "/api/auth/register" and request.method == "POST":
             user = body_user
-            if response.status_code == 200:
-                event_type = "signup"
+            if response.status_code == 201:
+                event_type = "register"
             else:
-                event_type = "signup_failed"
+                event_type = "register_failed"
                 detail = f"HTTP {response.status_code}"
 
         ip_address = client_ip(request)
