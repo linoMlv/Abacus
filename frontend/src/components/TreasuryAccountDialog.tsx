@@ -199,7 +199,8 @@ export function TreasuryAccountDialog({
             </div>
             {isEdit && (
               <p className="mt-1.5 text-xs text-faint">
-                Renseigne ou remplace le solde de départ. Laissez vide pour ne pas y toucher.
+                Définit le solde de départ s’il ne l’est pas encore (validé d’emblée). Une fois
+                défini, il s’ajuste par une contre-passation. Laissez vide pour ne pas y toucher.
               </p>
             )}
           </div>
