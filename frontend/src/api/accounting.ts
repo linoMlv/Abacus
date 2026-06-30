@@ -233,10 +233,35 @@ export interface SaisieSimpleInput {
   mode_reglement?: ModeReglement;
 }
 
-/** Origine-specific content for editing a draft entry (PATCH); exactly one set. */
+/** One line of a manual multi-line entry: a debit or a credit on an account. */
+export interface LigneInput {
+  compte_id: string;
+  libelle?: string;
+  debit: string;
+  credit: string;
+}
+
+/** Body of a manual multi-line entry; Σdebit must equal Σcredit (server-validated). */
+export interface SaisieManuelleInput {
+  journal_id: string;
+  date: string;
+  libelle: string;
+  lignes: LigneInput[];
+  tiers_id?: string;
+  evenement_id?: string;
+  reference_externe?: string;
+  mode_reglement?: ModeReglement;
+}
+
+/**
+ * Origine-specific entry content; exactly one variant is set. Reused for editing
+ * a draft in place (PATCH) and for the replacement of an annule-et-remplace; the
+ * variant must match the entry's origine.
+ */
 export interface EcritureContenu {
   simple?: SaisieSimpleInput;
   virement?: VirementInput;
+  manuelle?: SaisieManuelleInput;
 }
 
 /** Lifecycle of an event, mirrors the backend `EvenementStatut`. */
@@ -445,10 +470,19 @@ export const accountingApi = {
     api.patch<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}`, contenu),
   validerEcriture: (associationId: string, ecritureId: string) =>
     api.post<Ecriture>(`${base(associationId)}/ecritures/${ecritureId}/validation`),
-  /** Reverse a validated entry (contre-passation); creates a linked extourne draft. */
-  contrepasserEcriture: (associationId: string, ecritureId: string) =>
+  /**
+   * Reverse a validated entry (contre-passation): creates a linked extourne draft.
+   * With a `remplacement` (matching the original's origine), the corrected entry is
+   * also booked as a draft in the same call (annule-et-remplace).
+   */
+  contrepasserEcriture: (
+    associationId: string,
+    ecritureId: string,
+    body?: { remplacement?: EcritureContenu }
+  ) =>
     api.post<{ extourne: Ecriture; remplacement: Ecriture | null }>(
-      `${base(associationId)}/ecritures/${ecritureId}/contrepassation`
+      `${base(associationId)}/ecritures/${ecritureId}/contrepassation`,
+      body
     ),
   supprimerEcriture: (associationId: string, ecritureId: string) =>
     api.del<void>(`${base(associationId)}/ecritures/${ecritureId}`),
