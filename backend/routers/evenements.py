@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, SQLModel, asc, select
 
-from accounting_engine import CENTS, ZERO
+from accounting_engine import CENTS, ZERO, validated_only
 from audit import AuditAction, record_audit
 from auth_context import (
     AccessContext,
@@ -98,6 +98,7 @@ def _realise(
             Ecriture.association_id == association_id,
             Ecriture.evenement_id.is_not(None),
             Compte.classe.in_([_CHARGE, _PRODUIT]),
+            validated_only(),
         )
         .group_by(Ecriture.evenement_id, Compte.classe)
     ).all()

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlmodel import Session, asc, desc, select
 
-from accounting_engine import ZERO
+from accounting_engine import ZERO, validated_only
 from accounting_filters import escape_like
 from auth_context import (
     AccessContext,
@@ -107,6 +107,7 @@ def balance_comptes(
         .where(
             Compte.association_id == ctx.association_id,
             Ecriture.association_id == ctx.association_id,
+            validated_only(),
         )
     )
     if exercice_id is not None:
@@ -152,6 +153,7 @@ def grand_livre(
         .where(
             LigneEcriture.compte_id == compte_id,
             Ecriture.association_id == ctx.association_id,
+            validated_only(),
         )
     )
     if exercice_id is not None:

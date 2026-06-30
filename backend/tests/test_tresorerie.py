@@ -225,7 +225,7 @@ def test_solde_reflects_a_recette_on_the_account():
     )
     cats = admin.get(f"/api/asso/{assoc}/categories").json()
     cotis = next(c for c in cats if c["libelle"] == "Cotisations")
-    admin.post(
+    created = admin.post(
         f"/api/asso/{assoc}/ecritures/simple",
         json={
             "categorie_id": cotis["id"],
@@ -233,7 +233,9 @@ def test_solde_reflects_a_recette_on_the_account():
             "montant": "150.00",
             "date": TODAY,
         },
-    )
+    ).json()
+    # Only validated entries move the (official) treasury solde.
+    admin.post(f"/api/asso/{assoc}/ecritures/{created['id']}/validation")
 
     rows = admin.get(f"/api/asso/{assoc}/tresorerie").json()
     solde = _dec(next(r for r in rows if r["numero"] == "512")["solde"])
@@ -370,31 +372,31 @@ def test_set_opening_balance_on_a_seeded_account():
     )
 
 
-def test_set_opening_balance_replaces_a_previous_draft():
+def test_opening_balance_is_validated_and_immutable():
     admin, assoc = _admin_with_association("admin@example.com", "alpha")
     bank = _bank(admin, assoc)
-    admin.post(
+    first = admin.post(
         f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
         json={"montant": "1000.00", "date_solde_initial": TODAY},
     )
+    assert first.status_code == 200, first.text
+    # Counts immediately (validated on creation): no validation step.
+    assert _dec(first.json()["solde"]) == Decimal("1000.00")
+    entries = admin.get(f"/api/asso/{assoc}/ecritures").json()
+    an = next(e for e in entries if e["origine"] == "a_nouveau")
+    assert an["statut"] == "validee"
+
+    # A second attempt is refused: the opening balance is now immutable.
     resp = admin.post(
         f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
         json={"montant": "1500.00", "date_solde_initial": TODAY},
     )
-    assert resp.status_code == 200, resp.text
-    assert _dec(resp.json()["solde"]) == Decimal("1500.00")
-    # Still a single à-nouveau entry (the previous draft was replaced).
-    entries = admin.get(f"/api/asso/{assoc}/ecritures").json()
-    assert len([e for e in entries if e["origine"] == "a_nouveau"]) == 1
+    assert resp.status_code == 409
 
 
-def test_zero_removes_the_opening_balance():
+def test_zero_opening_balance_is_a_noop():
     admin, assoc = _admin_with_association("admin@example.com", "alpha")
     bank = _bank(admin, assoc)
-    admin.post(
-        f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
-        json={"montant": "1000.00", "date_solde_initial": TODAY},
-    )
     resp = admin.post(
         f"/api/asso/{assoc}/tresorerie/{bank['id']}/solde-initial",
         json={"montant": "0", "date_solde_initial": TODAY},

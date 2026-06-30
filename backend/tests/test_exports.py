@@ -83,6 +83,14 @@ def _post_simple(client: TestClient, assoc: str, libelle: str, montant: str, jou
         },
     )
     assert resp.status_code == 201, resp.text
+    # Exports are official documents: only validated entries feed them.
+    ecriture_id = resp.json()["id"]
+    assert (
+        client.post(
+            f"/api/asso/{assoc}/ecritures/{ecriture_id}/validation"
+        ).status_code
+        == 200
+    )
 
 
 def _set_solde_initial(client: TestClient, assoc: str, montant: str, jour: str) -> None:

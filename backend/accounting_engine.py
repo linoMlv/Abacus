@@ -20,6 +20,7 @@ from models import (
     Association,
     Ecriture,
     EcritureOrigine,
+    EcritureStatut,
     Exercice,
     ExerciceStatut,
     LigneEcriture,
@@ -28,6 +29,18 @@ from models import (
 
 CENTS = Decimal("0.01")
 ZERO = Decimal("0.00")
+
+
+def validated_only():
+    """SQL clause for official figures: validated entries only (drafts excluded).
+
+    Every balance/report aggregation (trial balance, ledger, treasury soldes,
+    synthesis, exports) filters on this so an unvalidated draft never inflates a
+    reported figure. Opening-balance (à-nouveau) entries are validated on
+    creation, so they always count. The journal *listing* stays a transparent
+    register (it shows drafts with their statut) — only the figures exclude them.
+    """
+    return Ecriture.statut == EcritureStatut.VALIDEE
 
 
 class EntryError(ValueError):

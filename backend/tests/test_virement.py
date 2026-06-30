@@ -184,10 +184,12 @@ def test_virement_creates_balanced_od_entry():
 
 def test_virement_moves_the_balances():
     admin, assoc = _admin_with_association("admin@example.com", "alpha")
-    admin.post(
+    created = admin.post(
         f"/api/asso/{assoc}/ecritures/virement",
         json=_virement_payload(admin, assoc, "120.00"),
-    )
+    ).json()
+    # Only a validated entry moves the (official) treasury soldes.
+    admin.post(f"/api/asso/{assoc}/ecritures/{created['id']}/validation")
     # Caisse loses, banque gains (relative to their à-nouveau-less zero starts).
     assert _solde(admin, assoc, "512") == Decimal("120.00")
     assert _solde(admin, assoc, "531") == Decimal("-120.00")

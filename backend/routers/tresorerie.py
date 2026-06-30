@@ -7,7 +7,7 @@ entry for its opening balance. Every reference from the client is re-scoped to t
 active association before use (``owned_or_404`` / explicit ``association_id`` filter).
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +21,7 @@ from accounting_engine import (
     build_ecriture_a_nouveau,
     find_open_exercice,
     next_numero_piece,
+    validated_only,
 )
 from audit import AuditAction, record_audit
 from auth_context import (
@@ -126,6 +127,7 @@ def _treasury_soldes(
         .where(
             Ecriture.association_id == association_id,
             LigneEcriture.compte_id.in_(compte_ids),
+            validated_only(),
         )
         .group_by(LigneEcriture.compte_id)
     ).all()
@@ -220,6 +222,12 @@ def _post_solde_initial(
         )
     except EntryError as exc:
         raise _bad_request(str(exc))
+    # An opening balance is a firm declaration of the starting position, not
+    # pending work: it is validated on creation so it counts in the official
+    # figures immediately (and becomes immutable — adjusted via contre-passation).
+    ecriture.statut = EcritureStatut.VALIDEE
+    ecriture.validated_by = ctx.user.id
+    ecriture.validated_at = datetime.now(UTC)
     session.add(ecriture)
 
 
@@ -317,25 +325,23 @@ def set_solde_initial(
     ctx: AccessContext = Depends(require_permission(Permission.TRESORERIE_MANAGE)),
     session: Session = Depends(get_session),
 ):
-    """Set (or remove, with 0) the opening balance of an existing treasury account.
+    """Set the opening balance of an existing treasury account (onboarding).
 
-    Useful at onboarding for the seeded Banque/Caisse. Replaces a previous *draft*
-    à-nouveau entry; a *validated* opening balance is immutable (409 — a
-    contre-passation is required). The opening balance posts D account / C report à
-    nouveau (110); 0 simply removes the draft entry.
+    Useful for the seeded Banque/Caisse. The opening balance posts D account /
+    C report à nouveau (110) and is **validated on creation**, so it counts at
+    once and is then immutable: a second attempt is refused (409 — adjusting it
+    goes through a contre-passation, like any validated entry). A zero amount on
+    an account with no opening balance is a no-op.
     """
     compte = _owned_treasury(session, ctx.association_id, compte_id)
 
     existing = _a_nouveau_entries(session, ctx.association_id, compte.id)
-    if any(e.statut == EcritureStatut.VALIDEE for e in existing):
+    if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Le solde initial est validé et ne peut plus être modifié "
+            detail="Le solde initial est déjà défini et ne peut plus être modifié "
             "(contre-passation requise).",
         )
-    for entry in existing:
-        session.delete(entry)
-    session.flush()  # apply the deletions before re-posting / renumbering
 
     montant = body.montant.quantize(CENTS)
     if montant != ZERO:

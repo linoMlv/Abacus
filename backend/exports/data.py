@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, asc, select
 
-from accounting_engine import ZERO, find_open_exercice
+from accounting_engine import ZERO, find_open_exercice, validated_only
 from accounting_filters import JournalFilter, journal_filter_clauses
 from models import Compte, Ecriture, Evenement, Journal, LigneEcriture
 
@@ -170,6 +170,7 @@ def releve_data(
             Ecriture.association_id == association_id,
             LigneEcriture.compte_id == compte.id,
             Ecriture.date < date_from,
+            validated_only(),
         )
     ).one()
     solde = _dec(opening_debit) - _dec(opening_credit)
@@ -192,6 +193,7 @@ def releve_data(
             LigneEcriture.compte_id == compte.id,
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
+            validated_only(),
         )
         .order_by(asc(Ecriture.date), asc(Ecriture.numero_piece), asc(LigneEcriture.id))
     ).all()
@@ -289,7 +291,11 @@ def grand_livre_data(
         )
         .select_from(LigneEcriture)
         .join(Ecriture, Ecriture.id == LigneEcriture.ecriture_id)
-        .where(Ecriture.association_id == association_id, Ecriture.date < date_from)
+        .where(
+            Ecriture.association_id == association_id,
+            Ecriture.date < date_from,
+            validated_only(),
+        )
         .group_by(LigneEcriture.compte_id)
     ).all()
     openings = {cid: _dec(d) - _dec(c) for cid, d, c in opening_rows}
@@ -314,6 +320,7 @@ def grand_livre_data(
             Ecriture.association_id == association_id,
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
+            validated_only(),
         )
         .order_by(
             asc(Compte.numero),
@@ -380,6 +387,7 @@ def compte_resultat_data(
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
             Compte.classe.in_([_CHARGE, _PRODUIT]),
+            validated_only(),
         )
         .group_by(Compte.id, Compte.numero, Compte.libelle, Compte.classe)
         .order_by(asc(Compte.numero))
@@ -434,6 +442,7 @@ def bilan_data(session: Session, association_id: str, date_to: date) -> BilanDat
             Compte.association_id == association_id,
             Ecriture.date <= date_to,
             Compte.classe.in_(_BALANCE_CLASSES),
+            validated_only(),
         )
         .group_by(Compte.id, Compte.numero, Compte.libelle)
         .order_by(asc(Compte.numero))
@@ -465,6 +474,7 @@ def bilan_data(session: Session, association_id: str, date_to: date) -> BilanDat
             Compte.association_id == association_id,
             Ecriture.date <= date_to,
             Compte.classe.in_([_CHARGE, _PRODUIT]),
+            validated_only(),
         )
         .group_by(Compte.classe)
     ).all()
@@ -507,6 +517,7 @@ def evenement_bilan_data(
             Ecriture.association_id == association_id,
             Ecriture.evenement_id == evenement.id,
             Compte.classe.in_([_CHARGE, _PRODUIT]),
+            validated_only(),
         )
         .group_by(
             Ecriture.id,

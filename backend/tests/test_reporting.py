@@ -65,7 +65,7 @@ def _compte_id(client: TestClient, assoc_id: str, numero: str) -> str:
     return next(c["id"] for c in comptes if c["numero"] == numero)
 
 
-def _post_simple(client: TestClient, assoc_id: str, libelle: str, montant: str) -> None:
+def _post_simple(client: TestClient, assoc_id: str, libelle: str, montant: str) -> str:
     resp = client.post(
         f"/api/asso/{assoc_id}/ecritures/simple",
         json={
@@ -76,6 +76,18 @@ def _post_simple(client: TestClient, assoc_id: str, libelle: str, montant: str) 
         },
     )
     assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+def _validate_all(client: TestClient, assoc_id: str) -> None:
+    """Validate every entry so it feeds the official figures (balance, ledger)."""
+    for entry in client.get(f"/api/asso/{assoc_id}/ecritures").json():
+        assert (
+            client.post(
+                f"/api/asso/{assoc_id}/ecritures/{entry['id']}/validation"
+            ).status_code
+            == 200
+        )
 
 
 def _dec(value) -> Decimal:
@@ -116,6 +128,7 @@ def test_journal_can_filter_by_statut():
 
 def test_balance_is_globally_balanced_and_per_account_correct():
     admin, assoc = _seeded_books()
+    _validate_all(admin, assoc)  # only validated entries appear in the balance
     rows = admin.get(f"/api/asso/{assoc}/balance").json()
     by_numero = {r["numero"]: r for r in rows}
 
@@ -137,6 +150,7 @@ def test_balance_is_globally_balanced_and_per_account_correct():
 
 def test_grand_livre_has_running_balance():
     admin, assoc = _seeded_books()
+    _validate_all(admin, assoc)  # only validated entries appear in the ledger
     compte_512 = _compte_id(admin, assoc, "512")
     rows = admin.get(f"/api/asso/{assoc}/comptes/{compte_512}/grand-livre").json()
 

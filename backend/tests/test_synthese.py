@@ -80,6 +80,7 @@ def _post_simple(
     montant: str,
     jour: str,
     evenement_id: str | None = None,
+    validate: bool = True,
 ) -> dict:
     body = {
         "categorie_id": _categorie_id(client, assoc, libelle),
@@ -91,7 +92,17 @@ def _post_simple(
         body["evenement_id"] = evenement_id
     resp = client.post(f"/api/asso/{assoc}/ecritures/simple", json=body)
     assert resp.status_code == 201, resp.text
-    return resp.json()
+    data = resp.json()
+    # Figures only count validated entries; validate by default so the books are
+    # official. Tests of the drafts alert opt out with ``validate=False``.
+    if validate:
+        assert (
+            client.post(
+                f"/api/asso/{assoc}/ecritures/{data['id']}/validation"
+            ).status_code
+            == 200
+        )
+    return data
 
 
 def _create_evenement(client: TestClient, assoc: str, nom: str, budget_dep: str) -> str:
@@ -175,10 +186,11 @@ def test_courbe_tresorerie_opening_then_cumulative():
 
 
 def test_alerte_brouillons_counts_unvalidated_entries():
-    client, assoc, _ = _books()
+    client, assoc, _ = _books()  # all validated (opening + the four entries)
+    # The alert counts entries left as drafts (pending validation).
+    _post_simple(client, assoc, "Cotisations", "10.00", "2026-06-15", validate=False)
     data = _synthese(client, assoc, date_from=FROM, date_to=TO)
-    # 1 à-nouveau + 3 in-range + 1 July, all drafts.
-    assert data["alertes"]["brouillons"] == 5
+    assert data["alertes"]["brouillons"] == 1
 
 
 def test_alerte_evenement_depasse_budget():

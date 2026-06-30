@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlmodel import Session, asc, select
 
-from accounting_engine import CENTS, ZERO, find_open_exercice
+from accounting_engine import CENTS, ZERO, find_open_exercice, validated_only
 from auth_context import AccessContext, require_permission
 from authz import Permission
 from database import get_session
@@ -82,6 +82,7 @@ def _resultat(
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
             Compte.classe.in_([_CHARGE, _PRODUIT]),
+            validated_only(),
         )
         .group_by(Compte.classe)
     ).all()
@@ -120,6 +121,7 @@ def _repartition_categories(
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
             Compte.classe.in_([_CHARGE, _PRODUIT]),
+            validated_only(),
         )
         .group_by(CategorieSaisie.id, CategorieSaisie.libelle, CategorieSaisie.sens)
     ).all()
@@ -156,6 +158,7 @@ def _repartition_evenements(
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
             Compte.classe.in_([_CHARGE, _PRODUIT]),
+            validated_only(),
         )
         .group_by(Ecriture.evenement_id, Compte.classe)
     ).all()
@@ -219,6 +222,7 @@ def _courbe_tresorerie(
             Ecriture.association_id == association_id,
             LigneEcriture.compte_id.in_(treasury_ids),
             Ecriture.date < date_from,
+            validated_only(),
         )
     ).one()
     opening = _dec(opening_debit) - _dec(opening_credit)
@@ -236,6 +240,7 @@ def _courbe_tresorerie(
             LigneEcriture.compte_id.in_(treasury_ids),
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
+            validated_only(),
         )
         .group_by(Ecriture.date)
     ).all()

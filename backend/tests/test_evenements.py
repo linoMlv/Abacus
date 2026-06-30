@@ -158,10 +158,13 @@ def test_realise_sums_produits_and_charges_of_tagged_entries():
     admin, assoc = _admin_with_association("a@example.com", "alpha")
     ev = _create_evenement(admin, assoc, "Gala", budget_recettes="200.00")
     # A recette (produit, class 7) and a dépense (charge, class 6) tagged on it.
-    _post_simple(admin, assoc, "Cotisations", "150.00", evenement_id=ev["id"])
-    _post_simple(admin, assoc, "Locations", "100.00", evenement_id=ev["id"])
+    recette = _post_simple(admin, assoc, "Cotisations", "150.00", evenement_id=ev["id"])
+    depense = _post_simple(admin, assoc, "Locations", "100.00", evenement_id=ev["id"])
     # An untagged recette must not count toward the event.
     _post_simple(admin, assoc, "Cotisations", "999.00")
+    # Réalisé counts validated entries only.
+    for entry in (recette, depense):
+        admin.post(f"/api/asso/{assoc}/ecritures/{entry['id']}/validation")
 
     detail = admin.get(f"/api/asso/{assoc}/evenements/{ev['id']}").json()
     assert detail["realise_recettes"] == "150.00"
