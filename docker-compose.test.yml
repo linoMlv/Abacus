@@ -3,7 +3,7 @@
 # NOT used in production: it publishes ports on the host.
 services:
   app:
-    # Reach the app (API + built SPA + /mcp) from the host.
+    # Reach the app (API + built SPA) from the host.
     ports:
       - "8000:8000"
   db:

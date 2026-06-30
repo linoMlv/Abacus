@@ -10,7 +10,6 @@ from sqlmodel import Session
 
 from database import engine
 from log_retention import purge_old_logs
-from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import (
     LoggingMiddleware,
     OriginValidationMiddleware,
@@ -59,9 +58,7 @@ def _allowed_origins() -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _purge_logs_on_startup()
-    session_manager = get_session_manager()
-    async with session_manager.run():
-        yield
+    yield
 
 
 def _purge_logs_on_startup() -> None:
@@ -123,12 +120,5 @@ def health_check():
 mount_frontend(_fastapi_app, os.getenv("FRONTEND_DIST", "static"))
 
 
-# Top-level ASGI app: intercepts /mcp before FastAPI's middleware stack,
-# which would otherwise buffer SSE streaming responses.
-async def app(scope, receive, send):
-    if scope["type"] == "http" and (
-        scope["path"] == "/mcp" or scope["path"].startswith("/mcp/")
-    ):
-        await mcp_asgi_app(scope, receive, send)
-    else:
-        await _fastapi_app(scope, receive, send)  # lifespan events also go here
+# ASGI entrypoint served by uvicorn (``main:app``).
+app = _fastapi_app

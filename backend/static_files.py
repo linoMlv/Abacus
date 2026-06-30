@@ -11,7 +11,7 @@ import os
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
-RESERVED_PREFIXES = ("api", "health", "mcp")
+RESERVED_PREFIXES = ("api", "health")
 
 
 def _should_fallback(path: str) -> bool:

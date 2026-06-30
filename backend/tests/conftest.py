@@ -19,8 +19,6 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 
 from database import get_session
-
-# Import the FastAPI instance, not the top-level ASGI wrapper that fronts /mcp.
 from main import _fastapi_app as app
 
 # Test database: defaults to in-memory SQLite for fast local runs.
