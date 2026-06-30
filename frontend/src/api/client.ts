@@ -16,12 +16,41 @@ export class ApiError extends Error {
   }
 }
 
+const REFRESH_PATH = '/auth/refresh';
+// Endpoints where a 401 is terminal: the auth flows themselves (refreshing on a
+// failed login would loop). Every other path — including /auth/session — may
+// refresh and replay, so a returning user with a valid refresh cookie stays in.
+const NO_REFRESH_PATHS = ['/auth/login', '/auth/register', '/auth/logout', REFRESH_PATH];
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+/**
+ * Refresh the session once, shared across concurrent callers (single-flight): a
+ * burst of requests that all 401 at once funnels through a single rotating
+ * refresh, never a stampede. Resolves to whether the session was renewed.
+ */
+function refreshSession(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(BASE + REFRESH_PATH, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // JSON by default; for FormData let the browser set the multipart boundary.
   const isForm = options.body instanceof FormData;
-  let res: Response;
-  try {
-    res = await fetch(BASE + path, {
+  const send = (): Promise<Response> =>
+    fetch(BASE + path, {
       credentials: 'include',
       // Never let the browser serve a heuristically-cached prior response for a
       // credentialed API GET — accounting figures must reflect the latest state.
@@ -32,6 +61,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       },
       ...options,
     });
+
+  let res: Response;
+  try {
+    res = await send();
+    // A 401 means the access token is missing or expired: refresh the session
+    // once (rotating refresh cookie) and replay the original request, so an
+    // otherwise-valid session survives access-token expiry transparently.
+    if (res.status === 401 && !NO_REFRESH_PATHS.some((p) => path.startsWith(p))) {
+      if (await refreshSession()) res = await send();
+    }
   } catch {
     throw new ApiError(0, 'Connexion au serveur impossible.');
   }
