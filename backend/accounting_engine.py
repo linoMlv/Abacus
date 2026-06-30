@@ -257,6 +257,14 @@ def build_ecriture_extourne(
         ),
         origine=EcritureOrigine.EXTOURNE,
         extourne_de_id=original.id,
+        # Carry the original's analytic tags so the reversal nets it out in
+        # *every* dimension — not just the result-by-class, but the Synthèse
+        # per-category / per-event breakdowns and the event "réalisé" too.
+        categorie_id=original.categorie_id,
+        evenement_id=original.evenement_id,
+        tiers_id=original.tiers_id,
+        reference_externe=original.reference_externe,
+        mode_reglement=original.mode_reglement,
         created_by=created_by,
         lignes=lignes,
     )

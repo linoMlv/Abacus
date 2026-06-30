@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 
 from accounting_engine import (
     EntryError,
+    build_ecriture_extourne,
     build_ecriture_simple,
     next_numero_piece,
     validate_lignes,
@@ -22,6 +23,7 @@ from models import (
     EcritureStatut,
     Exercice,
     Journal,
+    LigneEcriture,
     SensCategorie,
 )
 
@@ -163,3 +165,51 @@ def test_numero_piece_is_isolated_per_association(session: Session):
 
     assert next_numero_piece(session, assoc_a) == 2
     assert next_numero_piece(session, association_b.id) == 1
+
+
+def test_extourne_carries_the_analytic_tags():
+    """A reversal must net the original in *every* dimension, so it carries the
+    same catégorie / événement / tiers. Otherwise the Synthèse per-category and
+    per-event breakdowns (which attribute by ``Ecriture.categorie_id`` /
+    ``evenement_id``) stay inflated by every contre-passation, even though the
+    result-by-class nets to zero."""
+    original = Ecriture(
+        association_id="assoc",
+        exercice_id="ex",
+        journal_id="jr",
+        date=date(2026, 6, 27),
+        numero_piece=1,
+        libelle="Don",
+        origine=EcritureOrigine.SAISIE_SIMPLE,
+        categorie_id="cat-1",
+        evenement_id="ev-1",
+        tiers_id="tiers-1",
+        reference_externe="FAC-42",
+        lignes=[
+            LigneEcriture(
+                compte_id="512",
+                libelle="",
+                debit=Decimal("100.00"),
+                credit=Decimal("0.00"),
+            ),
+            LigneEcriture(
+                compte_id="756",
+                libelle="",
+                debit=Decimal("0.00"),
+                credit=Decimal("100.00"),
+            ),
+        ],
+    )
+
+    reversal = build_ecriture_extourne(original=original, numero_piece=2)
+
+    assert reversal.origine is EcritureOrigine.EXTOURNE
+    # The analytic tags are carried over so every breakdown nets out.
+    assert reversal.categorie_id == "cat-1"
+    assert reversal.evenement_id == "ev-1"
+    assert reversal.tiers_id == "tiers-1"
+    # Debit/credit are swapped line by line.
+    assert [(line.debit, line.credit) for line in reversal.lignes] == [
+        (Decimal("0.00"), Decimal("100.00")),
+        (Decimal("100.00"), Decimal("0.00")),
+    ]
