@@ -195,7 +195,11 @@ export function JournalPage() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
   function toggleAll() {
-    setSelectedIds((prev) => (prev.length >= rows.length ? [] : rows.map((r) => r.id)));
+    // Decide from the *visible* rows, not the raw set (which may hold stale,
+    // off-screen ids after a filter change): select all visible, or clear.
+    setSelectedIds((prev) =>
+      rows.length > 0 && rows.every((r) => prev.includes(r.id)) ? [] : rows.map((r) => r.id)
+    );
   }
   function clearSelection() {
     setSelectedIds([]);

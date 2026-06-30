@@ -23,6 +23,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
     res = await fetch(BASE + path, {
       credentials: 'include',
+      // Never let the browser serve a heuristically-cached prior response for a
+      // credentialed API GET — accounting figures must reflect the latest state.
+      cache: 'no-store',
       headers: {
         ...(isForm ? {} : { 'Content-Type': 'application/json' }),
         ...options.headers,
