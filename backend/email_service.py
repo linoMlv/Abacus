@@ -38,26 +38,6 @@ def _send_email(to: str, subject: str, html_body: str) -> bool:
         return False
 
 
-def send_password_reset_email(to: str, token: str) -> bool:
-    reset_url = f"{APP_URL}/reset-password?token={token}"
-    html = f"""
-    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-        <h2 style="color: #1f2937;">Abacus - Password Reset</h2>
-        <p style="color: #4b5563;">You requested a password reset. Click the button below to set a new password:</p>
-        <a href="{reset_url}"
-           style="display: inline-block; padding: 12px 24px; background: #1f2937; color: #fff;
-                  text-decoration: none; border-radius: 8px; font-weight: 600; margin: 16px 0;">
-            Reset Password
-        </a>
-        <p style="color: #9ca3af; font-size: 14px;">
-            This link expires in 15 minutes.<br>
-            If you did not request this, you can safely ignore this email.
-        </p>
-    </div>
-    """
-    return _send_email(to, "Abacus - Password Reset", html)
-
-
 def send_invitation_email(to: str, association_name: str, token: str) -> bool:
     accept_url = f"{APP_URL}/invitation?token={token}"
     html = f"""

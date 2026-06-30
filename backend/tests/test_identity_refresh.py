@@ -106,24 +106,22 @@ def test_logout_all_revokes_every_session():
         assert _replay_refresh(token).status_code == 401
 
 
-def test_legacy_refresh_token_is_rejected_by_user_refresh():
-    legacy = _client()
-    signup = legacy.post(
-        "/api/signup",
-        json={
-            "name": "LegacyAsso",
-            "email": "legacy@example.com",
-            "password": PASSWORD,
-            "balances": [],
-        },
-    )
-    assert signup.status_code == 200, signup.text
-    legacy_login = legacy.post(
-        "/api/login", json={"name": "LegacyAsso", "password": PASSWORD}
-    )
-    assert legacy_login.status_code == 200
-    legacy_token = _refresh_cookie(legacy_login)
+def test_refresh_session_without_user_is_rejected(session: Session):
+    """A refresh session not bound to a user (``user_id`` NULL) — e.g. a legacy
+    association session — must never be accepted by the user refresh endpoint."""
+    from datetime import UTC, datetime, timedelta
 
-    # A legacy (association) refresh token has user_id NULL and must not work
-    # on the user refresh endpoint.
-    assert _replay_refresh(legacy_token).status_code == 401
+    from models import RefreshSession
+    from security import generate_refresh_token, hash_refresh_token
+
+    raw = generate_refresh_token()
+    session.add(
+        RefreshSession(
+            user_id=None,
+            token_hash=hash_refresh_token(raw),
+            expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=1),
+        )
+    )
+    session.commit()
+
+    assert _replay_refresh(raw).status_code == 401

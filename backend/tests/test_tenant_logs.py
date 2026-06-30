@@ -72,7 +72,7 @@ def test_association_id_extracted_from_scoped_path():
 
 
 def test_no_association_id_for_non_scoped_paths():
-    assert _association_id_from_path("/api/login") is None
+    assert _association_id_from_path("/api/auth/login") is None
     assert _association_id_from_path("/api/auth/session") is None
     assert _association_id_from_path("/api/asso/") is None
     assert _association_id_from_path("/health") is None
@@ -88,7 +88,7 @@ def test_admin_reads_only_own_association_logs(session: Session):
     _add_log(session, assoc_id, event_type="request", path="/api/asso/a/members")
     _add_log(session, assoc_id, event_type="login", path="/api/asso/a/x")
     _add_log(session, "other-asso", path="/api/asso/other/members")
-    _add_log(session, None, path="/api/login")  # global, no association
+    _add_log(session, None, path="/api/auth/login")  # global, no association
 
     logs = admin.get(f"/api/asso/{assoc_id}/logs")
     assert logs.status_code == 200

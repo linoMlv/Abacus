@@ -55,29 +55,3 @@ def client_fixture(session: Session):
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
-
-
-@pytest.fixture(name="auth")
-def auth_fixture(client: TestClient):
-    """An authenticated client. Returns (client, association_id).
-
-    Signs up an association and logs in; the TestClient persists the auth
-    cookie across subsequent requests within the test.
-    """
-    signup = client.post(
-        "/api/signup",
-        json={
-            "name": "AuthAsso",
-            "email": "auth@example.com",
-            "password": "password123",
-            "balances": [{"name": "Main", "amount": "100.0"}],
-        },
-    )
-    assert signup.status_code == 200, signup.text
-    association_id = signup.json()["id"]
-
-    login = client.post(
-        "/api/login", json={"name": "AuthAsso", "password": "password123"}
-    )
-    assert login.status_code == 200, login.text
-    return client, association_id

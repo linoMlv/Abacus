@@ -164,27 +164,17 @@ def test_unauthenticated_cannot_access_scoped_route():
     assert _client().get("/api/asso/whatever").status_code == 401
 
 
-def test_legacy_association_token_is_rejected_on_v3_routes():
-    """A token minted by the legacy association-login path must not work here."""
-    legacy = _client()
-    signup = legacy.post(
-        "/api/signup",
-        json={
-            "name": "LegacyAsso",
-            "email": "legacy@example.com",
-            "password": PASSWORD,
-            "balances": [],
-        },
+def test_token_without_user_claim_is_rejected_on_v3_routes():
+    """Anti-confusion (D2): a token lacking the ``type: "user"`` claim — forged
+    or minted by any other flow — must never authenticate user-scoped routes."""
+    from security import create_access_token
+
+    forged = create_access_token(data={"sub": "anything"})
+    client = _client()
+    client.cookies.set(
+        "access_token", f"Bearer {forged}", domain="testserver", path="/"
     )
-    assert signup.status_code == 200, signup.text
-    assert (
-        legacy.post(
-            "/api/login", json={"name": "LegacyAsso", "password": PASSWORD}
-        ).status_code
-        == 200
-    )
-    # The legacy access cookie is now set; it must be refused by user-auth.
-    assert legacy.get("/api/asso/anything").status_code == 401
+    assert client.get("/api/asso/anything").status_code == 401
 
 
 # --------------------------------------------------------------------------- #

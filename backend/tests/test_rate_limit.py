@@ -9,11 +9,13 @@ def test_auth_endpoints_are_rate_limited(client: TestClient):
     # here does not affect other tests.
     limiter.enabled = True
     try:
-        # forgot-password always returns 200 and has no side effects, so it
-        # is a safe endpoint to hammer past the default 5/minute limit.
+        # Login is rate-limited (AUTH_RATE_LIMIT, 5/minute). Bad credentials
+        # reach the handler (401) until the limit kicks in; hammering it past
+        # the limit must start returning 429.
         codes = [
             client.post(
-                "/api/forgot-password", json={"email": "x@example.com"}
+                "/api/auth/login",
+                json={"email": "x@example.com", "password": "nope"},
             ).status_code
             for _ in range(7)
         ]
@@ -21,4 +23,5 @@ def test_auth_endpoints_are_rate_limited(client: TestClient):
         limiter.enabled = False
 
     assert 429 in codes
-    assert codes.count(200) <= 5
+    # At most the per-minute allowance reaches the handler before throttling.
+    assert len([c for c in codes if c != 429]) <= 5

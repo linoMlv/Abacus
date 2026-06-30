@@ -18,12 +18,7 @@ from middleware import (
 )
 from rate_limit import limiter
 from routers import (
-    account,
     accounting,
-    api_keys,
-    associations,
-    auth,
-    balances,
     categories,
     ecritures,
     evenements,
@@ -31,7 +26,6 @@ from routers import (
     identity,
     justificatifs,
     logs,
-    operations,
     permissions,
     synthese,
     tiers,
@@ -116,13 +110,7 @@ _fastapi_app.include_router(synthese.router)
 _fastapi_app.include_router(permissions.router)
 _fastapi_app.include_router(exports.router)
 _fastapi_app.include_router(justificatifs.router)
-_fastapi_app.include_router(auth.router)
-_fastapi_app.include_router(associations.router)
-_fastapi_app.include_router(operations.router)
-_fastapi_app.include_router(balances.router)
 _fastapi_app.include_router(logs.router)
-_fastapi_app.include_router(account.router)
-_fastapi_app.include_router(api_keys.router)
 
 
 @_fastapi_app.get("/health")
