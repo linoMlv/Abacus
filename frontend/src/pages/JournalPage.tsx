@@ -36,6 +36,7 @@ import {
 import { apiErrorMessage } from '@/api/client';
 import { ExportMenu } from '@/components/ExportMenu';
 import { JustificatifViewer } from '@/components/JustificatifViewer';
+import { ManualEntryForm } from '@/components/saisie/ManualEntryForm';
 import { OperationForm } from '@/components/saisie/OperationForm';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -938,14 +939,15 @@ function EcritureDrawer({
   const queryClient = useQueryClient();
   const { has } = usePermissions();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [editing, setEditing] = useState(false);
+  // null = detail; 'edit' rebuilds a draft; 'correct' annule-et-remplace a validated entry.
+  const [formAction, setFormAction] = useState<null | 'edit' | 'correct'>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) =>
-      e.key === 'Escape' && (editing ? setEditing(false) : onClose());
+      e.key === 'Escape' && (formAction ? setFormAction(null) : onClose());
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, editing]);
+  }, [onClose, formAction]);
 
   const detailQuery = useQuery({
     queryKey: ['ecriture', associationId, ecritureId],
@@ -996,15 +998,33 @@ function EcritureDrawer({
   const isDraft = entry?.statut === 'brouillon';
   const canValidate = has(PERMISSIONS.ENTRY_VALIDATE);
   const canDelete = has(PERMISSIONS.ENTRY_DELETE);
-  // Only saisie_simple / virement drafts are editable inline (the operation form
-  // handles those two origines); editing requires that origine's create permission.
-  const canEditEntry =
-    isDraft &&
-    (entry?.origine === 'virement'
-      ? has(PERMISSIONS.ENTRY_CREATE_TRANSFER)
+  // The form-backed origines are editable in place; each needs its create permission.
+  const formPermission =
+    entry?.origine === 'virement'
+      ? PERMISSIONS.ENTRY_CREATE_TRANSFER
       : entry?.origine === 'saisie_simple'
-        ? has(PERMISSIONS.ENTRY_CREATE_SIMPLE)
-        : false);
+        ? PERMISSIONS.ENTRY_CREATE_SIMPLE
+        : entry?.origine === 'manuelle'
+          ? PERMISSIONS.ENTRY_CREATE_MANUAL
+          : null;
+  const isManuelle = entry?.origine === 'manuelle';
+  const canUseForm = formPermission !== null && has(formPermission);
+  const canEditEntry = isDraft && canUseForm; // Modifier (draft)
+  // Corriger (validated): annule-et-remplace also needs the delete permission (reversal).
+  const canCorrectEntry = entry !== undefined && !isDraft && canUseForm && canDelete;
+  const formMode = formAction === 'correct' ? 'correct' : 'edit';
+
+  function onFormSaved() {
+    // A correction reverses the original and books the corrected draft elsewhere:
+    // close the drawer. An edit stays, showing the refreshed entry.
+    if (formAction === 'correct') {
+      onClose();
+    } else {
+      setFormAction(null);
+      queryClient.invalidateQueries({ queryKey: ['ecriture', associationId, ecritureId] });
+    }
+  }
+
   const actionError =
     apiErrorMessage(validate, 'Validation impossible.') ??
     apiErrorMessage(remove, 'Suppression impossible.') ??
@@ -1027,7 +1047,13 @@ function EcritureDrawer({
         <header className="flex items-center justify-between border-b border-hairline px-5 py-4">
           <h3 className="text-base font-semibold text-ink">
             {entry
-              ? `${editing ? 'Modifier la pièce' : 'Pièce'} n° ${entry.numero_piece}`
+              ? `${
+                  formAction === 'correct'
+                    ? 'Corriger la pièce'
+                    : formAction === 'edit'
+                      ? 'Modifier la pièce'
+                      : 'Pièce'
+                } n° ${entry.numero_piece}`
               : 'Détail'}
           </h3>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Fermer">
@@ -1037,20 +1063,23 @@ function EcritureDrawer({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {detailQuery.isError && <Alert>Écriture introuvable.</Alert>}
-          {entry && editing && (
-            <OperationForm
-              mode="edit"
+          {entry && formAction && isManuelle && (
+            <ManualEntryForm
+              action={formAction}
               entry={entry}
-              onSaved={() => {
-                setEditing(false);
-                queryClient.invalidateQueries({
-                  queryKey: ['ecriture', associationId, ecritureId],
-                });
-              }}
-              onCancel={() => setEditing(false)}
+              onSaved={onFormSaved}
+              onCancel={() => setFormAction(null)}
             />
           )}
-          {entry && !editing && (
+          {entry && formAction && !isManuelle && (
+            <OperationForm
+              mode={formMode}
+              entry={entry}
+              onSaved={onFormSaved}
+              onCancel={() => setFormAction(null)}
+            />
+          )}
+          {entry && !formAction && (
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted">{formatDate(entry.date)}</span>
@@ -1086,26 +1115,38 @@ function EcritureDrawer({
           )}
         </div>
 
-        {entry && !editing && (
+        {entry && !formAction && (
           <footer className="space-y-3 border-t border-hairline px-5 py-4">
             {actionError && <Alert>{actionError}</Alert>}
             {!isDraft ? (
               <div className="space-y-2.5">
                 <p className="text-xs text-muted">
-                  Écriture validée : immuable. La corriger crée une extourne en brouillon
-                  (contre-passation), à valider ensuite.
+                  Écriture validée : immuable. « Corriger » crée la version corrigée et son extourne
+                  en brouillon ; « Contre-passer » l’annule simplement.
                 </p>
-                {canDelete && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={contrepasser.isPending}
-                    onClick={() => contrepasser.mutate()}
-                  >
-                    <Undo2 className="h-4 w-4" aria-hidden />
-                    Contre-passer
-                  </Button>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {canCorrectEntry && (
+                    <Button
+                      variant="accent"
+                      className="flex-1"
+                      onClick={() => setFormAction('correct')}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden />
+                      Corriger
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      disabled={contrepasser.isPending}
+                      onClick={() => contrepasser.mutate()}
+                    >
+                      <Undo2 className="h-4 w-4" aria-hidden />
+                      Contre-passer
+                    </Button>
+                  )}
+                </div>
               </div>
             ) : confirmingDelete ? (
               <div className="flex items-center gap-2">
@@ -1135,7 +1176,7 @@ function EcritureDrawer({
                   </Button>
                 )}
                 {canEditEntry && (
-                  <Button variant="outline" onClick={() => setEditing(true)}>
+                  <Button variant="outline" onClick={() => setFormAction('edit')}>
                     <Pencil className="h-4 w-4" aria-hidden />
                     Modifier
                   </Button>

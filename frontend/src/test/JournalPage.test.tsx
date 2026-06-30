@@ -398,6 +398,94 @@ describe('JournalPage', () => {
     await waitFor(() => expect(contrepasserEcriture).toHaveBeenCalledWith('A', 'e1'));
   });
 
+  it('corrects a validated entry (annule-et-remplace) from the drawer', async () => {
+    const validated = {
+      ...DETAIL,
+      id: 'e2',
+      numero_piece: 9,
+      statut: 'validee',
+      origine: 'saisie_simple',
+      categorie_id: 'cat-co',
+    };
+    getEcriture.mockResolvedValue(validated);
+    contrepasserEcriture.mockResolvedValue({
+      extourne: { ...validated, id: 'ext' },
+      remplacement: { ...validated, id: 'rep', statut: 'brouillon' },
+    });
+    renderPage();
+    await userEvent.click(await screen.findByText('Cotisation Mars'));
+    await screen.findByRole('dialog');
+
+    // "Corriger" opens the operation form pre-filled from the validated entry.
+    await userEvent.click(screen.getByRole('button', { name: 'Corriger' }));
+    await waitFor(() =>
+      expect((screen.getByLabelText('Catégorie') as HTMLSelectElement).value).toBe('cat-co')
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Corriger l’écriture/ }));
+
+    await waitFor(() => expect(contrepasserEcriture).toHaveBeenCalled());
+    const [assoc, id, body] = contrepasserEcriture.mock.calls[0];
+    expect(assoc).toBe('A');
+    expect(id).toBe('e2');
+    expect(body.remplacement.simple.categorie_id).toBe('cat-co');
+    expect(body.remplacement.simple.montant).toBe('150.00');
+  });
+
+  const MANUELLE = {
+    ...DETAIL,
+    id: 'e1',
+    numero_piece: 5,
+    origine: 'manuelle',
+    journal_id: 'j-ve',
+    libelle: 'OD diverse',
+    lignes: [
+      { id: 'l1', compte_id: 'c-bq', libelle: '', debit: '100.00', credit: '0' },
+      { id: 'l2', compte_id: 'c-co', libelle: '', debit: '0', credit: '100.00' },
+    ],
+  };
+
+  it('edits a manual draft with the multi-line editor', async () => {
+    getEcriture.mockResolvedValue({ ...MANUELLE, statut: 'brouillon' });
+    modifierEcriture.mockResolvedValue({ ...MANUELLE, statut: 'brouillon' });
+    renderPage();
+    await userEvent.click(await screen.findByText('Loyer'));
+    await screen.findByRole('dialog');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Modifier' }));
+    // The multi-line editor (not the type-first form) opens, pre-filled.
+    expect(await screen.findByLabelText('Journal')).toBeInTheDocument();
+    expect((screen.getByLabelText('Débit ligne 1') as HTMLInputElement).value).toBe('100.00');
+
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer les modifications/ }));
+
+    await waitFor(() => expect(modifierEcriture).toHaveBeenCalled());
+    const [, id, contenu] = modifierEcriture.mock.calls[0];
+    expect(id).toBe('e1');
+    expect(contenu.manuelle.journal_id).toBe('j-ve');
+    expect(contenu.manuelle.lignes).toHaveLength(2);
+    expect(contenu.manuelle.lignes[0]).toMatchObject({ compte_id: 'c-bq', debit: '100.00' });
+  });
+
+  it('corrects a validated manual entry with the multi-line editor', async () => {
+    getEcriture.mockResolvedValue({ ...MANUELLE, statut: 'validee' });
+    contrepasserEcriture.mockResolvedValue({
+      extourne: { ...MANUELLE, id: 'ext' },
+      remplacement: { ...MANUELLE, id: 'rep', statut: 'brouillon' },
+    });
+    renderPage();
+    await userEvent.click(await screen.findByText('Loyer'));
+    await screen.findByRole('dialog');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Corriger' }));
+    expect(await screen.findByLabelText('Journal')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Corriger l’écriture/ }));
+
+    await waitFor(() => expect(contrepasserEcriture).toHaveBeenCalled());
+    const [, id, body] = contrepasserEcriture.mock.calls[0];
+    expect(id).toBe('e1');
+    expect(body.remplacement.manuelle.lignes).toHaveLength(2);
+  });
+
   it('edits a draft inline from the drawer', async () => {
     getEcriture.mockResolvedValue({ ...DETAIL, categorie_id: 'cat-co' });
     modifierEcriture.mockResolvedValue({ ...DETAIL });

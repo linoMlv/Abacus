@@ -86,30 +86,39 @@ const BLANK: SaisieForm = {
 };
 
 export interface OperationFormProps {
-  /** ``create`` is the Saisie tab; ``edit`` rebuilds an existing draft in place. */
-  mode: 'create' | 'edit';
-  /** The draft being edited (required in edit mode). */
+  /**
+   * - ``create``: the Saisie tab (a new entry).
+   * - ``edit``: rebuild an existing *draft* in place (PATCH).
+   * - ``correct``: correct a *validated* entry — books a reversal plus the
+   *   corrected draft in one call (annule-et-remplace), the original untouched.
+   */
+  mode: 'create' | 'edit' | 'correct';
+  /** The entry being edited or corrected (required outside create mode). */
   entry?: Ecriture;
-  /** Called after a successful edit (e.g. to close the drawer). */
+  /** Called after a successful edit/correction (e.g. to close the drawer). */
   onSaved?: () => void;
-  /** Called when the user cancels an edit. */
+  /** Called when the user cancels. */
   onCancel?: () => void;
 }
 
 /**
- * The type-first operation form, shared by creation (Saisie tab) and the inline
- * edition of a draft (journal drawer). In edit mode the type is locked to the
- * entry's origine (a saisie_simple stays recette/dépense, a virement stays a
- * virement — changing origine is not an edit), the fields are pre-filled from the
- * entry, and submitting issues a ``PATCH`` instead of creating a new entry.
+ * The type-first operation form, shared by creation (Saisie tab), the inline
+ * edition of a draft and the correction of a validated entry (journal drawer).
+ * Outside create mode the type is locked to the entry's origine (a saisie_simple
+ * stays recette/dépense, a virement stays a virement — changing origine is not an
+ * edit) and the fields are pre-filled from the entry; submitting issues a ``PATCH``
+ * (edit) or a contre-passation with replacement (correct) instead of a new entry.
  */
 export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormProps) {
-  const isEdit = mode === 'edit';
+  const isCreate = mode === 'create';
+  const isCorrect = mode === 'correct';
+  // edit and correct both pre-fill from, and lock to, an existing entry.
+  const fromEntry = !isCreate;
   const { associationId } = useParams() as { associationId: string };
   const { has } = usePermissions();
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState<string | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(isEdit);
+  const [advancedOpen, setAdvancedOpen] = useState(fromEntry);
 
   const canCreate = has(PERMISSIONS.ENTRY_CREATE_SIMPLE);
   const canTransfer = has(PERMISSIONS.ENTRY_CREATE_TRANSFER);
@@ -172,9 +181,9 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
   const evenementsList = useMemo(() => evenementsQuery.data ?? [], [evenementsQuery.data]);
 
   const typeAllowed = (t: SaisieForm['type']) => {
-    if (isEdit) {
-      // Editing never changes the origine: a virement stays a virement; a simple
-      // entry stays recette/dépense (both map to the same ``simple`` payload).
+    if (fromEntry) {
+      // Editing/correcting never changes the origine: a virement stays a virement;
+      // a simple entry stays recette/dépense (both map to the same ``simple`` payload).
       return entry?.origine === 'virement' ? t === 'virement' : t !== 'virement';
     }
     return t === 'virement' ? canTransfer : canCreate;
@@ -191,7 +200,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
   // Default the treasury accounts (create mode): bank (512…) for recette/dépense;
   // for a transfer, a distinct source and destination.
   useEffect(() => {
-    if (isEdit || !comptes.length) return;
+    if (fromEntry || !comptes.length) return;
     const bank = comptes.find((c) => c.numero.startsWith('512')) ?? comptes[0];
     if (!isVirement) {
       if (!getValues('compte_tresorerie_id')) {
@@ -206,12 +215,12 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
     if (!getValues('compte_destination_id')) {
       setValue('compte_destination_id', bank.id, { shouldValidate: false });
     }
-  }, [isEdit, isVirement, comptes, getValues, setValue]);
+  }, [fromEntry, isVirement, comptes, getValues, setValue]);
 
   // If the current type is not permitted, switch to a permitted one.
   useEffect(() => {
     if (typeAllowed(type)) return;
-    if (isEdit) {
+    if (fromEntry) {
       setValue('type', entry?.origine === 'virement' ? 'virement' : 'recette', {
         shouldValidate: false,
       });
@@ -219,12 +228,12 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
       setValue('type', canCreate ? 'recette' : 'virement', { shouldValidate: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, canCreate, canTransfer, isEdit]);
+  }, [type, canCreate, canTransfer, fromEntry]);
 
-  // Edit mode: once the lookups are loaded, fill the form from the entry once.
+  // Edit/correct mode: once the lookups are loaded, fill the form from the entry once.
   const [prefilled, setPrefilled] = useState(false);
   useEffect(() => {
-    if (!isEdit || !entry || prefilled) return;
+    if (!fromEntry || !entry || prefilled) return;
     if (!categoriesQuery.data || !comptesQuery.data) return;
     const montant = entryAmount(entry.lignes);
     const common: Partial<SaisieForm> = {
@@ -259,7 +268,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
       });
     }
     setPrefilled(true);
-  }, [isEdit, entry, prefilled, categoriesQuery.data, comptesQuery.data, reset]);
+  }, [fromEntry, entry, prefilled, categoriesQuery.data, comptesQuery.data, reset]);
 
   function invalidateAfterEntry() {
     queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
@@ -277,6 +286,12 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
   const editMutation = useMutation({
     mutationFn: (contenu: EcritureContenu) =>
       accountingApi.modifierEcriture(associationId, entry!.id, contenu),
+  });
+  // Correct a validated entry: contre-passe it and book the corrected draft in one
+  // call (annule-et-remplace); the original stays immutable (ANC §10).
+  const correctMutation = useMutation({
+    mutationFn: (contenu: EcritureContenu) =>
+      accountingApi.contrepasserEcriture(associationId, entry!.id, { remplacement: contenu }),
   });
   const activeMutation = isVirement ? virementMutation : simpleMutation;
 
@@ -309,15 +324,16 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
   }
 
   const onSubmit = handleSubmit(async (values) => {
-    if (isEdit) {
+    if (fromEntry) {
       setBusy(true);
       try {
-        await editMutation.mutateAsync(contenuFor(values));
+        const mutation = isCorrect ? correctMutation : editMutation;
+        await mutation.mutateAsync(contenuFor(values));
         invalidateAfterEntry();
         queryClient.invalidateQueries({ queryKey: ['ecriture', associationId, entry!.id] });
         onSaved?.();
       } catch {
-        // editMutation's error state drives the Alert below.
+        // The edit/correct mutation's error state drives the Alert below.
       } finally {
         setBusy(false);
       }
@@ -412,9 +428,11 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
     );
   }
 
-  const error = isEdit
-    ? apiErrorMessage(editMutation, 'Modification impossible.')
-    : apiErrorMessage(activeMutation, 'Enregistrement impossible.');
+  const error = isCorrect
+    ? apiErrorMessage(correctMutation, 'Correction impossible.')
+    : fromEntry
+      ? apiErrorMessage(editMutation, 'Modification impossible.')
+      : apiErrorMessage(activeMutation, 'Enregistrement impossible.');
   const loadError = categoriesQuery.isError || comptesQuery.isError;
   const quickAddSens = type === 'depense' ? 'depense' : 'recette';
 
@@ -639,7 +657,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
                 </div>
               </div>
 
-              {!isEdit && canAddJustificatif && (
+              {isCreate && canAddJustificatif && (
                 <div>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="justificatifs">Justificatifs</Label>
@@ -692,7 +710,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
                   {fileError && <p className="mt-1.5 text-xs text-depense">{fileError}</p>}
                 </div>
               )}
-              {isEdit && (
+              {fromEntry && (
                 <p className="text-xs text-faint">
                   Les justificatifs se gèrent depuis le détail de l’écriture.
                 </p>
@@ -701,8 +719,15 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
           )}
         </div>
 
+        {isCorrect && (
+          <p className="text-xs text-muted">
+            La correction contre-passe l’écriture validée et crée la version corrigée en brouillon
+            (l’originale reste inchangée), à valider ensuite.
+          </p>
+        )}
+
         {error && <Alert>{error}</Alert>}
-        {!isEdit && success && (
+        {isCreate && success && (
           <div
             role="status"
             className="flex items-center gap-2 rounded-lg border border-recette/20 bg-recette-soft px-3.5 py-2.5 text-sm text-recette"
@@ -712,13 +737,19 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
           </div>
         )}
 
-        {isEdit ? (
+        {fromEntry ? (
           <div className="flex gap-2">
             <Button type="button" variant="ghost" className="flex-1" onClick={onCancel}>
               Annuler
             </Button>
             <Button type="submit" variant="accent" className="flex-1" disabled={busy}>
-              {busy ? 'Enregistrement…' : 'Enregistrer les modifications'}
+              {busy
+                ? isCorrect
+                  ? 'Correction…'
+                  : 'Enregistrement…'
+                : isCorrect
+                  ? 'Corriger l’écriture'
+                  : 'Enregistrer les modifications'}
             </Button>
           </div>
         ) : (
@@ -771,7 +802,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
     </>
   );
 
-  if (isEdit) {
+  if (fromEntry) {
     return (
       <div>
         {core}
