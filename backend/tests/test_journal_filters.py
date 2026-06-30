@@ -156,6 +156,20 @@ def _ids(rows: list[dict]) -> set[str]:
     return {r["id"] for r in rows}
 
 
+# --- Free-text search escaping -------------------------------------------
+
+
+def test_escape_like_neutralizes_wildcards():
+    """User free text is data, not a LIKE pattern: % and _ (and the escape char)
+    must be escaped so a search for 'TVA 20%' or 'REF_001' is taken literally."""
+    from accounting_filters import escape_like
+
+    assert escape_like("20%") == "20\\%"
+    assert escape_like("REF_001") == "REF\\_001"
+    assert escape_like("a\\b") == "a\\\\b"
+    assert escape_like("plain") == "plain"
+
+
 # --- Type filter ----------------------------------------------------------
 
 

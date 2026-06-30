@@ -24,6 +24,17 @@ from models import (
 )
 
 
+def escape_like(term: str) -> str:
+    """Escape LIKE/ILIKE wildcards in a user term (with ``escape="\\"``).
+
+    Free-text the user types is data, not a pattern: ``%`` and ``_`` (and the
+    escape char itself) must be treated literally, or a search for "TVA 20%" or
+    "REF_001" silently matches far more than intended (and the same filter feeds
+    the journal export).
+    """
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class TypeOperationFilter(str, Enum):
     """Type-first journal filter (§15.3), the vocabulary a treasurer reasons with.
 
@@ -116,5 +127,7 @@ def journal_filter_clauses(association_id: str, filtre: JournalFilter) -> list:
     if filtre.statut:
         clauses.append(Ecriture.statut.in_(filtre.statut))
     if filtre.q:
-        clauses.append(Ecriture.libelle.ilike(f"%{filtre.q}%"))
+        clauses.append(
+            Ecriture.libelle.ilike(f"%{escape_like(filtre.q)}%", escape="\\")
+        )
     return clauses

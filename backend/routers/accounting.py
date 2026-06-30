@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlmodel import Session, asc, desc, select
 
+from accounting_engine import ZERO
+from accounting_filters import escape_like
 from auth_context import (
     AccessContext,
     get_active_membership,
@@ -32,8 +34,6 @@ from models import (
     LigneEcriture,
 )
 
-ZERO = Decimal("0.00")
-
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["accounting"])
 
 
@@ -51,9 +51,10 @@ def list_comptes(
     if not include_inactive:
         statement = statement.where(Compte.is_active.is_(True))
     if search:
-        like = f"%{search}%"
+        like = f"%{escape_like(search)}%"
         statement = statement.where(
-            Compte.numero.contains(search) | Compte.libelle.ilike(like)
+            Compte.numero.contains(search, autoescape=True)
+            | Compte.libelle.ilike(like, escape="\\")
         )
     statement = statement.order_by(asc(Compte.numero))
     return session.exec(statement).all()
