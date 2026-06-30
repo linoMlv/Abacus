@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   ChevronDown,
@@ -67,6 +67,9 @@ interface Facet {
   /** Cap the list height with an inner scroll (for potentially long lists). */
   scroll?: boolean;
 }
+
+/** Journal page size: entries load in batches via a "Charger plus" button. */
+const PAGE_SIZE = 50;
 
 const TYPE_OPTIONS: FilterOption[] = (['recette', 'depense', 'virement'] as const).map((v) => ({
   value: v,
@@ -176,12 +179,26 @@ export function JournalPage() {
     ]
   );
 
-  const ecrituresQuery = useQuery({
+  // Paginated, newest first: each page is a window of PAGE_SIZE rows. A full
+  // page means there may be more (the cursor is the count loaded so far); a
+  // short page is the end. Filters are part of the key, so changing one resets
+  // the pagination from the first page.
+  const ecrituresQuery = useInfiniteQuery({
     queryKey: ['ecritures', associationId, filters],
-    queryFn: () => accountingApi.listEcritures(associationId, filters),
+    queryFn: ({ pageParam }) =>
+      accountingApi.listEcritures(associationId, {
+        ...filters,
+        limit: PAGE_SIZE,
+        offset: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === PAGE_SIZE
+        ? allPages.reduce((total, page) => total + page.length, 0)
+        : undefined,
   });
 
-  const rows = useMemo(() => ecrituresQuery.data ?? [], [ecrituresQuery.data]);
+  const rows = useMemo(() => ecrituresQuery.data?.pages.flat() ?? [], [ecrituresQuery.data]);
 
   // Bulk selection: kept as a set of ids, intersected with the visible rows so a
   // filter change never carries a stale, off-screen selection into an action.
@@ -475,17 +492,32 @@ export function JournalPage() {
 
           {ecrituresQuery.isError ? (
             <Alert>Impossible de charger les écritures.</Alert>
+          ) : ecrituresQuery.isLoading ? (
+            <JournalSkeleton />
           ) : rows.length === 0 ? (
             <EmptyState associationId={associationId} filtered={hasFilters} />
           ) : (
-            <JournalTable
-              rows={rows}
-              onSelect={setSelectedId}
-              selectable={canSelect}
-              selectedIds={selected}
-              onToggleRow={toggleRow}
-              onToggleAll={toggleAll}
-            />
+            <>
+              <JournalTable
+                rows={rows}
+                onSelect={setSelectedId}
+                selectable={canSelect}
+                selectedIds={selected}
+                onToggleRow={toggleRow}
+                onToggleAll={toggleAll}
+              />
+              {ecrituresQuery.hasNextPage && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    disabled={ecrituresQuery.isFetchingNextPage}
+                    onClick={() => ecrituresQuery.fetchNextPage()}
+                  >
+                    {ecrituresQuery.isFetchingNextPage ? 'Chargement…' : 'Charger plus'}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -742,6 +774,24 @@ function JournalTable({
             ))}
           </tbody>
         </table>
+      </div>
+    </Card>
+  );
+}
+
+/** Placeholder rows while the first page loads (avoids an empty-state flash). */
+function JournalSkeleton() {
+  return (
+    <Card className="overflow-hidden" aria-hidden>
+      <div className="divide-y divide-hairline">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-4 py-3">
+            <div className="h-3 w-20 animate-pulse rounded bg-hairline" />
+            <div className="h-3 w-10 animate-pulse rounded bg-hairline" />
+            <div className="h-3 flex-1 animate-pulse rounded bg-hairline" />
+            <div className="h-3 w-16 animate-pulse rounded bg-hairline" />
+          </div>
+        ))}
       </div>
     </Card>
   );

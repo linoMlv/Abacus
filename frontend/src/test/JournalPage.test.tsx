@@ -189,6 +189,34 @@ describe('JournalPage', () => {
     expect(screen.getByText('VE')).toBeInTheDocument();
   });
 
+  it('loads the next page with the "Charger plus" button', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, i) => ({
+      ...ROWS[0],
+      id: `p1-${i}`,
+      numero_piece: 100 - i,
+      libelle: `Ligne ${i}`,
+    }));
+    const secondPage = [{ ...ROWS[1], id: 'p2-0', libelle: 'Vieille écriture' }];
+    listEcritures.mockReset();
+    listEcritures.mockResolvedValueOnce(firstPage).mockResolvedValueOnce(secondPage);
+    renderPage();
+    await screen.findByText('Ligne 0');
+
+    // A full first page (50) means there may be more: the button appears.
+    const more = await screen.findByRole('button', { name: /Charger plus/ });
+    await userEvent.click(more);
+
+    expect(await screen.findByText('Vieille écriture')).toBeInTheDocument();
+    expect(listEcritures).toHaveBeenLastCalledWith(
+      'A',
+      expect.objectContaining({ limit: 50, offset: 50 })
+    );
+    // A short second page means the end: the button disappears.
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: /Charger plus/ })).not.toBeInTheDocument()
+    );
+  });
+
   it('refetches with a checked statut facet', async () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
