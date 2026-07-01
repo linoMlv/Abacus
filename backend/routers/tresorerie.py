@@ -19,6 +19,7 @@ from accounting_engine import (
     ZERO,
     EntryError,
     build_ecriture_a_nouveau,
+    find_exercice_covering,
     find_open_exercice,
     next_numero_piece,
     validated_only,
@@ -116,12 +117,19 @@ def _next_treasury_numero(session: Session, association_id: str, prefix: str) ->
 def _treasury_soldes(
     session: Session, association_id: str, compte_ids: list[str]
 ) -> dict[str, Decimal]:
-    """Current balance (Σ débit − Σ crédit) per account id, from the ledger."""
+    """Current balance (Σ débit − Σ crédit) per account id, from the ledger.
+
+    Scoped to the exercice covering today: its report à nouveau (at the year's
+    start) already carries the opening balance forward, so counting prior years'
+    movements too would double the opening once a year has been closed. Before
+    any closing there is a single exercice covering everything — a no-op.
+    """
     if not compte_ids:
         return {}
+    current = find_exercice_covering(session, association_id, date.today())
     debit_sum = func.coalesce(func.sum(LigneEcriture.debit), 0)
     credit_sum = func.coalesce(func.sum(LigneEcriture.credit), 0)
-    rows = session.exec(
+    statement = (
         select(LigneEcriture.compte_id, debit_sum, credit_sum)
         .join(Ecriture, Ecriture.id == LigneEcriture.ecriture_id)
         .where(
@@ -130,8 +138,13 @@ def _treasury_soldes(
             validated_only(),
         )
         .group_by(LigneEcriture.compte_id)
-    ).all()
-    return {cid: Decimal(str(d)) - Decimal(str(c)) for cid, d, c in rows}
+    )
+    if current is not None:
+        statement = statement.where(Ecriture.exercice_id == current.id)
+    return {
+        cid: Decimal(str(d)) - Decimal(str(c))
+        for cid, d, c in session.exec(statement).all()
+    }
 
 
 def _to_read(compte: Compte, solde: Decimal) -> CompteTresorerieRead:

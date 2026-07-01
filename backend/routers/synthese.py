@@ -20,7 +20,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlmodel import Session, asc, select
 
-from accounting_engine import CENTS, ZERO, find_open_exercice, validated_only
+from accounting_engine import (
+    CENTS,
+    ZERO,
+    exclude_cloture,
+    find_exercice_covering,
+    find_open_exercice,
+    validated_only,
+)
 from auth_context import AccessContext, require_permission
 from authz import Permission
 from database import get_session
@@ -83,6 +90,7 @@ def _resultat(
             Ecriture.date <= date_to,
             Compte.classe.in_([_CHARGE, _PRODUIT]),
             validated_only(),
+            exclude_cloture(),
         )
         .group_by(Compte.classe)
     ).all()
@@ -211,7 +219,13 @@ def _courbe_tresorerie(
     if not treasury_ids:
         return []
 
-    opening_debit, opening_credit = session.exec(
+    # Scope to the exercice covering the period start: its report à nouveau is
+    # the opening, so prior years' movements must not be counted again (they were
+    # already summed into the report). A no-op before any closing (one exercice).
+    exercice = find_exercice_covering(session, association_id, date_from)
+    exercice_id = exercice.id if exercice is not None else None
+
+    opening_stmt = (
         select(
             func.coalesce(func.sum(LigneEcriture.debit), 0),
             func.coalesce(func.sum(LigneEcriture.credit), 0),
@@ -224,10 +238,8 @@ def _courbe_tresorerie(
             Ecriture.date < date_from,
             validated_only(),
         )
-    ).one()
-    opening = _dec(opening_debit) - _dec(opening_credit)
-
-    daily = session.exec(
+    )
+    daily_stmt = (
         select(
             Ecriture.date,
             func.coalesce(func.sum(LigneEcriture.debit), 0),
@@ -243,7 +255,15 @@ def _courbe_tresorerie(
             validated_only(),
         )
         .group_by(Ecriture.date)
-    ).all()
+    )
+    if exercice_id is not None:
+        opening_stmt = opening_stmt.where(Ecriture.exercice_id == exercice_id)
+        daily_stmt = daily_stmt.where(Ecriture.exercice_id == exercice_id)
+
+    opening_debit, opening_credit = session.exec(opening_stmt).one()
+    opening = _dec(opening_debit) - _dec(opening_credit)
+
+    daily = session.exec(daily_stmt).all()
     nets = {jour: _dec(debit) - _dec(credit) for jour, debit, credit in daily}
 
     # Nothing happened up to or during the period: no curve to draw.

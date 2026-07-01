@@ -46,6 +46,7 @@ from models import (
     EcritureStatut,
     Evenement,
     Exercice,
+    ExerciceStatut,
     Journal,
     LigneEcriture,
     ModeReglement,
@@ -744,6 +745,14 @@ def contrepasser_ecriture(
                 "Seule une écriture validée se contre-passe "
                 "(un brouillon se supprime)."
             ),
+        )
+    # A closed year is locked: its entries cannot be corrected in place. Any
+    # adjustment belongs to the open year (plan §6/§10).
+    exercice = session.get(Exercice, original.exercice_id)
+    if exercice is not None and exercice.statut == ExerciceStatut.CLOTURE:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Exercice clôturé : l'écriture ne peut plus être contre-passée.",
         )
     already_reversed = session.exec(
         select(Ecriture.id).where(

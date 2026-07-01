@@ -689,6 +689,27 @@ class ExerciceCreate(SQLModel):
     date_fin: date
 
 
+class AffectationResultat(SQLModel):
+    """How the exercice result is affected at closing (plan §6, decision d'AG).
+
+    Both amounts are non-negative and sum to the absolute result: the report à
+    nouveau share (110 excédent / 119 déficit) and the reserves share (106).
+    """
+
+    report_a_nouveau: Decimal
+    reserves: Decimal = Decimal("0")
+
+
+class ClotureResult(SQLModel):
+    """Outcome of a closing: the result, its affectation and both fiscal years."""
+
+    resultat: Decimal
+    report_a_nouveau: Decimal
+    reserves: Decimal
+    exercice_cloture: ExerciceRead
+    exercice_suivant: ExerciceRead
+
+
 class CategorieSaisieRead(SQLModel):
     id: str
     sens: SensCategorie
