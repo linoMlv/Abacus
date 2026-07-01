@@ -1,22 +1,12 @@
-"""Dashboard synthesis (T6): period analytics + current alerts in one read.
+"""Read-only computation for the dashboard synthesis.
 
-A single tenant-scoped, read-only endpoint that powers the Synthèse page:
-
-* **résultat** of the period — produits (class 7) − charges (class 6),
-* **répartition** of the period by category and by event,
-* **courbe de trésorerie** — opening balance carried into the period, then the
-  cumulative end-of-day balance of the treasury accounts (class 5 named),
-* **alertes** — current state, independent of the period: drafts to validate,
-  active events over their dépenses budget, and open fiscal years past due.
-
-Reading is open to any active member; every aggregate is filtered on the
-server-resolved ``association_id`` (an id from the client never widens access).
+Every aggregate is filtered on the server-resolved ``association_id`` (an id
+from the client never widens access) and on validated entries only.
 """
 
 from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlmodel import Session, asc, select
 
@@ -28,9 +18,6 @@ from accounting_engine import (
     scope_exercice,
     validated_only,
 )
-from auth_context import AccessContext, require_permission
-from authz import Permission
-from database import get_session
 from models import (
     AlerteEvenement,
     AlerteExercice,
@@ -47,11 +34,8 @@ from models import (
     RepartitionCategorieItem,
     RepartitionEvenementItem,
     SyntheseAlertes,
-    SyntheseRead,
     SyntheseResultat,
 )
-
-router = APIRouter(prefix="/api/asso/{association_id}", tags=["synthese"])
 
 # Income-statement classes: charges (6) and produits (7).
 _CHARGE, _PRODUIT = 6, 7
@@ -62,7 +46,7 @@ def _dec(value) -> Decimal:
     return Decimal(str(value))
 
 
-def _default_range(session: Session, association_id: str) -> tuple[date, date]:
+def default_range(session: Session, association_id: str) -> tuple[date, date]:
     """Default period: the open fiscal year covering today, else the calendar year."""
     today = date.today()
     exercice = find_open_exercice(session, association_id, today)
@@ -71,7 +55,7 @@ def _default_range(session: Session, association_id: str) -> tuple[date, date]:
     return date(today.year, 1, 1), date(today.year, 12, 31)
 
 
-def _resultat(
+def resultat(
     session: Session, association_id: str, date_from: date, date_to: date
 ) -> SyntheseResultat:
     rows = session.exec(
@@ -108,7 +92,7 @@ def _resultat(
     )
 
 
-def _repartition_categories(
+def repartition_categories(
     session: Session, association_id: str, date_from: date, date_to: date
 ) -> list[RepartitionCategorieItem]:
     """Per category, the magnitude booked on its produit/charge line over the period."""
@@ -147,7 +131,7 @@ def _repartition_categories(
     return items
 
 
-def _repartition_evenements(
+def repartition_evenements(
     session: Session, association_id: str, date_from: date, date_to: date
 ) -> list[RepartitionEvenementItem]:
     rows = session.exec(
@@ -206,7 +190,7 @@ def _repartition_evenements(
     return items
 
 
-def _courbe_tresorerie(
+def courbe_tresorerie(
     session: Session, association_id: str, date_from: date, date_to: date
 ) -> list[CourbePoint]:
     """Treasury balance over the period: opening carried in, then cumulative per day."""
@@ -278,7 +262,7 @@ def _courbe_tresorerie(
     return points
 
 
-def _alertes(session: Session, association_id: str) -> SyntheseAlertes:
+def alertes(session: Session, association_id: str) -> SyntheseAlertes:
     brouillons = session.exec(
         select(func.count())
         .select_from(Ecriture)
@@ -349,37 +333,4 @@ def _alertes(session: Session, association_id: str) -> SyntheseAlertes:
         brouillons=brouillons,
         evenements_depasses=evenements_depasses,
         exercices_a_cloturer=exercices_a_cloturer,
-    )
-
-
-@router.get("/synthese", response_model=SyntheseRead)
-def get_synthese(
-    date_from: date | None = None,
-    date_to: date | None = None,
-    ctx: AccessContext = Depends(require_permission(Permission.DASHBOARD_VIEW)),
-    session: Session = Depends(get_session),
-):
-    """Consolidated dashboard for the active association over an optional period.
-
-    With no dates, the period defaults to the open fiscal year (else the calendar
-    year). Treasury balances and alerts are read separately; everything here is
-    re-derived from the ledger, scoped to ``ctx.association_id``.
-    """
-    default_from, default_to = _default_range(session, ctx.association_id)
-    date_from = date_from or default_from
-    date_to = date_to or default_to
-    aid = ctx.association_id
-
-    return SyntheseRead(
-        date_from=date_from,
-        date_to=date_to,
-        resultat=_resultat(session, aid, date_from, date_to),
-        repartition_categories=_repartition_categories(
-            session, aid, date_from, date_to
-        ),
-        repartition_evenements=_repartition_evenements(
-            session, aid, date_from, date_to
-        ),
-        courbe_tresorerie=_courbe_tresorerie(session, aid, date_from, date_to),
-        alertes=_alertes(session, aid),
     )
