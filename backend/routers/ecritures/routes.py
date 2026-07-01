@@ -1,9 +1,5 @@
-"""Accounting entries: assisted (simple) and manual creation, read, validation.
-
-Every reference coming from the client (category, account, journal, entry id) is
-re-resolved against the active association before use — an id is never trusted
-to authorize access. Validated entries are immutable and entries can only be
-booked into an *open* fiscal year covering their date.
+"""Accounting-entry endpoints: assisted (simple)/transfer/manual creation, read,
+edition, validation, contre-passation and bulk actions.
 """
 
 from datetime import UTC, date, datetime
@@ -11,459 +7,58 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, SQLModel, desc, select
+from sqlmodel import Session, desc, select
 
-from accounting_engine import (
-    EntryError,
-    build_ecriture_extourne,
-    build_ecriture_simple,
-    build_ecriture_virement,
-    find_open_exercice,
-    next_numero_piece,
-    validate_lignes,
-)
+from accounting_engine import EntryError, build_ecriture_extourne, next_numero_piece
 from accounting_filters import (
     JournalFilter,
     TypeOperationFilter,
     journal_filter_clauses,
 )
-from audit import AuditAction, record_audit
-from auth_context import (
-    AccessContext,
-    get_active_membership,
-    owned_or_404,
-    require_permission,
-)
+from audit import AuditAction
+from auth_context import AccessContext, get_active_membership, require_permission
 from authz import Permission
 from database import get_session
 from models import (
-    CategorieSaisie,
-    Compte,
     Ecriture,
     EcritureDetailRead,
     EcritureListItem,
-    EcritureOrigine,
     EcritureStatut,
-    Evenement,
     Exercice,
     ExerciceStatut,
     Journal,
     LigneEcriture,
-    ModeReglement,
-    Tiers,
+)
+
+from .builders import (
+    _CONTENU_PERMISSION,
+    _CREATE_AUDIT,
+    _build_entry_from_contenu,
+    _build_manuelle_entry,
+    _build_simple_entry,
+    _build_virement_entry,
+    _resolve_contenu,
+)
+from .resolution import (
+    _audit_ecriture,
+    _bad_request,
+    _owned_ecriture,
+    _owned_ecritures,
+    _require,
+)
+from .schemas import (
+    BulkIdsRequest,
+    BulkIgnore,
+    BulkResult,
+    ContrepassationRead,
+    ContrepassationRequest,
+    EcritureContenu,
+    SaisieManuelleRequest,
+    SaisieSimpleRequest,
+    VirementRequest,
 )
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["ecritures"])
-
-_FINANCIAL_CLASS = 5  # comptes de trésorerie (512 banque, 531 caisse, …)
-
-
-# --- Request schemas ------------------------------------------------------
-
-
-class SaisieSimpleRequest(SQLModel):
-    categorie_id: str
-    compte_tresorerie_id: str
-    montant: Decimal
-    date: date
-    libelle: str | None = None
-    tiers_id: str | None = None
-    evenement_id: str | None = None
-    reference_externe: str | None = None
-    mode_reglement: ModeReglement | None = None
-
-
-class VirementRequest(SQLModel):
-    compte_source_id: str
-    compte_destination_id: str
-    montant: Decimal
-    date: date
-    libelle: str | None = None
-    reference_externe: str | None = None
-    mode_reglement: ModeReglement | None = None
-
-
-class LigneInput(SQLModel):
-    compte_id: str
-    libelle: str | None = None
-    debit: Decimal = Decimal("0")
-    credit: Decimal = Decimal("0")
-
-
-class SaisieManuelleRequest(SQLModel):
-    journal_id: str
-    date: date
-    libelle: str
-    lignes: list[LigneInput]
-    tiers_id: str | None = None
-    evenement_id: str | None = None
-    reference_externe: str | None = None
-    mode_reglement: ModeReglement | None = None
-
-
-class EcritureContenu(SQLModel):
-    """Origine-specific entry content; exactly one variant must be set.
-
-    Reused by draft edition (``PATCH``) and contre-passation replacement: the
-    variant provided must match the entry's origine, so the same builder/validation
-    path produces the lines whatever the write path.
-    """
-
-    simple: SaisieSimpleRequest | None = None
-    virement: VirementRequest | None = None
-    manuelle: SaisieManuelleRequest | None = None
-
-
-class ContrepassationRequest(SQLModel):
-    """Optional corrected entry to book alongside the reversal (annule-et-remplace)."""
-
-    remplacement: EcritureContenu | None = None
-
-
-class ContrepassationRead(SQLModel):
-    """The reversal (always) and, for annule-et-remplace, the corrected entry."""
-
-    extourne: EcritureDetailRead
-    remplacement: EcritureDetailRead | None = None
-
-
-class BulkIdsRequest(SQLModel):
-    ids: list[str]
-
-
-class BulkIgnore(SQLModel):
-    id: str
-    raison: str
-
-
-class BulkResult(SQLModel):
-    """Outcome of a best-effort bulk action: processed ids and ignored ones."""
-
-    traitees: list[str]
-    ignorees: list[BulkIgnore]
-
-
-# Origine ↔ the permission that authorizes creating/editing that kind of entry.
-_CONTENU_PERMISSION = {
-    EcritureOrigine.SAISIE_SIMPLE: Permission.ENTRY_CREATE_SIMPLE,
-    EcritureOrigine.VIREMENT: Permission.ENTRY_CREATE_TRANSFER,
-    EcritureOrigine.MANUELLE: Permission.ENTRY_CREATE_MANUAL,
-}
-
-# Origine ↔ the audit action recorded when an entry of that kind is created.
-_CREATE_AUDIT = {
-    EcritureOrigine.SAISIE_SIMPLE: AuditAction.ECRITURE_CREATE_SIMPLE,
-    EcritureOrigine.VIREMENT: AuditAction.ECRITURE_CREATE_VIREMENT,
-    EcritureOrigine.MANUELLE: AuditAction.ECRITURE_CREATE_MANUAL,
-}
-
-
-# --- Tenant-scoped resolution helpers -------------------------------------
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
-
-
-def _open_exercice(session: Session, association_id: str, jour: date) -> Exercice:
-    exercice = find_open_exercice(session, association_id, jour)
-    if exercice is None:
-        raise _bad_request("Aucun exercice ouvert ne couvre cette date.")
-    return exercice
-
-
-def _owned_compte(session: Session, association_id: str, compte_id: str) -> Compte:
-    compte = session.exec(
-        select(Compte).where(
-            Compte.id == compte_id,
-            Compte.association_id == association_id,
-            Compte.is_active.is_(True),
-        )
-    ).first()
-    if compte is None:
-        raise _bad_request("Compte introuvable ou inactif.")
-    return compte
-
-
-def _owned_journal(session: Session, association_id: str, journal_id: str) -> Journal:
-    journal = session.exec(
-        select(Journal).where(
-            Journal.id == journal_id, Journal.association_id == association_id
-        )
-    ).first()
-    if journal is None:
-        raise _bad_request("Journal introuvable.")
-    return journal
-
-
-def _owned_treasury(session: Session, association_id: str, compte_id: str) -> Compte:
-    """Resolve an active *treasury* account of the association (else 400)."""
-    compte = _owned_compte(session, association_id, compte_id)
-    if compte.type_tresorerie is None:
-        raise _bad_request("Le compte sélectionné n'est pas un compte de trésorerie.")
-    return compte
-
-
-def _resolve_tiers_id(
-    session: Session, association_id: str, tiers_id: str | None
-) -> str | None:
-    """Validate an optional tiers reference belongs to the association (else 400)."""
-    if tiers_id is None:
-        return None
-    tiers = session.exec(
-        select(Tiers).where(
-            Tiers.id == tiers_id,
-            Tiers.association_id == association_id,
-            Tiers.is_active.is_(True),
-        )
-    ).first()
-    if tiers is None:
-        raise _bad_request("Tiers introuvable ou inactif.")
-    return tiers.id
-
-
-def _resolve_evenement_id(
-    session: Session, association_id: str, evenement_id: str | None
-) -> str | None:
-    """Validate an optional event reference belongs to the association (else 400)."""
-    if evenement_id is None:
-        return None
-    evenement = session.exec(
-        select(Evenement).where(
-            Evenement.id == evenement_id,
-            Evenement.association_id == association_id,
-        )
-    ).first()
-    if evenement is None:
-        raise _bad_request("Événement introuvable.")
-    return evenement.id
-
-
-def _journal_by_code(session: Session, association_id: str, code: str) -> Journal:
-    journal = session.exec(
-        select(Journal).where(
-            Journal.association_id == association_id, Journal.code == code
-        )
-    ).first()
-    if journal is None:
-        raise _bad_request(f"Journal {code} introuvable.")
-    return journal
-
-
-def _owned_ecriture(
-    session: Session, association_id: str, ecriture_id: str
-) -> Ecriture:
-    return owned_or_404(
-        session, Ecriture, ecriture_id, association_id, "Écriture introuvable"
-    )
-
-
-def _audit_ecriture(
-    session: Session,
-    ctx: AccessContext,
-    action: AuditAction,
-    ecriture: Ecriture,
-) -> None:
-    """Record an audit entry for an action on ``ecriture`` (no commit)."""
-    record_audit(
-        session,
-        association_id=ctx.association_id,
-        actor_user_id=ctx.user.id,
-        action=action,
-        target_type="ecriture",
-        target_id=ecriture.id,
-        detail=f"pièce {ecriture.numero_piece}",
-    )
-
-
-# --- Entry builders (shared by creation, edition and replacement) ---------
-#
-# Each returns an unsaved ``Ecriture`` (lignes attached, balance-validated) for a
-# single voucher number; the caller owns auditing and the transaction. Sharing
-# them keeps creation, brouillon edition and contre-passation replacement in
-# lockstep — one resolution/validation path per origine, no drift.
-
-
-def _build_simple_entry(
-    session: Session, ctx: AccessContext, body: SaisieSimpleRequest, numero_piece: int
-) -> Ecriture:
-    categorie = session.exec(
-        select(CategorieSaisie).where(
-            CategorieSaisie.id == body.categorie_id,
-            CategorieSaisie.association_id == ctx.association_id,
-            CategorieSaisie.is_active.is_(True),
-        )
-    ).first()
-    if categorie is None:
-        raise _bad_request("Catégorie introuvable ou inactive.")
-
-    compte_tresorerie = _owned_compte(
-        session, ctx.association_id, body.compte_tresorerie_id
-    )
-    if compte_tresorerie.classe != _FINANCIAL_CLASS:
-        raise _bad_request(
-            "Le compte de contrepartie doit être un compte de trésorerie (classe 5)."
-        )
-
-    exercice = _open_exercice(session, ctx.association_id, body.date)
-    libelle = (body.libelle or "").strip() or categorie.libelle.strip()
-
-    try:
-        ecriture = build_ecriture_simple(
-            association_id=ctx.association_id,
-            exercice_id=exercice.id,
-            journal_id=categorie.journal_id,
-            compte_tresorerie_id=compte_tresorerie.id,
-            compte_categorie_id=categorie.compte_id,
-            sens=categorie.sens,
-            montant=body.montant,
-            date_ecriture=body.date,
-            libelle=libelle,
-            numero_piece=numero_piece,
-            created_by=ctx.user.id,
-        )
-    except EntryError as exc:
-        raise _bad_request(str(exc))
-
-    ecriture.categorie_id = categorie.id  # remembered for "by category" views
-    ecriture.tiers_id = _resolve_tiers_id(session, ctx.association_id, body.tiers_id)
-    ecriture.evenement_id = _resolve_evenement_id(
-        session, ctx.association_id, body.evenement_id
-    )
-    ecriture.reference_externe = body.reference_externe
-    ecriture.mode_reglement = body.mode_reglement
-    return ecriture
-
-
-def _build_virement_entry(
-    session: Session, ctx: AccessContext, body: VirementRequest, numero_piece: int
-) -> Ecriture:
-    source = _owned_treasury(session, ctx.association_id, body.compte_source_id)
-    destination = _owned_treasury(
-        session, ctx.association_id, body.compte_destination_id
-    )
-    journal = _journal_by_code(session, ctx.association_id, "OD")
-    exercice = _open_exercice(session, ctx.association_id, body.date)
-    libelle = (body.libelle or "").strip() or (
-        f"Virement {source.libelle} → {destination.libelle}"
-    )
-
-    try:
-        ecriture = build_ecriture_virement(
-            association_id=ctx.association_id,
-            exercice_id=exercice.id,
-            journal_id=journal.id,
-            compte_source_id=source.id,
-            compte_destination_id=destination.id,
-            montant=body.montant,
-            date_ecriture=body.date,
-            libelle=libelle,
-            numero_piece=numero_piece,
-            created_by=ctx.user.id,
-        )
-    except EntryError as exc:
-        raise _bad_request(str(exc))
-
-    ecriture.reference_externe = body.reference_externe
-    ecriture.mode_reglement = body.mode_reglement
-    return ecriture
-
-
-def _build_manuelle_entry(
-    session: Session, ctx: AccessContext, body: SaisieManuelleRequest, numero_piece: int
-) -> Ecriture:
-    journal = _owned_journal(session, ctx.association_id, body.journal_id)
-    exercice = _open_exercice(session, ctx.association_id, body.date)
-
-    # Resolve every referenced account in one query (vs. one round-trip per line),
-    # then confirm each requested id is an active account of this association.
-    requested_ids = {ligne.compte_id for ligne in body.lignes}
-    valid_ids = (
-        set(
-            session.exec(
-                select(Compte.id).where(
-                    Compte.id.in_(requested_ids),
-                    Compte.association_id == ctx.association_id,
-                    Compte.is_active.is_(True),
-                )
-            ).all()
-        )
-        if requested_ids
-        else set()
-    )
-
-    lignes: list[LigneEcriture] = []
-    for ligne in body.lignes:
-        if ligne.compte_id not in valid_ids:
-            raise _bad_request("Compte introuvable ou inactif.")
-        lignes.append(
-            LigneEcriture(
-                compte_id=ligne.compte_id,
-                libelle=(ligne.libelle or body.libelle),
-                debit=ligne.debit,
-                credit=ligne.credit,
-            )
-        )
-
-    try:
-        validate_lignes(lignes)
-    except EntryError as exc:
-        raise _bad_request(str(exc))
-
-    return Ecriture(
-        association_id=ctx.association_id,
-        exercice_id=exercice.id,
-        journal_id=journal.id,
-        date=body.date,
-        numero_piece=numero_piece,
-        libelle=body.libelle,
-        tiers_id=_resolve_tiers_id(session, ctx.association_id, body.tiers_id),
-        evenement_id=_resolve_evenement_id(
-            session, ctx.association_id, body.evenement_id
-        ),
-        reference_externe=body.reference_externe,
-        mode_reglement=body.mode_reglement,
-        origine=EcritureOrigine.MANUELLE,
-        created_by=ctx.user.id,
-        lignes=lignes,
-    )
-
-
-def _require(ctx: AccessContext, permission: Permission) -> None:
-    """Server-side permission check on the effective set (zero trust on the client)."""
-    if permission not in ctx.permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
-        )
-
-
-def _resolve_contenu(contenu: EcritureContenu) -> tuple[EcritureOrigine, SQLModel]:
-    """Return the single provided content variant as ``(origine, body)`` (else 400)."""
-    variants = [
-        (EcritureOrigine.SAISIE_SIMPLE, contenu.simple),
-        (EcritureOrigine.VIREMENT, contenu.virement),
-        (EcritureOrigine.MANUELLE, contenu.manuelle),
-    ]
-    provided = [(origine, body) for origine, body in variants if body is not None]
-    if len(provided) != 1:
-        raise _bad_request(
-            "Fournir exactement une variante de contenu (simple, virement ou manuelle)."
-        )
-    return provided[0]
-
-
-def _build_entry_from_contenu(
-    session: Session,
-    ctx: AccessContext,
-    origine: EcritureOrigine,
-    body: SQLModel,
-    numero_piece: int,
-) -> Ecriture:
-    if origine is EcritureOrigine.SAISIE_SIMPLE:
-        return _build_simple_entry(session, ctx, body, numero_piece)
-    if origine is EcritureOrigine.VIREMENT:
-        return _build_virement_entry(session, ctx, body, numero_piece)
-    return _build_manuelle_entry(session, ctx, body, numero_piece)
 
 
 # --- Creation -------------------------------------------------------------
@@ -796,24 +391,6 @@ def contrepasser_ecriture(
     if remplacement_entry is not None:
         session.refresh(remplacement_entry)
     return ContrepassationRead(extourne=extourne, remplacement=remplacement_entry)
-
-
-def _owned_ecritures(
-    session: Session, association_id: str, ids: list[str]
-) -> dict[str, Ecriture]:
-    """Resolve the requested ids that belong to the association, keyed by id.
-
-    A single tenant-scoped query; ids of another tenant (or unknown) are simply
-    absent from the result, so the caller reports them as ignored (no leak).
-    """
-    if not ids:
-        return {}
-    rows = session.exec(
-        select(Ecriture).where(
-            Ecriture.id.in_(ids), Ecriture.association_id == association_id
-        )
-    ).all()
-    return {e.id: e for e in rows}
 
 
 @router.post("/ecritures/validation-groupee", response_model=BulkResult)
