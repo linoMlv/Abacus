@@ -19,9 +19,9 @@ from accounting_engine import (
     ZERO,
     EntryError,
     build_ecriture_a_nouveau,
-    find_exercice_covering,
     find_open_exercice,
     next_numero_piece,
+    scope_exercice,
     validated_only,
 )
 from audit import AuditAction, record_audit
@@ -119,14 +119,15 @@ def _treasury_soldes(
 ) -> dict[str, Decimal]:
     """Current balance (Σ débit − Σ crédit) per account id, from the ledger.
 
-    Scoped to the exercice covering today: its report à nouveau (at the year's
-    start) already carries the opening balance forward, so counting prior years'
-    movements too would double the opening once a year has been closed. Before
-    any closing there is a single exercice covering everything — a no-op.
+    Scoped to the exercice covering today (or, if none covers it, the most recent
+    started one — see :func:`scope_exercice`): its report à nouveau already carries
+    the opening balance forward, so counting prior years' movements too would
+    double the opening once a year has been closed. Before any closing there is a
+    single exercice covering everything — a no-op.
     """
     if not compte_ids:
         return {}
-    current = find_exercice_covering(session, association_id, date.today())
+    current = scope_exercice(session, association_id, date.today())
     debit_sum = func.coalesce(func.sum(LigneEcriture.debit), 0)
     credit_sum = func.coalesce(func.sum(LigneEcriture.credit), 0)
     statement = (

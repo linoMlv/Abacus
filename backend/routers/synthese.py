@@ -24,8 +24,8 @@ from accounting_engine import (
     CENTS,
     ZERO,
     exclude_cloture,
-    find_exercice_covering,
     find_open_exercice,
+    scope_exercice,
     validated_only,
 )
 from auth_context import AccessContext, require_permission
@@ -219,10 +219,10 @@ def _courbe_tresorerie(
     if not treasury_ids:
         return []
 
-    # Scope to the exercice covering the period start: its report à nouveau is
-    # the opening, so prior years' movements must not be counted again (they were
+    # Scope to the exercice of the period start: its report à nouveau is the
+    # opening, so prior years' movements must not be counted again (they were
     # already summed into the report). A no-op before any closing (one exercice).
-    exercice = find_exercice_covering(session, association_id, date_from)
+    exercice = scope_exercice(session, association_id, date_from)
     exercice_id = exercice.id if exercice is not None else None
 
     opening_stmt = (

@@ -304,3 +304,14 @@ def test_bilan_and_income_statement_are_correct_after_closing(session: Session):
     # New year: the report à nouveau carries 512 forward (not double-counted).
     opened = bilan_data(session, assoc, date(YEAR + 1, 12, 31))
     assert opened.total_actif == opened.total_passif == Decimal("200.00")
+
+
+def test_reports_do_not_double_count_past_the_last_exercice(session: Session):
+    client, assoc, ex_id = _books_excedent("far@example.com")
+    _close(client, assoc, ex_id, "200.00")  # closes YEAR, opens YEAR+1
+
+    # A date beyond every exercice has no covering year: scoping must fall back to
+    # the most recent started exercice (YEAR+1), not sum all-time — which would
+    # count both YEAR's movements and YEAR+1's report à nouveau (512 → 400).
+    far = bilan_data(session, assoc, date(YEAR + 5, 6, 1))
+    assert far.total_actif == far.total_passif == Decimal("200.00")

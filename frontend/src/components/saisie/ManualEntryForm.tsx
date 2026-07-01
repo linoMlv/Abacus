@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { formatEUR } from '@/lib/format';
+import { cents, formatEUR } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MODE_REGLEMENT_VALUES } from '@/pages/saisie.schema';
 
@@ -32,11 +32,6 @@ function num(raw: string): number {
 /** Normalize an amount to the dot-decimal "0.00" string the API expects. */
 function toDecimal(raw: string): string {
   return num(raw).toFixed(2);
-}
-
-/** Round a euro amount to integer cents (avoids float drift on the balance check). */
-function cents(value: number): number {
-  return Math.round(value * 100);
 }
 
 const lineSchema = z.object({

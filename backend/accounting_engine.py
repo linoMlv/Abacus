@@ -167,6 +167,33 @@ def find_exercice_covering(
     ).first()
 
 
+def scope_exercice(
+    session: Session, association_id: str, jour: date
+) -> Exercice | None:
+    """Fiscal year a balance-sheet figure at ``jour`` must be scoped to.
+
+    Balance-sheet figures (treasury soldes, bilan, annexe, ledger openings) are
+    read within a single fiscal year, whose opening report à nouveau folds in
+    everything before it (plan §6). That is the exercice covering ``jour``; when
+    none covers it (a date past the last year, or a gap between years) fall back
+    to the most recent exercice that has *started* on or before ``jour`` — **never**
+    to an all-time sum, which would double-count a report à nouveau. Returns
+    ``None`` only when no exercice has started yet (nothing to scope; there is no
+    report à nouveau to double-count either).
+    """
+    covering = find_exercice_covering(session, association_id, jour)
+    if covering is not None:
+        return covering
+    return session.exec(
+        select(Exercice)
+        .where(
+            Exercice.association_id == association_id,
+            Exercice.date_debut <= jour,
+        )
+        .order_by(Exercice.date_debut.desc())
+    ).first()
+
+
 def resultat_de_gestion(soldes_gestion: Sequence[tuple[str, Decimal]]) -> Decimal:
     """Net result from class-6/7 account soldes (``solde = Σdébit − Σcrédit``).
 

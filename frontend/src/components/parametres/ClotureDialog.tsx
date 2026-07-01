@@ -8,12 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatEUR } from '@/lib/format';
-
-/** Round to cents to compare affectation amounts without float drift. */
-function cents(value: string): number {
-  return Math.round((Number(value) || 0) * 100);
-}
+import { cents, formatEUR } from '@/lib/format';
 
 /**
  * Closing wizard: shows the exercice result (from the synthèse of its period) and
@@ -73,7 +68,7 @@ export function ClotureDialog({
   });
 
   const affecte = cents(report) + cents(reserves);
-  const equilibre = affecte === Math.round(aAffecter * 100);
+  const equilibre = affecte === cents(aAffecter);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onOpenChange(false)}>

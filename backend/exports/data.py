@@ -12,8 +12,8 @@ from sqlmodel import Session, asc, select
 from accounting_engine import (
     ZERO,
     exclude_cloture,
-    find_exercice_covering,
     find_open_exercice,
+    scope_exercice,
     validated_only,
 )
 from accounting_filters import JournalFilter, journal_filter_clauses
@@ -310,7 +310,14 @@ def journal_data(
 def grand_livre_data(
     session: Session, association_id: str, date_from: date, date_to: date
 ) -> GrandLivreData:
-    opening_rows = session.exec(
+    # Scope to the exercice of the period start so a report à nouveau (which
+    # restates class 1-5 openings at the year's start) is not double-counted with
+    # prior years' movements. The opening then stays within the exercice: a
+    # report à nouveau dated on date_debut lands in the movements, not the opening.
+    exercice = scope_exercice(session, association_id, date_from)
+    exercice_id = exercice.id if exercice is not None else None
+
+    opening_stmt = (
         select(
             LigneEcriture.compte_id,
             func.coalesce(func.sum(LigneEcriture.debit), 0),
@@ -324,10 +331,14 @@ def grand_livre_data(
             validated_only(),
         )
         .group_by(LigneEcriture.compte_id)
-    ).all()
-    openings = {cid: _dec(d) - _dec(c) for cid, d, c in opening_rows}
+    )
+    if exercice_id is not None:
+        opening_stmt = opening_stmt.where(Ecriture.exercice_id == exercice_id)
+    openings = {
+        cid: _dec(d) - _dec(c) for cid, d, c in session.exec(opening_stmt).all()
+    }
 
-    rows = session.exec(
+    movements_stmt = (
         select(
             LigneEcriture.compte_id,
             Compte.numero,
@@ -355,7 +366,10 @@ def grand_livre_data(
             asc(Ecriture.numero_piece),
             asc(LigneEcriture.id),
         )
-    ).all()
+    )
+    if exercice_id is not None:
+        movements_stmt = movements_stmt.where(Ecriture.exercice_id == exercice_id)
+    rows = session.exec(movements_stmt).all()
 
     ledgers: "OrderedDict[str, CompteLedger]" = OrderedDict()
     for (
@@ -457,7 +471,7 @@ def bilan_data(session: Session, association_id: str, date_to: date) -> BilanDat
     passif so actif = passif; once closed, the result already sits in the 12
     account among the class-1-5 balances, so it is not added again.
     """
-    exercice = find_exercice_covering(session, association_id, date_to)
+    exercice = scope_exercice(session, association_id, date_to)
     exercice_id = exercice.id if exercice is not None else None
     is_cloture = exercice is not None and exercice.statut == ExerciceStatut.CLOTURE
 
@@ -633,7 +647,7 @@ def annexe_data(session: Session, association_id: str, date_to: date) -> AnnexeD
     contributions volontaires en nature (class 8), immobilisations et
     amortissements (class 2) and fonds propres (10/11/12).
     """
-    exercice = find_exercice_covering(session, association_id, date_to)
+    exercice = scope_exercice(session, association_id, date_to)
     exercice_id = exercice.id if exercice is not None else None
 
     stmt = (

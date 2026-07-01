@@ -51,3 +51,11 @@ export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} Ko`;
   return `${(n / (1024 * 1024)).toFixed(1)} Mo`;
 }
+
+/**
+ * Integer cents from a euro amount — compare money without binary-float drift.
+ * Accepts a number or a (possibly empty/invalid) input string, which coerces to 0.
+ */
+export function cents(value: number | string): number {
+  return Math.round((Number(value) || 0) * 100);
+}
