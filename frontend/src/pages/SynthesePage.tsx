@@ -1,317 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  AlertTriangle,
-  ArrowRight,
-  CalendarClock,
-  FileClock,
-  Pencil,
-  Plus,
-  Wallet,
-  X,
-} from 'lucide-react';
+import { ArrowRight, Plus } from 'lucide-react';
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import {
-  accountingApi,
-  type CompteTresorerie,
-  type Synthese,
-  type SyntheseParams,
-  TYPE_TRESORERIE_LABELS,
-} from '@/api/accounting';
+import { accountingApi, type CompteTresorerie } from '@/api/accounting';
 import { EvenementCard } from '@/components/evenements/EvenementCard';
+import { AlertesPanel } from '@/components/synthese/AlertesPanel';
+import { ChartsSkeleton } from '@/components/synthese/ChartsSkeleton';
+import { type Preset, presetParams } from '@/components/synthese/period';
+import { PeriodControl } from '@/components/synthese/PeriodControl';
+import { StatTile } from '@/components/synthese/StatTile';
+import { TreasuryCard } from '@/components/synthese/TreasuryCard';
 import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 import { usePermissions } from '@/hooks/usePermissions';
-import { PERMISSIONS } from '@/lib/permissions';
 import { formatDate, formatEUR } from '@/lib/format';
-import { cn } from '@/lib/utils';
+import { PERMISSIONS } from '@/lib/permissions';
 
 // Charts live in a lazily-loaded chunk so recharts never weighs on the main bundle.
 const SyntheseCharts = lazy(() => import('@/components/charts/SyntheseCharts'));
-
-type Preset = 'mois' | 'trimestre' | 'exercice' | 'custom';
-
-const PRESET_LABELS: Record<Preset, string> = {
-  mois: 'Mois',
-  trimestre: 'Trimestre',
-  exercice: 'Exercice',
-  custom: 'Personnalisé',
-};
-
-function ymd(year: number, month1: number, day: number): string {
-  return `${year}-${String(month1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
-/** Period parameters for a preset (exercice → empty: the server uses the open one). */
-function presetParams(preset: Preset, customFrom: string, customTo: string): SyntheseParams {
-  const now = new Date();
-  const year = now.getFullYear();
-  if (preset === 'mois') {
-    const m = now.getMonth(); // 0-based
-    const last = new Date(year, m + 1, 0).getDate();
-    return { date_from: ymd(year, m + 1, 1), date_to: ymd(year, m + 1, last) };
-  }
-  if (preset === 'trimestre') {
-    const start = Math.floor(now.getMonth() / 3) * 3; // 0-based first month
-    const last = new Date(year, start + 3, 0).getDate();
-    return { date_from: ymd(year, start + 1, 1), date_to: ymd(year, start + 3, last) };
-  }
-  if (preset === 'custom') {
-    return customFrom && customTo ? { date_from: customFrom, date_to: customTo } : {};
-  }
-  return {}; // exercice
-}
-
-function StatTile({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: 'recette' | 'depense';
-}) {
-  const valueColor =
-    tone === 'recette' ? 'text-recette' : tone === 'depense' ? 'text-depense' : 'text-ink';
-  return (
-    <Card className="p-5">
-      <p className="text-xs font-medium uppercase tracking-wider text-faint">{label}</p>
-      <p className={`tabular mt-3 text-2xl font-semibold ${valueColor}`}>{value}</p>
-      <p className="mt-1 text-xs text-muted">{hint}</p>
-    </Card>
-  );
-}
-
-function TreasuryCard({ compte, onEdit }: { compte: CompteTresorerie; onEdit?: () => void }) {
-  return (
-    <Card className="flex items-center gap-4 p-4">
-      <span
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-        style={{
-          backgroundColor: compte.couleur ? `${compte.couleur}1a` : 'var(--color-accent-soft)',
-          color: compte.couleur ?? 'var(--color-accent)',
-        }}
-        aria-hidden
-      >
-        <Wallet className="h-5 w-5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{compte.libelle}</p>
-        <p className="text-xs text-muted">{TYPE_TRESORERIE_LABELS[compte.type_tresorerie]}</p>
-      </div>
-      <p className="tabular shrink-0 text-base font-semibold text-ink">{formatEUR(compte.solde)}</p>
-      {onEdit && (
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label={`Modifier ${compte.libelle}`}
-          className="shrink-0 rounded-md p-1.5 text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-      )}
-    </Card>
-  );
-}
-
-function sumSoldes(comptes: CompteTresorerie[]): number {
-  return comptes.reduce((total, c) => total + Number(c.solde), 0);
-}
-
-function PeriodControl({
-  preset,
-  onPreset,
-  customFrom,
-  customTo,
-  onCustomFrom,
-  onCustomTo,
-}: {
-  preset: Preset;
-  onPreset: (p: Preset) => void;
-  customFrom: string;
-  customTo: string;
-  onCustomFrom: (v: string) => void;
-  onCustomTo: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div
-        className="inline-flex rounded-lg border border-hairline bg-surface p-0.5"
-        role="group"
-        aria-label="Période"
-      >
-        {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
-          <button
-            key={p}
-            type="button"
-            aria-pressed={preset === p}
-            onClick={() => onPreset(p)}
-            className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-              preset === p ? 'bg-accent text-white' : 'text-muted hover:text-ink'
-            )}
-          >
-            {PRESET_LABELS[p]}
-          </button>
-        ))}
-      </div>
-      {preset === 'custom' && (
-        <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            aria-label="Date de début"
-            value={customFrom}
-            max={customTo || undefined}
-            onChange={(e) => onCustomFrom(e.target.value)}
-            className="h-9 rounded-lg border border-hairline bg-surface px-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          />
-          <span className="text-xs text-muted">au</span>
-          <input
-            type="date"
-            aria-label="Date de fin"
-            value={customTo}
-            min={customFrom || undefined}
-            onChange={(e) => onCustomTo(e.target.value)}
-            className="h-9 rounded-lg border border-hairline bg-surface px-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface AlerteItem {
-  /** Stable identity + volatile content: a dismissed alert re-surfaces if its content changes. */
-  signature: string;
-  icon: React.ReactNode;
-  tone: 'accent' | 'warning' | 'depense';
-  text: string;
-  action?: string;
-  onClick?: () => void;
-}
-
-/**
- * Per-association, client-side dismissal of synthesis alerts (localStorage-backed).
- * Keyed by a content signature so a hidden alert reappears when the situation
- * materially changes (more drafts, a new over-budget amount…). The server stays
- * the source of truth for the alerts themselves; this only hides acknowledged ones.
- */
-function useDismissedAlerts(associationId: string) {
-  const storageKey = `abacus.synthese.dismissedAlerts.${associationId}`;
-  const [dismissed, setDismissed] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      return raw ? (JSON.parse(raw) as string[]) : [];
-    } catch {
-      return [];
-    }
-  });
-  const dismiss = (signature: string) =>
-    setDismissed((prev) => {
-      if (prev.includes(signature)) return prev;
-      const next = [...prev, signature];
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(next));
-      } catch {
-        // Storage unavailable (private mode, quota): dismissal stays in-session.
-      }
-      return next;
-    });
-  return { isDismissed: (s: string) => dismissed.includes(s), dismiss };
-}
-
-function AlertesPanel({ synthese, associationId }: { synthese: Synthese; associationId: string }) {
-  const navigate = useNavigate();
-  const { isDismissed, dismiss } = useDismissedAlerts(associationId);
-  const { brouillons, evenements_depasses, exercices_a_cloturer } = synthese.alertes;
-
-  const alertes: AlerteItem[] = [];
-  if (brouillons > 0) {
-    alertes.push({
-      signature: `brouillons:${brouillons}`,
-      icon: <FileClock className="h-4 w-4" aria-hidden />,
-      tone: 'accent',
-      text: `${brouillons} écriture${brouillons > 1 ? 's' : ''} en brouillon à valider`,
-      action: 'Ouvrir le journal',
-      onClick: () => navigate(`/asso/${associationId}/journal`),
-    });
-  }
-  for (const ex of exercices_a_cloturer) {
-    alertes.push({
-      signature: `exercice:${ex.exercice_id}:${ex.date_fin}`,
-      icon: <CalendarClock className="h-4 w-4" aria-hidden />,
-      tone: 'warning',
-      text: `Exercice « ${ex.libelle} » échu le ${formatDate(ex.date_fin)} — à clôturer`,
-    });
-  }
-  for (const ev of evenements_depasses) {
-    alertes.push({
-      signature: `evenement:${ev.evenement_id}:${ev.realise_depenses}`,
-      icon: <AlertTriangle className="h-4 w-4" aria-hidden />,
-      tone: 'depense',
-      text: `« ${ev.nom} » dépasse son budget (${formatEUR(ev.realise_depenses)} / ${formatEUR(ev.budget_depenses)})`,
-      action: 'Voir les événements',
-      onClick: () => navigate(`/asso/${associationId}/saisie?tab=evenements`),
-    });
-  }
-
-  const visible = alertes.filter((a) => !isDismissed(a.signature));
-  if (visible.length === 0) return null;
-
-  return (
-    <Card className="divide-y divide-hairline p-0">
-      {visible.map((a) => (
-        <AlerteRow key={a.signature} alerte={a} onDismiss={() => dismiss(a.signature)} />
-      ))}
-    </Card>
-  );
-}
-
-function AlerteRow({ alerte, onDismiss }: { alerte: AlerteItem; onDismiss: () => void }) {
-  const { icon, tone, text, action, onClick } = alerte;
-  const toneColor =
-    tone === 'depense' ? 'text-depense' : tone === 'warning' ? 'text-warning' : 'text-accent';
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 text-sm">
-      <span className={cn('shrink-0', toneColor)}>{icon}</span>
-      <span className="min-w-0 flex-1 text-ink">{text}</span>
-      {action && onClick && (
-        <button
-          type="button"
-          onClick={onClick}
-          className="shrink-0 text-xs font-medium text-accent hover:text-accent-hover"
-        >
-          {action}
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Masquer cette alerte"
-        className="shrink-0 rounded-md p-1 text-faint transition-colors hover:bg-hover hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-      >
-        <X className="h-3.5 w-3.5" aria-hidden />
-      </button>
-    </div>
-  );
-}
-
-function ChartsSkeleton() {
-  return (
-    <div className="space-y-4" aria-hidden>
-      <Card className="h-64 animate-pulse bg-hover/50" />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="h-44 animate-pulse bg-hover/50" />
-        <Card className="h-44 animate-pulse bg-hover/50" />
-      </div>
-    </div>
-  );
-}
 
 export function SynthesePage() {
   const { associationId } = useParams() as { associationId: string };
@@ -336,7 +45,7 @@ export function SynthesePage() {
     queryFn: () => accountingApi.listTresorerie(associationId),
   });
   const comptes = tresorerieQuery.data ?? [];
-  const total = sumSoldes(comptes);
+  const total = comptes.reduce((sum, c) => sum + Number(c.solde), 0);
 
   const syntheseQuery = useQuery({
     queryKey: ['synthese', associationId, params],
