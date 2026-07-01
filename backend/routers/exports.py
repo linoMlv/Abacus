@@ -19,6 +19,7 @@ from authz import Permission
 from database import get_session
 from exports import documents
 from exports.data import (
+    annexe_data,
     bilan_data,
     compte_resultat_data,
     evenement_bilan_data,
@@ -200,6 +201,19 @@ def export_bilan_pdf(
     data = bilan_data(session, ctx.association_id, dt)
     pdf = documents.bilan_pdf(_association_name(session, ctx.association_id), data)
     return _file_response(pdf, f"bilan-{dt}.pdf", PDF_MEDIA_TYPE)
+
+
+@router.get("/exports/annexe.pdf")
+def export_annexe_pdf(
+    date_to: date | None = None,
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
+    session: Session = Depends(get_session),
+):
+    """Annexe ANC (computed tables) as of ``date_to`` (defaults to exercice end)."""
+    _, dt = resolve_period(session, ctx.association_id, None, date_to)
+    data = annexe_data(session, ctx.association_id, dt)
+    pdf = documents.annexe_pdf(_association_name(session, ctx.association_id), data)
+    return _file_response(pdf, f"annexe-{dt}.pdf", PDF_MEDIA_TYPE)
 
 
 @router.get("/exports/evenements/{evenement_id}/bilan.pdf")

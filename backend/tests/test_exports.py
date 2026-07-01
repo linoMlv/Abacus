@@ -86,9 +86,7 @@ def _post_simple(client: TestClient, assoc: str, libelle: str, montant: str, jou
     # Exports are official documents: only validated entries feed them.
     ecriture_id = resp.json()["id"]
     assert (
-        client.post(
-            f"/api/asso/{assoc}/ecritures/{ecriture_id}/validation"
-        ).status_code
+        client.post(f"/api/asso/{assoc}/ecritures/{ecriture_id}/validation").status_code
         == 200
     )
 
@@ -282,6 +280,28 @@ def test_bilan_pdf():
             f"/api/asso/{assoc}/exports/bilan.pdf", params={"date_to": "2026-12-31"}
         )
     )
+
+
+def test_annexe_pdf():
+    client, assoc = _books()
+    _assert_pdf(
+        client.get(
+            f"/api/asso/{assoc}/exports/annexe.pdf", params={"date_to": "2026-12-31"}
+        )
+    )
+
+
+def test_annexe_data_reports_fonds_propres(session: Session):
+    from exports.data import annexe_data
+
+    client, assoc = _admin_with_association("annexe@example.com", "anx")
+    _set_solde_initial(client, assoc, "1000.00", "2026-01-01")
+
+    data = annexe_data(session, assoc, date(2026, 12, 31))
+    fonds_propres = next(s for s in data.sections if s.titre == "Fonds propres")
+    # The opening balance credits report à nouveau (110): a fonds-propres line.
+    ligne = next(line for line in fonds_propres.lignes if line.numero == "110")
+    assert ligne.montant == Decimal("1000.00")
 
 
 # --- Bilan d'événement ------------------------------------------------------
