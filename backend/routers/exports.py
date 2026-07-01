@@ -11,7 +11,7 @@ from datetime import date
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlmodel import Session
+from sqlmodel import Session, desc, select
 
 from accounting_filters import JournalFilter, TypeOperationFilter
 from auth_context import AccessContext, owned_or_404, require_permission
@@ -27,8 +27,9 @@ from exports.data import (
     releve_data,
     resolve_period,
 )
+from exports.fec import FEC_MEDIA_TYPE, build_fec
 from exports.xlsx import XLSX_MEDIA_TYPE
-from models import Association, Compte, EcritureStatut, Evenement
+from models import Association, Compte, EcritureStatut, Evenement, Exercice
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["exports"])
 
@@ -215,3 +216,33 @@ def export_evenement_bilan_pdf(
         _association_name(session, ctx.association_id), data
     )
     return _file_response(pdf, f"bilan-evenement-{evenement.nom}.pdf", PDF_MEDIA_TYPE)
+
+
+def _resolve_exercice(session: Session, association_id: str, exercice_id: str | None):
+    """The requested exercice (owned) or, by default, the most recent one."""
+    if exercice_id:
+        return owned_or_404(
+            session, Exercice, exercice_id, association_id, "Exercice introuvable"
+        )
+    exercice = session.exec(
+        select(Exercice)
+        .where(Exercice.association_id == association_id)
+        .order_by(desc(Exercice.date_debut))
+    ).first()
+    if exercice is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Aucun exercice."
+        )
+    return exercice
+
+
+@router.get("/exports/fec")
+def export_fec(
+    exercice_id: str | None = None,
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_EXPORT_FEC)),
+    session: Session = Depends(get_session),
+):
+    """FEC of a fiscal year (validated entries), gated by REPORT_EXPORT_FEC."""
+    exercice = _resolve_exercice(session, ctx.association_id, exercice_id)
+    content = build_fec(session, ctx.association_id, exercice.id)
+    return _file_response(content, f"FEC-{exercice.libelle}.txt", FEC_MEDIA_TYPE)
