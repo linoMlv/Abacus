@@ -31,6 +31,8 @@ class AuditAction:
     JUSTIFICATIF_DELETE = "justificatif.delete"
     EVENEMENT_CREATE = "evenement.create"
     EVENEMENT_UPDATE = "evenement.update"
+    EXERCICE_CREATE = "exercice.create"
+    EXERCICE_CLOTURE = "exercice.cloture"
 
 
 def record_audit(

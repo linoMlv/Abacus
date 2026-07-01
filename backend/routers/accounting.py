@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
-from sqlmodel import Session, asc, desc, select
+from sqlmodel import Session, asc, select
 
 from accounting_engine import ZERO, validated_only
 from accounting_filters import escape_like
@@ -26,8 +26,6 @@ from models import (
     Compte,
     CompteRead,
     Ecriture,
-    Exercice,
-    ExerciceRead,
     GrandLivreLigneRead,
     Journal,
     JournalRead,
@@ -69,19 +67,6 @@ def list_journaux(
         select(Journal)
         .where(Journal.association_id == ctx.association_id)
         .order_by(asc(Journal.code))
-    )
-    return session.exec(statement).all()
-
-
-@router.get("/exercices", response_model=list[ExerciceRead])
-def list_exercices(
-    ctx: AccessContext = Depends(get_active_membership),
-    session: Session = Depends(get_session),
-):
-    statement = (
-        select(Exercice)
-        .where(Exercice.association_id == ctx.association_id)
-        .order_by(desc(Exercice.date_debut))
     )
     return session.exec(statement).all()
 

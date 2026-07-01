@@ -680,6 +680,14 @@ class ExerciceRead(SQLModel):
     report_a_nouveau_genere: bool
 
 
+class ExerciceCreate(SQLModel):
+    """Body to open a new fiscal year (dates are parametric — shifted years OK)."""
+
+    libelle: str
+    date_debut: date
+    date_fin: date
+
+
 class CategorieSaisieRead(SQLModel):
     id: str
     sens: SensCategorie

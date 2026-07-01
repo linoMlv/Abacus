@@ -21,6 +21,7 @@ from routers import (
     categories,
     ecritures,
     evenements,
+    exercices,
     exports,
     identity,
     justificatifs,
@@ -98,6 +99,7 @@ _fastapi_app.add_middleware(SecurityHeadersMiddleware, hsts=ENVIRONMENT == "prod
 # Include routers
 _fastapi_app.include_router(identity.router)
 _fastapi_app.include_router(accounting.router)
+_fastapi_app.include_router(exercices.router)
 _fastapi_app.include_router(ecritures.router)
 _fastapi_app.include_router(tresorerie.router)
 _fastapi_app.include_router(categories.router)
