@@ -328,8 +328,9 @@ class EcritureOrigine(str, Enum):
     VIREMENT = "virement"  # virement interne entre deux comptes de trésorerie
     IMPORT = "import"  # rapprochement bancaire
     RECURRENCE = "recurrence"  # générée par une Recurrence
-    A_NOUVEAU = "a_nouveau"  # solde initial d'un compte de trésorerie (§15.4)
+    A_NOUVEAU = "a_nouveau"  # solde initial / report à nouveau d'ouverture (§6)
     EXTOURNE = "extourne"  # contre-passation d'une écriture validée (§10)
+    CLOTURE = "cloture"  # détermination du résultat à la clôture (solde 6/7 -> 12)
 
 
 class ModeReglement(str, Enum):
