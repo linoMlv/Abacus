@@ -1,0 +1,170 @@
+import uuid
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
+
+from sqlalchemy import UniqueConstraint
+from sqlmodel import Field, Relationship, SQLModel
+
+from .common import utcnow
+
+
+class EcritureStatut(str, Enum):
+    """Lifecycle of an accounting entry. Stable strings (persisted, audited)."""
+
+    BROUILLON = "brouillon"  # éditable
+    VALIDEE = "validee"  # immuable ; modification via contre-passation seulement
+
+
+class EcritureOrigine(str, Enum):
+    """How an entry was produced. Stable strings (persisted, audited)."""
+
+    SAISIE_SIMPLE = "saisie_simple"  # via le moteur recette/dépense assisté
+    MANUELLE = "manuelle"  # saisie expert multi-lignes
+    VIREMENT = "virement"  # virement interne entre deux comptes de trésorerie
+    IMPORT = "import"  # rapprochement bancaire
+    RECURRENCE = "recurrence"  # générée par une Recurrence
+    A_NOUVEAU = "a_nouveau"  # solde initial / report à nouveau d'ouverture (§6)
+    EXTOURNE = "extourne"  # contre-passation d'une écriture validée (§10)
+    CLOTURE = "cloture"  # détermination du résultat à la clôture (solde 6/7 -> 12)
+
+
+class ModeReglement(str, Enum):
+    """How money changed hands — purely informative (§15.3). Stable strings."""
+
+    CARTE = "carte"
+    CHEQUE = "cheque"
+    ESPECES = "especes"
+    VIREMENT = "virement"
+    PRELEVEMENT = "prelevement"
+    AUTRE = "autre"
+
+
+class Ecriture(SQLModel, table=True):
+    __tablename__ = "ecriture"
+    # Voucher numbers are unique and gapless per association (FEC requirement);
+    # uniqueness is enforced here, gaplessness by the sequential generator.
+    __table_args__ = (
+        UniqueConstraint(
+            "association_id", "numero_piece", name="uq_ecriture_assoc_piece"
+        ),
+    )
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    association_id: str = Field(foreign_key="association.id", index=True)
+    exercice_id: str = Field(foreign_key="exercice.id", index=True)
+    journal_id: str = Field(foreign_key="journal.id", index=True)
+    # Plain-language category used by the assisted screen (null on manual entries),
+    # memorised for "by category" views. The accounting truth stays on the lines.
+    categorie_id: str | None = Field(
+        default=None, foreign_key="categorie_saisie.id", index=True
+    )
+    # Optional third party the operation is with (supplier, donor…), memorised
+    # for "by tiers" views. Informative only — the accounting truth is on lines.
+    tiers_id: str | None = Field(default=None, foreign_key="tiers.id", index=True)
+    # Optional event this operation is part of (analytic axis, §15.6).
+    evenement_id: str | None = Field(
+        default=None, foreign_key="evenement.id", index=True
+    )
+    date: date
+    numero_piece: int  # séquentiel sans trou par association
+    libelle: str
+    # Optional "Avancé" metadata, purely informative (§15.3) — never affects the
+    # accounting: external reference (supplier invoice n°…) and payment method.
+    reference_externe: str | None = None
+    mode_reglement: ModeReglement | None = None
+    statut: EcritureStatut = Field(default=EcritureStatut.BROUILLON)
+    origine: EcritureOrigine
+    # When this entry is the contre-passation (extourne) of another, the id of the
+    # entry it reverses. Set only on EXTOURNE entries; preserves the audit trail
+    # of a correction (the original stays, nothing is silently edited — plan §10).
+    extourne_de_id: str | None = Field(
+        default=None, foreign_key="ecriture.id", index=True
+    )
+    created_by: str | None = Field(default=None, foreign_key="user.id")
+    created_at: datetime = Field(default_factory=utcnow)
+    validated_by: str | None = Field(default=None, foreign_key="user.id")
+    validated_at: datetime | None = None
+
+    lignes: list["LigneEcriture"] = Relationship(
+        back_populates="ecriture",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class LigneEcriture(SQLModel, table=True):
+    __tablename__ = "ligne_ecriture"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    ecriture_id: str = Field(foreign_key="ecriture.id", index=True)
+    compte_id: str = Field(foreign_key="compte.id", index=True)
+    libelle: str
+    # Each line carries an amount on exactly one side; both are non-negative and
+    # exactly one is strictly positive (validated in ``accounting_engine.py``).
+    debit: Decimal = Field(default=0, max_digits=10, decimal_places=2)
+    credit: Decimal = Field(default=0, max_digits=10, decimal_places=2)
+
+    ecriture: Ecriture | None = Relationship(back_populates="lignes")
+
+
+class LigneEcritureRead(SQLModel):
+    id: str
+    compte_id: str
+    libelle: str
+    debit: Decimal
+    credit: Decimal
+
+
+class EcritureRead(SQLModel):
+    id: str
+    exercice_id: str
+    journal_id: str
+    categorie_id: str | None
+    date: date
+    numero_piece: int
+    libelle: str
+    tiers_id: str | None
+    evenement_id: str | None
+    reference_externe: str | None
+    mode_reglement: ModeReglement | None
+    statut: EcritureStatut
+    origine: EcritureOrigine
+    extourne_de_id: str | None
+    created_at: datetime
+    validated_at: datetime | None
+
+
+class EcritureDetailRead(EcritureRead):
+    lignes: list[LigneEcritureRead] = []
+
+
+class EcritureListItem(EcritureRead):
+    """A journal row: the entry plus its total amount and human journal code,
+    so the listing needs no per-row follow-up request."""
+
+    montant: Decimal  # total débit = total crédit (entries are balanced)
+    journal_code: str
+
+
+class BalanceCompteRead(SQLModel):
+    """One row of the trial balance (balance des comptes)."""
+
+    compte_id: str
+    numero: str
+    libelle: str
+    total_debit: Decimal
+    total_credit: Decimal
+    solde: Decimal  # débit - crédit (positif = solde débiteur)
+
+
+class GrandLivreLigneRead(SQLModel):
+    """One movement of an account's ledger (grand livre), with running balance."""
+
+    ecriture_id: str
+    date: date
+    numero_piece: int
+    journal_id: str
+    libelle: str
+    debit: Decimal
+    credit: Decimal
+    solde: Decimal  # cumul débit - crédit jusqu'à cette ligne
