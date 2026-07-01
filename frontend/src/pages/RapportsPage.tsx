@@ -3,10 +3,12 @@ import { CalendarRange, Download, FileSpreadsheet, FileText, Wallet } from 'luci
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { accountingApi, TYPE_TRESORERIE_LABELS } from '@/api/accounting';
+import { accountingApi, EXERCICE_STATUT_LABELS, TYPE_TRESORERIE_LABELS } from '@/api/accounting';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { usePermissions } from '@/hooks/usePermissions';
 import { triggerDownload } from '@/lib/download';
+import { PERMISSIONS } from '@/lib/permissions';
 
 /** A single downloadable document (server-generated, named by the server). */
 function DownloadRow({ icon, label, url }: { icon: React.ReactNode; label: string; url: string }) {
@@ -48,6 +50,8 @@ const XLSX = <FileSpreadsheet className="h-4 w-4" aria-hidden />;
 
 export function RapportsPage() {
   const { associationId } = useParams() as { associationId: string };
+  const { has } = usePermissions();
+  const canExportFec = has(PERMISSIONS.REPORT_EXPORT_FEC);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const period = { date_from: dateFrom || undefined, date_to: dateTo || undefined };
@@ -60,8 +64,14 @@ export function RapportsPage() {
     queryKey: ['evenements', associationId],
     queryFn: () => accountingApi.listEvenements(associationId),
   });
+  const exercicesQuery = useQuery({
+    queryKey: ['exercices', associationId],
+    queryFn: () => accountingApi.listExercices(associationId),
+    enabled: canExportFec,
+  });
   const comptes = tresorerieQuery.data ?? [];
   const evenements = evenementsQuery.data ?? [];
+  const exercices = exercicesQuery.data ?? [];
 
   return (
     <div className="mx-auto max-w-5xl space-y-7">
@@ -141,6 +151,11 @@ export function RapportsPage() {
               label="Bilan (PDF)"
               url={accountingApi.bilanPdfUrl(associationId, period)}
             />
+            <DownloadRow
+              icon={PDF}
+              label="Annexe (PDF)"
+              url={accountingApi.annexePdfUrl(associationId, period)}
+            />
           </div>
         </Section>
 
@@ -187,6 +202,28 @@ export function RapportsPage() {
             </div>
           )}
         </Section>
+
+        {canExportFec && (
+          <Section
+            title="FEC"
+            description="Fichier des Écritures Comptables (une par exercice) pour l’administration."
+          >
+            {exercices.length === 0 ? (
+              <Card className="p-4 text-sm text-muted">Aucun exercice.</Card>
+            ) : (
+              <div className="space-y-2">
+                {exercices.map((exercice) => (
+                  <DownloadRow
+                    key={exercice.id}
+                    icon={PDF}
+                    label={`FEC ${exercice.libelle} — ${EXERCICE_STATUT_LABELS[exercice.statut]}`}
+                    url={accountingApi.fecUrl(associationId, exercice.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </Section>
+        )}
       </div>
     </div>
   );

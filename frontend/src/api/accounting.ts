@@ -21,7 +21,9 @@ export type EcritureOrigine =
   | 'manuelle'
   | 'import'
   | 'recurrence'
-  | 'a_nouveau';
+  | 'a_nouveau'
+  | 'extourne'
+  | 'cloture';
 
 /** Informative payment method on an entry, mirrors the backend `ModeReglement`. */
 export type ModeReglement = 'carte' | 'cheque' | 'especes' | 'virement' | 'prelevement' | 'autre';
@@ -95,6 +97,45 @@ export interface Journal {
   id: string;
   code: string;
   libelle: string;
+}
+
+/** Lifecycle of a fiscal year, mirrors the backend `ExerciceStatut`. */
+export type ExerciceStatut = 'ouvert' | 'cloture';
+
+export const EXERCICE_STATUT_LABELS: Record<ExerciceStatut, string> = {
+  ouvert: 'Ouvert',
+  cloture: 'Clôturé',
+};
+
+/** A fiscal year (exercice). */
+export interface Exercice {
+  id: string;
+  libelle: string;
+  date_debut: string;
+  date_fin: string;
+  statut: ExerciceStatut;
+  report_a_nouveau_genere: boolean;
+}
+
+export interface CreateExerciceInput {
+  libelle: string;
+  date_debut: string;
+  date_fin: string;
+}
+
+/** How the exercice result is affected at closing (report à nouveau vs reserves). */
+export interface AffectationResultat {
+  report_a_nouveau: string;
+  reserves: string;
+}
+
+/** Outcome of a closing. */
+export interface ClotureResult {
+  resultat: string;
+  report_a_nouveau: string;
+  reserves: string;
+  exercice_cloture: Exercice;
+  exercice_suivant: Exercice;
 }
 
 /** Kind of a named treasury account (where the money is), mirrors the backend. */
@@ -408,6 +449,12 @@ export const accountingApi = {
   listComptes: (associationId: string, classe?: number) =>
     api.get<Compte[]>(`${base(associationId)}/comptes${classe ? `?classe=${classe}` : ''}`),
   listJournaux: (associationId: string) => api.get<Journal[]>(`${base(associationId)}/journaux`),
+  listExercices: (associationId: string) => api.get<Exercice[]>(`${base(associationId)}/exercices`),
+  creerExercice: (associationId: string, input: CreateExerciceInput) =>
+    api.post<Exercice>(`${base(associationId)}/exercices`, input),
+  /** Close a fiscal year: determine the result, carry balances forward, lock it. */
+  cloturerExercice: (associationId: string, exerciceId: string, affectation: AffectationResultat) =>
+    api.post<ClotureResult>(`${base(associationId)}/exercices/${exerciceId}/cloture`, affectation),
   creerSaisieSimple: (associationId: string, input: SaisieSimpleInput) =>
     api.post<Ecriture>(`${base(associationId)}/ecritures/simple`, input),
   creerVirement: (associationId: string, input: VirementInput) =>
@@ -435,6 +482,10 @@ export const accountingApi = {
     apiUrl(`${base(associationId)}/exports/compte-resultat.pdf${qs({ ...params })}`),
   bilanPdfUrl: (associationId: string, params: SyntheseParams = {}) =>
     apiUrl(`${base(associationId)}/exports/bilan.pdf${qs({ ...params })}`),
+  annexePdfUrl: (associationId: string, params: SyntheseParams = {}) =>
+    apiUrl(`${base(associationId)}/exports/annexe.pdf${qs({ ...params })}`),
+  fecUrl: (associationId: string, exerciceId?: string) =>
+    apiUrl(`${base(associationId)}/exports/fec${qs({ exercice_id: exerciceId })}`),
   evenementBilanPdfUrl: (associationId: string, evenementId: string) =>
     apiUrl(`${base(associationId)}/exports/evenements/${evenementId}/bilan.pdf`),
   listEvenements: (associationId: string, statut?: EvenementStatut) =>
