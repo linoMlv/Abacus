@@ -1,46 +1,25 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
-import { type Dispatch, type SetStateAction, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import {
-  accountingApi,
-  type EcritureStatut,
-  type JournalFilters,
-  type TypeOperation,
-  TYPE_OPERATION_LABELS,
-} from '@/api/accounting';
+import { accountingApi } from '@/api/accounting';
 import { ExportMenu } from '@/components/ExportMenu';
 import { EcritureDrawer } from '@/components/journal/EcritureDrawer';
 import { EmptyState } from '@/components/journal/EmptyState';
 import { FilterPanel, ResetButton } from '@/components/journal/FilterPanel';
 import { JournalSkeleton, JournalTable } from '@/components/journal/JournalTable';
-import { STATUT_LABELS, type Facet, type FilterOption } from '@/components/journal/types';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import { useDebounced } from '@/hooks/useDebounced';
+import { useJournalFilters } from '@/hooks/useJournalFilters';
 import { usePermissions } from '@/hooks/usePermissions';
 import { PERMISSIONS } from '@/lib/permissions';
 
 /** Journal page size: entries load in batches via a "Charger plus" button. */
 const PAGE_SIZE = 50;
-
-const TYPE_OPTIONS: FilterOption[] = (['recette', 'depense', 'virement'] as const).map((v) => ({
-  value: v,
-  label: TYPE_OPERATION_LABELS[v],
-}));
-
-const STATUT_OPTIONS: FilterOption[] = (['brouillon', 'validee'] as const).map((v) => ({
-  value: v,
-  label: STATUT_LABELS[v],
-}));
-
-function toggleValue<T>(setter: Dispatch<SetStateAction<T[]>>, value: T) {
-  setter((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
-}
 
 export function JournalPage() {
   const { associationId } = useParams() as { associationId: string };
@@ -53,72 +32,21 @@ export function JournalPage() {
   const canSelect = canValidate || canDelete;
   const navigate = useNavigate();
 
-  const [statuts, setStatuts] = useState<EcritureStatut[]>([]);
-  const [journalIds, setJournalIds] = useState<string[]>([]);
-  const [compteIds, setCompteIds] = useState<string[]>([]);
-  const [typeOperations, setTypeOperations] = useState<TypeOperation[]>([]);
-  const [categorieIds, setCategorieIds] = useState<string[]>([]);
-  const [tiersIds, setTiersIds] = useState<string[]>([]);
-  const [evenementIds, setEvenementIds] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [search, setSearch] = useState('');
-  const q = useDebounced(search);
+  const {
+    filters,
+    facets,
+    activeCount,
+    hasFilters,
+    reset: resetFilters,
+    dateFrom,
+    dateTo,
+    setDateFrom,
+    setDateTo,
+    search,
+    setSearch,
+  } = useJournalFilters(associationId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  const journauxQuery = useQuery({
-    queryKey: ['journaux', associationId],
-    queryFn: () => accountingApi.listJournaux(associationId),
-  });
-
-  const tresorerieQuery = useQuery({
-    queryKey: ['tresorerie', associationId],
-    queryFn: () => accountingApi.listTresorerie(associationId),
-  });
-
-  const categoriesQuery = useQuery({
-    queryKey: ['categories', associationId],
-    queryFn: () => accountingApi.listCategories(associationId),
-  });
-
-  const tiersQuery = useQuery({
-    queryKey: ['tiers', associationId],
-    queryFn: () => accountingApi.listTiers(associationId),
-  });
-
-  const evenementsQuery = useQuery({
-    queryKey: ['evenements', associationId],
-    queryFn: () => accountingApi.listEvenements(associationId),
-  });
-
-  // The active filter, shared by the listing query and the (filtered) journal export.
-  const filters: JournalFilters = useMemo(
-    () => ({
-      statut: statuts.length ? statuts : undefined,
-      journal_id: journalIds.length ? journalIds : undefined,
-      compte_id: compteIds.length ? compteIds : undefined,
-      type_operation: typeOperations.length ? typeOperations : undefined,
-      categorie_id: categorieIds.length ? categorieIds : undefined,
-      tiers_id: tiersIds.length ? tiersIds : undefined,
-      evenement_id: evenementIds.length ? evenementIds : undefined,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-      q: q || undefined,
-    }),
-    [
-      statuts,
-      journalIds,
-      compteIds,
-      typeOperations,
-      categorieIds,
-      tiersIds,
-      evenementIds,
-      dateFrom,
-      dateTo,
-      q,
-    ]
-  );
 
   // Paginated, newest first: each page is a window of PAGE_SIZE rows. A full
   // page means there may be more (the cursor is the count loaded so far); a
@@ -193,90 +121,6 @@ export function JournalPage() {
       setBulkNotice(bulkSummary('supprimée(s)', result));
     },
   });
-
-  const facets: Facet[] = [
-    {
-      key: 'type',
-      title: 'Type',
-      options: TYPE_OPTIONS,
-      selected: typeOperations,
-      onToggle: (v) => toggleValue(setTypeOperations, v as TypeOperation),
-    },
-    {
-      key: 'statut',
-      title: 'Statut',
-      options: STATUT_OPTIONS,
-      selected: statuts,
-      onToggle: (v) => toggleValue(setStatuts, v as EcritureStatut),
-    },
-    {
-      key: 'journal',
-      title: 'Journal',
-      options: (journauxQuery.data ?? []).map((j) => ({
-        value: j.id,
-        label: `${j.code} — ${j.libelle}`,
-      })),
-      selected: journalIds,
-      onToggle: (v) => toggleValue(setJournalIds, v),
-    },
-    {
-      key: 'compte',
-      title: 'Compte de trésorerie',
-      options: (tresorerieQuery.data ?? []).map((c) => ({ value: c.id, label: c.libelle })),
-      selected: compteIds,
-      onToggle: (v) => toggleValue(setCompteIds, v),
-      scroll: true,
-    },
-    {
-      key: 'categorie',
-      title: 'Catégorie',
-      options: (categoriesQuery.data ?? []).map((c) => ({ value: c.id, label: c.libelle })),
-      selected: categorieIds,
-      onToggle: (v) => toggleValue(setCategorieIds, v),
-      scroll: true,
-    },
-    {
-      key: 'tiers',
-      title: 'Tiers',
-      options: (tiersQuery.data ?? []).map((t) => ({ value: t.id, label: t.nom })),
-      selected: tiersIds,
-      onToggle: (v) => toggleValue(setTiersIds, v),
-      scroll: true,
-    },
-    {
-      key: 'evenement',
-      title: 'Événement',
-      options: (evenementsQuery.data ?? []).map((e) => ({ value: e.id, label: e.nom })),
-      selected: evenementIds,
-      onToggle: (v) => toggleValue(setEvenementIds, v),
-      scroll: true,
-    },
-  ];
-
-  const activeCount =
-    typeOperations.length +
-    statuts.length +
-    journalIds.length +
-    compteIds.length +
-    categorieIds.length +
-    tiersIds.length +
-    evenementIds.length +
-    (dateFrom ? 1 : 0) +
-    (dateTo ? 1 : 0);
-  const hasFilters = activeCount > 0 || q !== '';
-
-  function resetFilters() {
-    setStatuts([]);
-    setJournalIds([]);
-    setCompteIds([]);
-    setTypeOperations([]);
-    setCategorieIds([]);
-    setTiersIds([]);
-    setEvenementIds([]);
-    setDateFrom('');
-    setDateTo('');
-    setSearch('');
-  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
