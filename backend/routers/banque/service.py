@@ -143,24 +143,17 @@ def _net_on_compte(
     """Σ débit − Σ crédit of an entry on one account (None if it does not touch it)."""
     debit = func.coalesce(func.sum(LigneEcriture.debit), 0)
     credit = func.coalesce(func.sum(LigneEcriture.credit), 0)
-    row = session.exec(
-        select(debit, credit).where(
+    # Count and sums in one pass: a zero count means the entry has no line on this
+    # account (distinct from "touches it but nets to zero").
+    count, total_debit, total_credit = session.exec(
+        select(func.count(), debit, credit).where(
             LigneEcriture.ecriture_id == ecriture_id,
             LigneEcriture.compte_id == compte_id,
         )
     ).one()
-    total = Decimal(str(row[0])) - Decimal(str(row[1]))
-    # No line on this account → both sums are 0; distinguish "touches, nets to 0"
-    # from "does not touch" by counting the lines.
-    touches = session.exec(
-        select(func.count())
-        .select_from(LigneEcriture)
-        .where(
-            LigneEcriture.ecriture_id == ecriture_id,
-            LigneEcriture.compte_id == compte_id,
-        )
-    ).one()
-    return total if touches else None
+    if not count:
+        return None
+    return Decimal(str(total_debit)) - Decimal(str(total_credit))
 
 
 def _linked_ecriture_ids(session: Session, association_id: str) -> set[str]:

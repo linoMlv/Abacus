@@ -89,7 +89,9 @@ def _build_occurrence(session: Session, rec: Recurrence, jour: date) -> Ecriture
         sens=categorie.sens,
         montant=rec.montant,
         date_ecriture=jour,
-        libelle=rec.libelle,
+        # Fall back to the category label if the recurrence's libellé was cleared,
+        # so a generated entry always carries a meaningful label.
+        libelle=(rec.libelle or "").strip() or categorie.libelle,
         numero_piece=next_numero_piece(session, rec.association_id),
         created_by=rec.created_by,
         origine=EcritureOrigine.RECURRENCE,

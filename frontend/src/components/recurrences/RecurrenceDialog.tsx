@@ -61,7 +61,7 @@ export function RecurrenceDialog({ associationId, recurrence, open, onClose }: P
 
   const mutation = useMutation({
     mutationFn: () => {
-      const input: CreateRecurrenceInput = {
+      const base: CreateRecurrenceInput = {
         libelle,
         categorie_id: categorieId,
         compte_tresorerie_id: compteId,
@@ -69,11 +69,19 @@ export function RecurrenceDialog({ associationId, recurrence, open, onClose }: P
         periodicite,
         prochaine_echeance: prochaine,
         mode,
-        ...(dateFin ? { date_fin: dateFin } : {}),
       };
-      return isEdit
-        ? accountingApi.modifierRecurrence(associationId, recurrence.id, input)
-        : accountingApi.creerRecurrence(associationId, input);
+      if (isEdit) {
+        // Send date_fin explicitly (null when cleared) so an existing end date
+        // can be removed; a create just omits it when empty.
+        return accountingApi.modifierRecurrence(associationId, recurrence.id, {
+          ...base,
+          date_fin: dateFin || null,
+        });
+      }
+      return accountingApi.creerRecurrence(
+        associationId,
+        dateFin ? { ...base, date_fin: dateFin } : base
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recurrences', associationId] });

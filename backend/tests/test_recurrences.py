@@ -177,6 +177,27 @@ def test_generation_auto_books_a_validated_entry():
     assert entries[0]["statut"] == "validee"
 
 
+def test_generation_falls_back_to_category_label_when_libelle_cleared():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    rec = _create(admin, assoc)
+    # Editing the libellé to empty must not produce label-less entries.
+    admin.patch(f"/api/asso/{assoc}/recurrences/{rec['id']}", json={"libelle": ""})
+
+    assert _generer(admin, assoc) == 1
+    assert _recurrence_entries(admin, assoc)[0]["libelle"] == "Cotisations"
+
+
+def test_end_date_can_be_cleared():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    rec = _create(admin, assoc, date_fin="2026-12-31")
+
+    cleared = admin.patch(
+        f"/api/asso/{assoc}/recurrences/{rec['id']}", json={"date_fin": None}
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["date_fin"] is None
+
+
 def test_generation_is_idempotent():
     admin, assoc = _admin_with_association("admin@example.com", "alpha")
     _create(admin, assoc)
