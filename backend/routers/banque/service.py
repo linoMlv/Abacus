@@ -79,7 +79,14 @@ def persist_import(
     The parent ``ImportReleve`` is flushed before the child lines so Postgres
     never sees a child before its parent (FK ordering — a plain FK column does
     not order the unit-of-work flush).
+
+    Movements carrying a ``fitid`` (OFX) are deduplicated: one already imported
+    for this account, or repeated within the file, is skipped — so re-importing
+    an overlapping statement never books the same operation twice. CSV lines have
+    no fitid and are always kept.
     """
+    lignes = _dedup(session, ctx.association_id, compte.id, lignes)
+
     releve = ImportReleve(
         association_id=ctx.association_id,
         compte_id=compte.id,
@@ -98,9 +105,36 @@ def persist_import(
                 date_operation=pl.date_operation,
                 libelle=pl.libelle,
                 montant=pl.montant,
+                fitid=pl.fitid,
             )
         )
     return releve
+
+
+def _dedup(
+    session: Session, association_id: str, compte_id: str, lignes: list[ParsedLigne]
+) -> list[ParsedLigne]:
+    """Drop movements whose fitid is already imported for the account or repeated."""
+    existing = {
+        fid
+        for fid in session.exec(
+            select(LigneBancaire.fitid).where(
+                LigneBancaire.association_id == association_id,
+                LigneBancaire.compte_id == compte_id,
+                LigneBancaire.fitid.is_not(None),
+            )
+        ).all()
+        if fid is not None
+    }
+    seen: set[str] = set()
+    kept: list[ParsedLigne] = []
+    for pl in lignes:
+        if pl.fitid is not None:
+            if pl.fitid in existing or pl.fitid in seen:
+                continue
+            seen.add(pl.fitid)
+        kept.append(pl)
+    return kept
 
 
 def _net_on_compte(

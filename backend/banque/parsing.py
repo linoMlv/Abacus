@@ -42,11 +42,16 @@ class ColumnMapping:
 
 @dataclass(frozen=True)
 class ParsedLigne:
-    """One statement movement; ``montant`` is signed (>0 inflow, <0 outflow)."""
+    """One statement movement; ``montant`` is signed (>0 inflow, <0 outflow).
+
+    ``fitid`` is the bank's unique transaction id (OFX only; ``None`` for CSV),
+    used to skip a movement already imported for the same account.
+    """
 
     date_operation: date
     libelle: str
     montant: Decimal
+    fitid: str | None = None
 
 
 def parse_releve_csv(content: str, mapping: ColumnMapping) -> list[ParsedLigne]:

@@ -43,6 +43,9 @@ class LigneBancaire(SQLModel, table=True):
     libelle: str
     # Signed: >0 = inflow (credit on the bank account), <0 = outflow.
     montant: Decimal = Field(max_digits=12, decimal_places=2)
+    # Bank's unique transaction id (OFX only, null for CSV): dedup key so a
+    # re-import overlapping a previous one does not insert the same movement twice.
+    fitid: str | None = Field(default=None, index=True)
     statut: LigneBancaireStatut = Field(default=LigneBancaireStatut.NON_RAPPROCHE)
     # The accounting entry this line is lettré to (set only when RAPPROCHE).
     ecriture_id: str | None = Field(default=None, foreign_key="ecriture.id", index=True)

@@ -20,6 +20,29 @@ CSV_TWO = (
 )
 CSV_ONE = "Date;Libelle;Montant\n15/06/2026;Cotisation Dupont;150,00\n"
 
+OFX_TWO = b"""OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>EUR
+<BANKACCTFROM><BANKID>30001<ACCTID>000123<ACCTTYPE>CHECKING</BANKACCTFROM>
+<BANKTRANLIST>
+<STMTTRN>
+<TRNTYPE>CREDIT
+<DTPOSTED>20260615
+<TRNAMT>150.00
+<FITID>ABC1
+<NAME>Cotisation Dupont
+</STMTTRN>
+<STMTTRN>
+<TRNTYPE>DEBIT
+<DTPOSTED>20260618
+<TRNAMT>-8.00
+<FITID>ABC2
+<NAME>Frais
+</STMTTRN>
+</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>"""
+
 
 @pytest.fixture(autouse=True)
 def _use_test_session(session: Session):
@@ -97,6 +120,14 @@ def _import(client: TestClient, assoc: str, compte_id: str, content: str, **over
     )
 
 
+def _import_ofx(client: TestClient, assoc: str, compte_id: str, content: bytes):
+    return client.post(
+        f"/api/asso/{assoc}/banque/import/ofx",
+        data={"compte_id": compte_id},
+        files={"fichier": ("releve.ofx", content, "application/x-ofx")},
+    )
+
+
 def _lignes(client: TestClient, assoc: str) -> list[dict]:
     resp = client.get(f"/api/asso/{assoc}/banque/lignes")
     assert resp.status_code == 200, resp.text
@@ -143,6 +174,40 @@ def test_import_onto_unknown_account_is_404():
     admin, assoc = _admin_with_association("admin@example.com", "alpha")
     resp = _import(admin, assoc, "does-not-exist", CSV_ONE)
     assert resp.status_code == 404
+
+
+def test_import_ofx_creates_signed_lines():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    bank = _treasury_id(admin, assoc, "512")
+
+    resp = _import_ofx(admin, assoc, bank, OFX_TWO)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["nb_lignes"] == 2
+
+    by_libelle = {row["libelle"]: row for row in _lignes(admin, assoc)}
+    assert _dec(by_libelle["Cotisation Dupont"]["montant"]) == Decimal("150.00")
+    assert _dec(by_libelle["Frais"]["montant"]) == Decimal("-8.00")
+
+
+def test_ofx_reimport_dedups_on_fitid():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    bank = _treasury_id(admin, assoc, "512")
+
+    assert _import_ofx(admin, assoc, bank, OFX_TWO).json()["nb_lignes"] == 2
+    # Re-importing the same statement books nothing new (same FITIDs).
+    assert _import_ofx(admin, assoc, bank, OFX_TWO).json()["nb_lignes"] == 0
+    assert len(_lignes(admin, assoc)) == 2
+
+
+def test_import_ofx_onto_unknown_account_is_404():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    assert _import_ofx(admin, assoc, "nope", OFX_TWO).status_code == 404
+
+
+def test_import_ofx_rejects_garbage():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    bank = _treasury_id(admin, assoc, "512")
+    assert _import_ofx(admin, assoc, bank, b"not ofx").status_code == 400
 
 
 def test_import_rejects_a_malformed_row():

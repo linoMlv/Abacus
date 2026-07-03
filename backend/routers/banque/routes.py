@@ -12,7 +12,7 @@ from sqlmodel import Session, asc, desc, select
 from audit import AuditAction, record_audit
 from auth_context import AccessContext, require_permission
 from authz import Permission
-from banque import ColumnMapping, ReleveParseError, parse_releve_csv
+from banque import ColumnMapping, ReleveParseError, parse_releve_csv, parse_releve_ofx
 from database import get_session
 from file_storage import MAX_UPLOAD_BYTES
 from models import (
@@ -45,6 +45,41 @@ def _decode(data: bytes) -> str:
     )
 
 
+def _read_upload(fichier: UploadFile) -> bytes:
+    """Read the uploaded file, hard-capped so a huge upload cannot blow up memory."""
+    data = fichier.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Fichier trop volumineux.",
+        )
+    return data
+
+
+def _finalize_import(session, ctx, compte, filename, lignes, default_name):
+    """Persist the parsed rows (deduped) and record the audit, then commit."""
+    if not lignes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Aucune ligne exploitable dans le fichier.",
+        )
+    releve = service.persist_import(
+        session, ctx, compte, filename or default_name, lignes
+    )
+    record_audit(
+        session,
+        association_id=ctx.association_id,
+        actor_user_id=ctx.user.id,
+        action=AuditAction.RELEVE_IMPORT,
+        target_type="import_releve",
+        target_id=releve.id,
+        detail=f"{releve.nb_lignes} lignes — {compte.libelle}",
+    )
+    session.commit()
+    session.refresh(releve)
+    return releve
+
+
 # --- Import ---------------------------------------------------------------
 
 
@@ -70,14 +105,7 @@ def importer_releve(
 ):
     """Import a CSV statement onto one of the association's treasury accounts."""
     compte = service.owned_treasury(session, ctx.association_id, compte_id)
-
-    data = fichier.file.read(MAX_UPLOAD_BYTES + 1)
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Fichier trop volumineux.",
-        )
-    text = _decode(data)
+    text = _decode(_read_upload(fichier))
 
     mapping = ColumnMapping(
         date=date_col,
@@ -96,26 +124,37 @@ def importer_releve(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from None
-    if not lignes:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Aucune ligne exploitable dans le fichier.",
-        )
 
     filename = (fichier.filename or "releve.csv")[:200]
-    releve = service.persist_import(session, ctx, compte, filename, lignes)
-    record_audit(
-        session,
-        association_id=ctx.association_id,
-        actor_user_id=ctx.user.id,
-        action=AuditAction.RELEVE_IMPORT,
-        target_type="import_releve",
-        target_id=releve.id,
-        detail=f"{len(lignes)} lignes — {compte.libelle}",
-    )
-    session.commit()
-    session.refresh(releve)
-    return releve
+    return _finalize_import(session, ctx, compte, filename, lignes, "releve.csv")
+
+
+@router.post(
+    "/banque/import/ofx",
+    response_model=ImportReleveRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def importer_releve_ofx(
+    compte_id: str = Form(...),
+    fichier: UploadFile = File(...),
+    ctx: AccessContext = Depends(require_permission(Permission.BANK_RECONCILE)),
+    session: Session = Depends(get_session),
+):
+    """Import an OFX statement (1.x/2.x) — self-describing, no column mapping.
+
+    Movements already imported for the account (same FITID) are skipped, so
+    re-importing an overlapping statement never books a duplicate.
+    """
+    compte = service.owned_treasury(session, ctx.association_id, compte_id)
+    try:
+        lignes = parse_releve_ofx(_read_upload(fichier))
+    except ReleveParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from None
+
+    filename = (fichier.filename or "releve.ofx")[:200]
+    return _finalize_import(session, ctx, compte, filename, lignes, "releve.ofx")
 
 
 @router.get("/banque/imports", response_model=list[ImportReleveRead])
