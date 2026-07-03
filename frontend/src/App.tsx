@@ -12,6 +12,7 @@ import { OnboardingSoldesPage } from '@/pages/OnboardingSoldesPage';
 import { ParametresPage } from '@/pages/ParametresPage';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { RapportsPage } from '@/pages/RapportsPage';
+import { RecurrencesPage } from '@/pages/RecurrencesPage';
 import { SaisiePage } from '@/pages/SaisiePage';
 import { SynthesePage } from '@/pages/SynthesePage';
 import { AcceptInvitationPage } from '@/pages/auth/AcceptInvitationPage';
@@ -44,13 +45,20 @@ export default function App() {
             <Route path="saisie" element={<SaisiePage />} />
             <Route path="journal" element={<JournalPage />} />
             <Route path="banque" element={<BanquePage />} />
+            <Route path="recurrences" element={<RecurrencesPage />} />
             <Route path="rapports" element={<RapportsPage />} />
             <Route path="parametres" element={<ParametresPage />} />
             {ALL_NAV_ITEMS.filter(
               (item) =>
-                !['synthese', 'saisie', 'journal', 'banque', 'rapports', 'parametres'].includes(
-                  item.segment
-                )
+                ![
+                  'synthese',
+                  'saisie',
+                  'journal',
+                  'banque',
+                  'recurrences',
+                  'rapports',
+                  'parametres',
+                ].includes(item.segment)
             ).map((item) => (
               <Route key={item.segment} path={item.segment} element={<PlaceholderPage />} />
             ))}
