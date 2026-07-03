@@ -47,6 +47,13 @@ from .identity import (
     User,
 )
 from .justificatif import Justificatif, JustificatifRead
+from .recurrence import (
+    GenerationResult,
+    Periodicite,
+    Recurrence,
+    RecurrenceMode,
+    RecurrenceRead,
+)
 from .referentiel import (
     AffectationResultat,
     ClotureResult,
@@ -103,6 +110,7 @@ __all__ = [
     "ExerciceCreate",
     "ExerciceRead",
     "ExerciceStatut",
+    "GenerationResult",
     "GrandLivreLigneRead",
     "ImportReleve",
     "ImportReleveRead",
@@ -123,7 +131,11 @@ __all__ = [
     "MembershipStatus",
     "ModeReglement",
     "PermissionPreset",
+    "Periodicite",
     "RapprochementSuggestion",
+    "Recurrence",
+    "RecurrenceMode",
+    "RecurrenceRead",
     "RefreshSession",
     "RepartitionCategorieItem",
     "RepartitionEvenementItem",

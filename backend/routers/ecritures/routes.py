@@ -212,6 +212,7 @@ def list_ecritures(
             statut=e.statut,
             origine=e.origine,
             extourne_de_id=e.extourne_de_id,
+            recurrence_id=e.recurrence_id,
             created_at=e.created_at,
             validated_at=e.validated_at,
             montant=sum((ligne.debit for ligne in e.lignes), Decimal("0")),
