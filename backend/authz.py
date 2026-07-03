@@ -50,6 +50,7 @@ class Permission(str, Enum):
     ATTACHMENT_MANAGE = "attachment:manage"  # justificatifs (upload/suppression)
     EVENT_MANAGE = "event:manage"  # événements (axe analytique : CRUD, quick-add)
     BANK_RECONCILE = "bank:reconcile"
+    RECURRENCE_MANAGE = "recurrence:manage"  # écritures récurrentes (CRUD, génération)
     TIERS_MANAGE = "tiers:manage"
     DONATION_MANAGE = "donation:manage"  # dons & reçus fiscaux
     BUDGET_MANAGE = "budget:manage"
@@ -81,6 +82,7 @@ _TREASURER: frozenset[Permission] = _VIEWER | {
     Permission.ATTACHMENT_MANAGE,
     Permission.EVENT_MANAGE,
     Permission.BANK_RECONCILE,
+    Permission.RECURRENCE_MANAGE,
     Permission.TIERS_MANAGE,
     Permission.DONATION_MANAGE,
     Permission.BUDGET_MANAGE,
@@ -189,6 +191,9 @@ PERMISSION_CATALOG: tuple[PermissionInfo, ...] = (
     PermissionInfo(Permission.EVENT_MANAGE, "Gestion", "Gérer les événements"),
     PermissionInfo(
         Permission.BANK_RECONCILE, "Gestion", "Rapprocher les relevés bancaires"
+    ),
+    PermissionInfo(
+        Permission.RECURRENCE_MANAGE, "Gestion", "Gérer les écritures récurrentes"
     ),
     PermissionInfo(Permission.TIERS_MANAGE, "Gestion", "Gérer les tiers"),
     PermissionInfo(

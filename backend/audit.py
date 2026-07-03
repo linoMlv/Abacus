@@ -37,6 +37,10 @@ class AuditAction:
     RELEVE_DELETE = "releve.delete"
     LIGNE_BANCAIRE_RAPPROCHE = "ligne_bancaire.rapproche"
     LIGNE_BANCAIRE_DELETTRAGE = "ligne_bancaire.delettrage"
+    RECURRENCE_CREATE = "recurrence.create"
+    RECURRENCE_UPDATE = "recurrence.update"
+    RECURRENCE_DELETE = "recurrence.delete"
+    RECURRENCE_GENERATE = "recurrence.generate"
 
 
 def record_audit(

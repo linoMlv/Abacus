@@ -1,6 +1,7 @@
+import asyncio
 import logging
 import os
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,10 +29,12 @@ from routers import (
     justificatifs,
     logs,
     permissions,
+    recurrences,
     synthese,
     tiers,
     tresorerie,
 )
+from scheduler import recurrences_daily_loop
 from security import ENVIRONMENT
 from static_files import mount_frontend
 
@@ -60,7 +63,15 @@ def _allowed_origins() -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _purge_logs_on_startup()
-    yield
+    # Daily job booking recurring entries that have fallen due (no cron in the
+    # container). Runs a pass at startup, then every 24 h, over all associations.
+    scheduler_task = asyncio.create_task(recurrences_daily_loop())
+    try:
+        yield
+    finally:
+        scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await scheduler_task
 
 
 def _purge_logs_on_startup() -> None:
@@ -104,6 +115,7 @@ _fastapi_app.include_router(exercices.router)
 _fastapi_app.include_router(ecritures.router)
 _fastapi_app.include_router(tresorerie.router)
 _fastapi_app.include_router(banque.router)
+_fastapi_app.include_router(recurrences.router)
 _fastapi_app.include_router(categories.router)
 _fastapi_app.include_router(tiers.router)
 _fastapi_app.include_router(evenements.router)
