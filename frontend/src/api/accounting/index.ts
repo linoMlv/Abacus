@@ -3,6 +3,7 @@
 // this barrel re-exports everything so `@/api/accounting` imports are unchanged.
 export * from './common';
 export * from './categorie';
+export * from './banque';
 export * from './tiers';
 export * from './referentiel';
 export * from './ecriture';

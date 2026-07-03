@@ -1,4 +1,12 @@
 import { api, apiUrl } from '../client';
+import type {
+  CreerEcritureDepuisLigneInput,
+  ImportReleve,
+  ImportReleveMapping,
+  LigneBancaire,
+  LigneBancaireStatut,
+  RapprochementSuggestion,
+} from './banque';
 import type { Categorie, CreateCategorieInput, UpdateCategorieInput } from './categorie';
 import type { Sens } from './common';
 import type {
@@ -174,5 +182,56 @@ export const accountingApi = {
     api.post<CompteTresorerie>(
       `${base(associationId)}/tresorerie/${compteId}/solde-initial`,
       input
+    ),
+
+  // --- Banque : import & rapprochement (§5) ---
+  listImportsReleve: (associationId: string, compteId?: string) =>
+    api.get<ImportReleve[]>(`${base(associationId)}/banque/imports${qs({ compte_id: compteId })}`),
+  importerReleve: (
+    associationId: string,
+    compteId: string,
+    mapping: ImportReleveMapping,
+    file: File
+  ) => {
+    const form = new FormData();
+    form.append('compte_id', compteId);
+    form.append('date_col', String(mapping.date_col));
+    form.append('libelle_col', String(mapping.libelle_col));
+    if (mapping.montant_col !== undefined) form.append('montant_col', String(mapping.montant_col));
+    if (mapping.debit_col !== undefined) form.append('debit_col', String(mapping.debit_col));
+    if (mapping.credit_col !== undefined) form.append('credit_col', String(mapping.credit_col));
+    form.append('date_format', mapping.date_format);
+    form.append('decimal_sep', mapping.decimal_sep);
+    form.append('delimiter', mapping.delimiter);
+    form.append('has_header', mapping.has_header ? 'true' : 'false');
+    form.append('fichier', file);
+    return api.postForm<ImportReleve>(`${base(associationId)}/banque/import`, form);
+  },
+  supprimerImportReleve: (associationId: string, importId: string) =>
+    api.del<void>(`${base(associationId)}/banque/imports/${importId}`),
+  listLignesBancaires: (
+    associationId: string,
+    params: { compte_id?: string; statut?: LigneBancaireStatut; import_id?: string } = {}
+  ) => api.get<LigneBancaire[]>(`${base(associationId)}/banque/lignes${qs({ ...params })}`),
+  suggestionsRapprochement: (associationId: string, ligneId: string) =>
+    api.get<RapprochementSuggestion[]>(
+      `${base(associationId)}/banque/lignes/${ligneId}/suggestions`
+    ),
+  rapprocherLigne: (associationId: string, ligneId: string, ecritureId: string) =>
+    api.post<LigneBancaire>(`${base(associationId)}/banque/lignes/${ligneId}/rapprocher`, {
+      ecriture_id: ecritureId,
+    }),
+  creerEcritureDepuisLigne: (
+    associationId: string,
+    ligneId: string,
+    input: CreerEcritureDepuisLigneInput
+  ) => api.post<Ecriture>(`${base(associationId)}/banque/lignes/${ligneId}/creer-ecriture`, input),
+  delettrerLigne: (associationId: string, ligneId: string) =>
+    api.post<LigneBancaire>(`${base(associationId)}/banque/lignes/${ligneId}/delettrer`),
+  ignorerLigne: (associationId: string, ligneId: string, ignore: boolean) =>
+    api.post<LigneBancaire>(
+      `${base(associationId)}/banque/lignes/${ligneId}/ignorer${qs({
+        ignore: ignore ? 'true' : 'false',
+      })}`
     ),
 };
