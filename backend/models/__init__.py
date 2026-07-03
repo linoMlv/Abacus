@@ -13,6 +13,14 @@ from .association import (
     LogEntryRead,
     RefreshSession,
 )
+from .banque import (
+    ImportReleve,
+    ImportReleveRead,
+    LigneBancaire,
+    LigneBancaireRead,
+    LigneBancaireStatut,
+    RapprochementSuggestion,
+)
 from .categorie import CategorieSaisie, CategorieSaisieRead, SensCategorie
 from .common import utcnow
 from .ecriture import (
@@ -96,11 +104,16 @@ __all__ = [
     "ExerciceRead",
     "ExerciceStatut",
     "GrandLivreLigneRead",
+    "ImportReleve",
+    "ImportReleveRead",
     "Invitation",
     "Journal",
     "JournalRead",
     "Justificatif",
     "JustificatifRead",
+    "LigneBancaire",
+    "LigneBancaireRead",
+    "LigneBancaireStatut",
     "LigneEcriture",
     "LigneEcritureRead",
     "LogEntry",
@@ -110,6 +123,7 @@ __all__ = [
     "MembershipStatus",
     "ModeReglement",
     "PermissionPreset",
+    "RapprochementSuggestion",
     "RefreshSession",
     "RepartitionCategorieItem",
     "RepartitionEvenementItem",
