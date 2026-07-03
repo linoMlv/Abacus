@@ -10,6 +10,12 @@ import type {
 import type { Categorie, CreateCategorieInput, UpdateCategorieInput } from './categorie';
 import type { Sens } from './common';
 import type {
+  CreateRecurrenceInput,
+  GenerationResult,
+  Recurrence,
+  UpdateRecurrenceInput,
+} from './recurrence';
+import type {
   BulkResult,
   Ecriture,
   EcritureContenu,
@@ -234,4 +240,20 @@ export const accountingApi = {
         ignore: ignore ? 'true' : 'false',
       })}`
     ),
+
+  // --- Récurrences (§5) ---
+  listRecurrences: (associationId: string, actif?: boolean) =>
+    api.get<Recurrence[]>(
+      `${base(associationId)}/recurrences${qs({
+        actif: actif === undefined ? undefined : String(actif),
+      })}`
+    ),
+  creerRecurrence: (associationId: string, input: CreateRecurrenceInput) =>
+    api.post<Recurrence>(`${base(associationId)}/recurrences`, input),
+  modifierRecurrence: (associationId: string, recurrenceId: string, input: UpdateRecurrenceInput) =>
+    api.patch<Recurrence>(`${base(associationId)}/recurrences/${recurrenceId}`, input),
+  supprimerRecurrence: (associationId: string, recurrenceId: string) =>
+    api.del<void>(`${base(associationId)}/recurrences/${recurrenceId}`),
+  genererRecurrences: (associationId: string) =>
+    api.post<GenerationResult>(`${base(associationId)}/recurrences/generer`),
 };

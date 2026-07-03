@@ -24,6 +24,7 @@ export const PERMISSIONS = {
   ATTACHMENT_MANAGE: 'attachment:manage',
   EVENT_MANAGE: 'event:manage',
   BANK_RECONCILE: 'bank:reconcile',
+  RECURRENCE_MANAGE: 'recurrence:manage',
   TIERS_MANAGE: 'tiers:manage',
   DONATION_MANAGE: 'donation:manage',
   BUDGET_MANAGE: 'budget:manage',

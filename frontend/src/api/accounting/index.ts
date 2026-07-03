@@ -4,6 +4,7 @@
 export * from './common';
 export * from './categorie';
 export * from './banque';
+export * from './recurrence';
 export * from './tiers';
 export * from './referentiel';
 export * from './ecriture';

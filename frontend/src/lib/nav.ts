@@ -84,7 +84,7 @@ export const NAV_SECTIONS: NavSection[] = [
         segment: 'recurrences',
         label: 'Récurrences',
         icon: Repeat,
-        permissions: [PERMISSIONS.ENTRY_CREATE_SIMPLE],
+        permissions: [PERMISSIONS.RECURRENCE_MANAGE],
       },
     ],
   },
