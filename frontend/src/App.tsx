@@ -5,6 +5,7 @@ import { useAuth } from '@/auth/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/RequireAuth';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
+import { BanquePage } from '@/pages/BanquePage';
 import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
 import { JournalPage } from '@/pages/JournalPage';
 import { OnboardingSoldesPage } from '@/pages/OnboardingSoldesPage';
@@ -42,11 +43,14 @@ export default function App() {
             <Route path="synthese" element={<SynthesePage />} />
             <Route path="saisie" element={<SaisiePage />} />
             <Route path="journal" element={<JournalPage />} />
+            <Route path="banque" element={<BanquePage />} />
             <Route path="rapports" element={<RapportsPage />} />
             <Route path="parametres" element={<ParametresPage />} />
             {ALL_NAV_ITEMS.filter(
               (item) =>
-                !['synthese', 'saisie', 'journal', 'rapports', 'parametres'].includes(item.segment)
+                !['synthese', 'saisie', 'journal', 'banque', 'rapports', 'parametres'].includes(
+                  item.segment
+                )
             ).map((item) => (
               <Route key={item.segment} path={item.segment} element={<PlaceholderPage />} />
             ))}
