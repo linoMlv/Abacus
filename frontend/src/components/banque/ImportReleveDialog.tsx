@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 
 type AmountMode = 'montant' | 'debit_credit';
+type Format = 'csv' | 'ofx';
 
 interface Props {
   associationId: string;
@@ -45,6 +46,7 @@ export function ImportReleveDialog({
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [format, setFormat] = useState<Format>('csv');
   const [amountMode, setAmountMode] = useState<AmountMode>('montant');
   const [delimiter, setDelimiter] = useState(DEFAULTS.delimiter);
   const [decimalSep, setDecimalSep] = useState(DEFAULTS.decimalSep);
@@ -59,6 +61,9 @@ export function ImportReleveDialog({
 
   const mutation = useMutation({
     mutationFn: () => {
+      if (format === 'ofx') {
+        return accountingApi.importerReleveOfx(associationId, compteId, file as File);
+      }
       // Columns are 1-based in the UI, 0-based in the API.
       const mapping: ImportReleveMapping = {
         date_col: dateCol - 1,
@@ -90,7 +95,7 @@ export function ImportReleveDialog({
     e.preventDefault();
     setLocalError(null);
     if (!file) {
-      setLocalError('Sélectionnez un fichier CSV.');
+      setLocalError('Sélectionnez un fichier.');
       return;
     }
     mutation.mutate();
@@ -102,116 +107,146 @@ export function ImportReleveDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogTitle>Importer un relevé</DialogTitle>
-        <DialogDescription>
-          Fichier CSV du compte « {compteLibelle} ». Indiquez où se trouvent les colonnes.
-        </DialogDescription>
+        <DialogDescription>Relevé du compte « {compteLibelle} ».</DialogDescription>
 
         <form onSubmit={onSubmit} className="mt-4 space-y-5">
           <div>
-            <Label htmlFor="releve-file">Fichier CSV</Label>
+            <span className="text-xs font-semibold uppercase tracking-wide text-faint">Format</span>
+            <div className="mt-1.5 flex gap-2">
+              {(['csv', 'ofx'] as Format[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFormat(f)}
+                  aria-pressed={format === f}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    format === f
+                      ? 'border-accent bg-accent-soft text-accent'
+                      : 'border-hairline text-muted hover:bg-hover'
+                  }`}
+                >
+                  {f === 'csv' ? 'CSV' : 'OFX'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="releve-file">Fichier {format.toUpperCase()}</Label>
             <Input
               id="releve-file"
               ref={fileRef}
               type="file"
-              accept=".csv,text/csv,text/plain"
+              accept={format === 'ofx' ? '.ofx,.qfx,application/x-ofx' : '.csv,text/csv,text/plain'}
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="mt-1.5"
             />
+            {format === 'ofx' && (
+              <p className="mt-1 text-xs text-faint">
+                Format bancaire standard : dates, montants et libellés sont lus automatiquement. Les
+                opérations déjà importées sont ignorées.
+              </p>
+            )}
           </div>
 
-          <fieldset className="space-y-3">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-faint">
-              Format
-            </legend>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="delimiter">Séparateur</Label>
-                <Select
-                  id="delimiter"
-                  value={delimiter}
-                  onChange={(e) => setDelimiter(e.target.value)}
-                  className="mt-1.5"
-                >
-                  <option value=";">Point-virgule ( ; )</option>
-                  <option value=",">Virgule ( , )</option>
-                  <option value="tab">Tabulation</option>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="decimal">Décimale</Label>
-                <Select
-                  id="decimal"
-                  value={decimalSep}
-                  onChange={(e) => setDecimalSep(e.target.value)}
-                  className="mt-1.5"
-                >
-                  <option value=",">Virgule ( 12,50 )</option>
-                  <option value=".">Point ( 12.50 )</option>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="dateformat">Format de date</Label>
-              <Input
-                id="dateformat"
-                value={dateFormat}
-                onChange={(e) => setDateFormat(e.target.value)}
-                className="mt-1.5"
-              />
-              <p className="mt-1 text-xs text-faint">
-                Ex. <code>%d/%m/%Y</code> pour 31/12/2026, <code>%Y-%m-%d</code> pour 2026-12-31.
-              </p>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-ink-soft">
-              <input
-                type="checkbox"
-                checked={hasHeader}
-                onChange={(e) => setHasHeader(e.target.checked)}
-                className="h-4 w-4 accent-accent"
-              />
-              La première ligne est un en-tête
-            </label>
-          </fieldset>
+          {format === 'csv' && (
+            <>
+              <fieldset className="space-y-3">
+                <legend className="text-xs font-semibold uppercase tracking-wide text-faint">
+                  Format
+                </legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="delimiter">Séparateur</Label>
+                    <Select
+                      id="delimiter"
+                      value={delimiter}
+                      onChange={(e) => setDelimiter(e.target.value)}
+                      className="mt-1.5"
+                    >
+                      <option value=";">Point-virgule ( ; )</option>
+                      <option value=",">Virgule ( , )</option>
+                      <option value="tab">Tabulation</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="decimal">Décimale</Label>
+                    <Select
+                      id="decimal"
+                      value={decimalSep}
+                      onChange={(e) => setDecimalSep(e.target.value)}
+                      className="mt-1.5"
+                    >
+                      <option value=",">Virgule ( 12,50 )</option>
+                      <option value=".">Point ( 12.50 )</option>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="dateformat">Format de date</Label>
+                  <Input
+                    id="dateformat"
+                    value={dateFormat}
+                    onChange={(e) => setDateFormat(e.target.value)}
+                    className="mt-1.5"
+                  />
+                  <p className="mt-1 text-xs text-faint">
+                    Ex. <code>%d/%m/%Y</code> pour 31/12/2026, <code>%Y-%m-%d</code> pour
+                    2026-12-31.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-ink-soft">
+                  <input
+                    type="checkbox"
+                    checked={hasHeader}
+                    onChange={(e) => setHasHeader(e.target.checked)}
+                    className="h-4 w-4 accent-accent"
+                  />
+                  La première ligne est un en-tête
+                </label>
+              </fieldset>
 
-          <fieldset className="space-y-3">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-faint">
-              Colonnes (n° à partir de 1)
-            </legend>
-            <div className="grid grid-cols-2 gap-3">
-              <NumberField label="Date" value={dateCol} onChange={setDateCol} />
-              <NumberField label="Libellé" value={libelleCol} onChange={setLibelleCol} />
-            </div>
-            <div className="flex gap-4 text-sm text-ink-soft">
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="amount-mode"
-                  checked={amountMode === 'montant'}
-                  onChange={() => setAmountMode('montant')}
-                  className="h-4 w-4 accent-accent"
-                />
-                Montant unique (signé)
-              </label>
-              <label className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="amount-mode"
-                  checked={amountMode === 'debit_credit'}
-                  onChange={() => setAmountMode('debit_credit')}
-                  className="h-4 w-4 accent-accent"
-                />
-                Débit / Crédit séparés
-              </label>
-            </div>
-            {amountMode === 'montant' ? (
-              <NumberField label="Montant" value={montantCol} onChange={setMontantCol} />
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <NumberField label="Débit" value={debitCol} onChange={setDebitCol} />
-                <NumberField label="Crédit" value={creditCol} onChange={setCreditCol} />
-              </div>
-            )}
-          </fieldset>
+              <fieldset className="space-y-3">
+                <legend className="text-xs font-semibold uppercase tracking-wide text-faint">
+                  Colonnes (n° à partir de 1)
+                </legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <NumberField label="Date" value={dateCol} onChange={setDateCol} />
+                  <NumberField label="Libellé" value={libelleCol} onChange={setLibelleCol} />
+                </div>
+                <div className="flex gap-4 text-sm text-ink-soft">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="amount-mode"
+                      checked={amountMode === 'montant'}
+                      onChange={() => setAmountMode('montant')}
+                      className="h-4 w-4 accent-accent"
+                    />
+                    Montant unique (signé)
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="amount-mode"
+                      checked={amountMode === 'debit_credit'}
+                      onChange={() => setAmountMode('debit_credit')}
+                      className="h-4 w-4 accent-accent"
+                    />
+                    Débit / Crédit séparés
+                  </label>
+                </div>
+                {amountMode === 'montant' ? (
+                  <NumberField label="Montant" value={montantCol} onChange={setMontantCol} />
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <NumberField label="Débit" value={debitCol} onChange={setDebitCol} />
+                    <NumberField label="Crédit" value={creditCol} onChange={setCreditCol} />
+                  </div>
+                )}
+              </fieldset>
+            </>
+          )}
 
           {error && <Alert>{error}</Alert>}
 

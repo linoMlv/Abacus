@@ -213,6 +213,12 @@ export const accountingApi = {
     form.append('fichier', file);
     return api.postForm<ImportReleve>(`${base(associationId)}/banque/import`, form);
   },
+  importerReleveOfx: (associationId: string, compteId: string, file: File) => {
+    const form = new FormData();
+    form.append('compte_id', compteId);
+    form.append('fichier', file);
+    return api.postForm<ImportReleve>(`${base(associationId)}/banque/import/ofx`, form);
+  },
   supprimerImportReleve: (associationId: string, importId: string) =>
     api.del<void>(`${base(associationId)}/banque/imports/${importId}`),
   listLignesBancaires: (
