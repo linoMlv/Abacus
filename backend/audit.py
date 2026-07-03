@@ -33,6 +33,10 @@ class AuditAction:
     EVENEMENT_UPDATE = "evenement.update"
     EXERCICE_CREATE = "exercice.create"
     EXERCICE_CLOTURE = "exercice.cloture"
+    RELEVE_IMPORT = "releve.import"
+    RELEVE_DELETE = "releve.delete"
+    LIGNE_BANCAIRE_RAPPROCHE = "ligne_bancaire.rapproche"
+    LIGNE_BANCAIRE_DELETTRAGE = "ligne_bancaire.delettrage"
 
 
 def record_audit(
