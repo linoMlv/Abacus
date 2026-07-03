@@ -84,7 +84,15 @@ def persist_import(
     for this account, or repeated within the file, is skipped — so re-importing
     an overlapping statement never books the same operation twice. CSV lines have
     no fitid and are always kept.
+
+    The FITID dedup reads the existing ids then inserts; to make that atomic, the
+    account row is locked ``FOR UPDATE`` first, so two concurrent imports of the
+    same statement serialize instead of both reading "not seen" and each inserting
+    the movement. Same pattern as voucher numbering; a no-op on SQLite.
     """
+    session.exec(
+        select(Compte.id).where(Compte.id == compte.id).with_for_update()
+    ).first()
     lignes = _dedup(session, ctx.association_id, compte.id, lignes)
 
     releve = ImportReleve(
