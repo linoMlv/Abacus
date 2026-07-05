@@ -27,6 +27,7 @@ class AuditAction:
     CATEGORIE_CREATE = "categorie.create"
     CATEGORIE_UPDATE = "categorie.update"
     TIERS_CREATE = "tiers.create"
+    TIERS_UPDATE = "tiers.update"
     JUSTIFICATIF_UPLOAD = "justificatif.upload"
     JUSTIFICATIF_DELETE = "justificatif.delete"
     EVENEMENT_CREATE = "evenement.create"

@@ -198,3 +198,60 @@ def test_simple_entry_rejects_cross_tenant_tiers():
         },
     )
     assert resp.status_code == 400, resp.text
+
+
+# --- Address & edition (for donor receipts, §8) ---------------------------
+
+
+def test_create_tiers_with_address():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    resp = admin.post(
+        f"/api/asso/{assoc}/tiers",
+        json={
+            "nom": "M. Dupont",
+            "type": "donateur",
+            "adresse": "3 rue Neuve",
+            "code_postal": "69000",
+            "ville": "Lyon",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["adresse"] == "3 rue Neuve" and body["ville"] == "Lyon"
+
+
+def test_update_tiers_address():
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    tiers = _create_tiers(admin, assoc, "M. Martin", "donateur")
+    resp = admin.patch(
+        f"/api/asso/{assoc}/tiers/{tiers['id']}",
+        json={
+            "adresse": "10 av. des Fleurs",
+            "code_postal": "31000",
+            "ville": "Toulouse",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["adresse"] == "10 av. des Fleurs"
+
+
+def test_update_tiers_requires_permission(session: Session):
+    admin, assoc = _admin_with_association("admin@example.com", "alpha")
+    tiers = _create_tiers(admin, assoc, "M. Martin", "donateur")
+    viewer = _client()
+    uid = _register(viewer, "v@example.com")
+    _login(viewer, "v@example.com")
+    session.add(Membership(user_id=uid, association_id=assoc, role=Role.VIEWER))
+    session.commit()
+    resp = viewer.patch(f"/api/asso/{assoc}/tiers/{tiers['id']}", json={"ville": "X"})
+    assert resp.status_code == 403
+
+
+def test_update_cross_tenant_tiers_is_404():
+    admin_a, assoc_a = _admin_with_association("a@example.com", "alpha")
+    admin_b, assoc_b = _admin_with_association("b@example.com", "beta")
+    foreign = _create_tiers(admin_b, assoc_b, "Tiers B", "donateur")
+    resp = admin_a.patch(
+        f"/api/asso/{assoc_a}/tiers/{foreign['id']}", json={"ville": "X"}
+    )
+    assert resp.status_code == 404

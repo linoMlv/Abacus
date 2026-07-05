@@ -22,6 +22,7 @@ from security import get_password_hash
 from .helpers import _associations_for, _normalize_email
 from .schemas import (
     AssociationContext,
+    AssociationSettings,
     AssociationSummary,
     CreateAssociationRequest,
     UpdateAssociationRequest,
@@ -101,6 +102,25 @@ def association_context(
     return _context(association, ctx)
 
 
+_FISCAL_FIELDS = ("adresse", "code_postal", "ville", "rna", "siret", "objet")
+
+
+def _settings(association: Association) -> AssociationSettings:
+    return AssociationSettings(
+        regime_tva=association.regime_tva,
+        **{field: getattr(association, field) for field in _FISCAL_FIELDS},
+    )
+
+
+@router.get("/api/asso/{association_id}/parametres", response_model=AssociationSettings)
+def association_settings(
+    ctx: AccessContext = Depends(require_permission(Permission.SETTINGS_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    """Full settings incl. fiscal identity (durable → admin, §2)."""
+    return _settings(session.get(Association, ctx.association_id))
+
+
 @router.patch("/api/asso/{association_id}", response_model=AssociationContext)
 def update_association(
     body: UpdateAssociationRequest,
@@ -111,6 +131,11 @@ def update_association(
     association = session.get(Association, ctx.association_id)
     if body.regime_tva is not None:
         association.regime_tva = body.regime_tva
+    # Present-and-null clears a fiscal field; empty string is normalised to null.
+    for field in _FISCAL_FIELDS:
+        if field in body.model_fields_set:
+            value = getattr(body, field)
+            setattr(association, field, (value or "").strip() or None)
     session.add(association)
     session.commit()
     session.refresh(association)

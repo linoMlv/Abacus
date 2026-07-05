@@ -62,6 +62,25 @@ class UpdateAssociationRequest(BaseModel):
     """Editable association settings (SETTINGS_MANAGE). Absent fields untouched."""
 
     regime_tva: bool | None = None
+    # Fiscal identity (for tax receipts). Present-and-null clears a field.
+    adresse: str | None = None
+    code_postal: str | None = None
+    ville: str | None = None
+    rna: str | None = None
+    siret: str | None = None
+    objet: str | None = None
+
+
+class AssociationSettings(BaseModel):
+    """Full association settings incl. fiscal identity (SETTINGS_MANAGE read)."""
+
+    regime_tva: bool
+    adresse: str | None
+    code_postal: str | None
+    ville: str | None
+    rna: str | None
+    siret: str | None
+    objet: str | None
 
 
 class MemberRead(BaseModel):

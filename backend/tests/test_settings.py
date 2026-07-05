@@ -76,3 +76,35 @@ def test_non_member_cannot_change_settings(session: Session):
     outsider, _ = _register_login("out@example.com")
     resp = outsider.patch(f"/api/asso/{assoc}", json={"regime_tva": True})
     assert resp.status_code == 404  # no membership: existence not leaked
+
+
+def test_fiscal_identity_read_and_update():
+    admin, assoc = _admin_with_association("a@example.com", "alpha")
+    # Empty by default.
+    settings = admin.get(f"/api/asso/{assoc}/parametres").json()
+    assert settings["adresse"] is None and settings["siret"] is None
+
+    resp = admin.patch(
+        f"/api/asso/{assoc}",
+        json={
+            "adresse": "1 rue des Lilas",
+            "code_postal": "75001",
+            "ville": "Paris",
+            "rna": "W751234567",
+            "siret": "12345678900011",
+            "objet": "Promotion de la culture",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+
+    settings = admin.get(f"/api/asso/{assoc}/parametres").json()
+    assert settings["adresse"] == "1 rue des Lilas"
+    assert settings["ville"] == "Paris"
+    assert settings["rna"] == "W751234567"
+    assert settings["objet"] == "Promotion de la culture"
+
+
+def test_fiscal_settings_require_settings_manage(session: Session):
+    _, assoc = _admin_with_association("a@example.com", "alpha")
+    treso = _member(session, assoc, "t@example.com", Role.TREASURER)
+    assert treso.get(f"/api/asso/{assoc}/parametres").status_code == 403
