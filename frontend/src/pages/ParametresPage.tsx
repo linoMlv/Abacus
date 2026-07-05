@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { Alert } from '@/components/ui/alert';
+import { ComptabilitePanel } from '@/components/parametres/ComptabilitePanel';
 import { ExercicesPanel } from '@/components/parametres/ExercicesPanel';
 import { MembresPanel } from '@/components/parametres/MembresPanel';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
@@ -9,7 +10,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { PERMISSIONS } from '@/lib/permissions';
 import { cn } from '@/lib/utils';
 
-type TabId = 'membres' | 'exercices';
+type TabId = 'membres' | 'exercices' | 'comptabilite';
 
 /**
  * Association settings, organised in permission-gated tabs: Members (members,
@@ -25,6 +26,7 @@ export function ParametresPage() {
   const tabs: Array<{ id: TabId; label: string; allowed: boolean }> = [
     { id: 'membres', label: 'Membres', allowed: has(PERMISSIONS.MEMBER_MANAGE) },
     { id: 'exercices', label: 'Exercices', allowed: has(PERMISSIONS.EXERCISE_CLOSE) },
+    { id: 'comptabilite', label: 'Comptabilité', allowed: has(PERMISSIONS.SETTINGS_MANAGE) },
   ];
   const available = tabs.filter((t) => t.allowed);
   const [active, setActive] = useState<TabId>('membres');
@@ -63,6 +65,7 @@ export function ParametresPage() {
 
           {current?.id === 'membres' && <MembresPanel associationId={associationId} />}
           {current?.id === 'exercices' && <ExercicesPanel associationId={associationId} />}
+          {current?.id === 'comptabilite' && <ComptabilitePanel associationId={associationId} />}
         </>
       )}
     </div>
