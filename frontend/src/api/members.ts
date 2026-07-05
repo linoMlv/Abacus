@@ -104,9 +104,14 @@ export interface AssociationContext {
   id: string;
   name: string;
   role: Role;
+  /** Whether the association is subject to VAT — drives whether any VAT UI shows. */
+  regime_tva: boolean;
   permissions: string[];
 }
 
 export const associationApi = {
   context: (associationId: string) => api.get<AssociationContext>(`${base(associationId)}`),
+  /** Update editable association settings (SETTINGS_MANAGE). */
+  updateSettings: (associationId: string, input: { regime_tva?: boolean }) =>
+    api.patch<AssociationContext>(`${base(associationId)}`, input),
 };

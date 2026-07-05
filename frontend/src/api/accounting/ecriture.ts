@@ -17,6 +17,9 @@ export interface LigneEcriture {
   libelle: string;
   debit: string;
   credit: string;
+  /** VAT rate/amount carried by the taxable-base (HT) line; null when no VAT. */
+  tva_taux?: string | null;
+  tva_montant?: string | null;
 }
 
 /** Common metadata shared by a journal row and a full entry. */
@@ -102,6 +105,8 @@ export interface SaisieSimpleInput {
   evenement_id?: string;
   reference_externe?: string;
   mode_reglement?: ModeReglement;
+  /** VAT rate override (percent). Honoured only when the régime is on. */
+  tva_taux?: string;
 }
 
 /** One line of a manual multi-line entry: a debit or a credit on an account. */

@@ -44,6 +44,9 @@ vi.mock('@/hooks/usePermissions', () => ({
   }),
 }));
 
+const tvaState = vi.hoisted(() => ({ on: false }));
+vi.mock('@/hooks/useRegimeTva', () => ({ useRegimeTva: () => tvaState.on }));
+
 vi.mock('@/hooks/useActiveAssociation', () => ({
   useActiveAssociation: () => ({ id: 'A', name: 'Asso', role: 'treasurer', status: 'active' }),
 }));
@@ -113,6 +116,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   permState.allowAll = true;
   permState.allowed.clear();
+  tvaState.on = false;
   listCategories.mockResolvedValue(CATEGORIES);
   listTresorerie.mockResolvedValue(TRESORERIE);
   listTiers.mockResolvedValue([{ id: 't1', type: 'donateur', nom: 'M. Dupont', is_active: true }]);
@@ -279,6 +283,33 @@ describe('SaisiePage', () => {
     await waitFor(() => expect(creerEvenement).toHaveBeenCalledTimes(1));
     expect(creerEvenement.mock.calls[0][0]).toBe('A');
     expect(creerEvenement.mock.calls[0][1]).toMatchObject({ nom: 'Sortie' });
+  });
+
+  it('applies VAT from the advanced panel when the régime is on', async () => {
+    tvaState.on = true;
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.type(screen.getByLabelText('Montant (€)'), '120');
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    await userEvent.selectOptions(await screen.findByLabelText('TVA'), '20');
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer/ }));
+
+    await waitFor(() => expect(creerSaisieSimple).toHaveBeenCalledTimes(1));
+    expect(creerSaisieSimple.mock.calls[0][1]).toMatchObject({ tva_taux: '20' });
+  });
+
+  it('hides VAT and never sends a rate while the régime is off', async () => {
+    renderPage();
+    await screen.findByRole('option', { name: 'Cotisations' });
+
+    await userEvent.type(screen.getByLabelText('Montant (€)'), '50');
+    await userEvent.click(screen.getByRole('button', { name: 'Avancé' }));
+    expect(screen.queryByLabelText('TVA')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Enregistrer/ }));
+    await waitFor(() => expect(creerSaisieSimple).toHaveBeenCalledTimes(1));
+    expect(creerSaisieSimple.mock.calls[0][1].tva_taux).toBeUndefined();
   });
 
   it('posts an internal transfer with source and destination', async () => {

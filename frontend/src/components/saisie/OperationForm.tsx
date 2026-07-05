@@ -50,6 +50,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
     fromEntry,
     isVirement,
     type,
+    regimeTva,
     canEnter,
     canAddCategorie,
     canAddTiers,
@@ -201,6 +202,7 @@ export function OperationForm({ mode, entry, onSaved, onCancel }: OperationFormP
           isVirement={isVirement}
           isCreate={isCreate}
           fromEntry={fromEntry}
+          regimeTva={regimeTva}
           advancedOpen={f.advancedOpen}
           setAdvancedOpen={f.setAdvancedOpen}
           canAddTiers={canAddTiers}

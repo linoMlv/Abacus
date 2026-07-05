@@ -47,6 +47,9 @@ export const saisieSchema = z
     // Avancé (optional)
     tiers_id: z.string().optional(),
     evenement_id: z.string().optional(),
+    // VAT rate as a plain number string ('0' = none); only used when the régime
+    // is on. The montant is then read as TTC.
+    tva_taux: z.string().optional(),
     libelle: z.string().trim().max(200, 'Libellé trop long (200 caractères max).').optional(),
     reference_externe: z
       .string()

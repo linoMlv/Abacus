@@ -18,10 +18,11 @@ import {
 } from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useRegimeTva } from '@/hooks/useRegimeTva';
 import { PERMISSIONS } from '@/lib/permissions';
 import { amountToDecimalString, saisieSchema, type SaisieForm } from '@/pages/saisie.schema';
 
-import { entryAmount, today } from './helpers';
+import { entryAmount, entryTvaTaux, normalizeTaux, today } from './helpers';
 
 export type OperationMode = 'create' | 'edit' | 'correct';
 
@@ -38,6 +39,7 @@ const BLANK: SaisieForm = {
   libelle: '',
   reference_externe: '',
   mode_reglement: '',
+  tva_taux: '0',
 };
 
 interface UseOperationFormArgs {
@@ -54,6 +56,7 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
   const fromEntry = !isCreate;
   const { associationId } = useParams() as { associationId: string };
   const { has } = usePermissions();
+  const regimeTva = useRegimeTva();
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(fromEntry);
@@ -108,6 +111,7 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
     formState: { errors },
   } = form;
   const type = watch('type');
+  const categorieId = watch('categorie_id');
   const isVirement = type === 'virement';
 
   const categories = useMemo(
@@ -134,6 +138,17 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
       setValue('categorie_id', categories[0].id, { shouldValidate: false });
     }
   }, [isVirement, categories, getValues, setValue]);
+
+  // Default the VAT rate to the chosen category's default when it changes
+  // (create mode, régime on); the user can still override it in Avancé.
+  const prevCatRef = useRef('');
+  useEffect(() => {
+    if (fromEntry || !regimeTva || isVirement || !categorieId) return;
+    if (categorieId === prevCatRef.current) return;
+    prevCatRef.current = categorieId;
+    const cat = categories.find((c) => c.id === categorieId);
+    setValue('tva_taux', normalizeTaux(cat?.tva_taux), { shouldValidate: false });
+  }, [categorieId, categories, regimeTva, isVirement, fromEntry, setValue]);
 
   // Default the treasury accounts (create mode): bank (512…) for recette/dépense;
   // for a transfer, a distinct source and destination.
@@ -203,6 +218,7 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
         compte_tresorerie_id: treasuryLine?.compte_id ?? '',
         tiers_id: entry.tiers_id ?? '',
         evenement_id: entry.evenement_id ?? '',
+        tva_taux: entryTvaTaux(entry.lignes),
       });
     }
     setPrefilled(true);
@@ -256,6 +272,8 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
         compte_tresorerie_id: values.compte_tresorerie_id,
         tiers_id: values.tiers_id || undefined,
         evenement_id: values.evenement_id || undefined,
+        // Only send a rate when the régime is on; the server masks it otherwise.
+        tva_taux: regimeTva ? (values.tva_taux ?? '0') : undefined,
         ...common,
       },
     };
@@ -373,6 +391,7 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
     fromEntry,
     isVirement,
     type,
+    regimeTva,
     canEnter,
     canAddCategorie,
     canAddTiers,

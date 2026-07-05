@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { MODE_REGLEMENT_VALUES, type SaisieForm } from '@/pages/saisie.schema';
 
 import { FieldError } from './fields';
+import { TVA_TAUX_OPTIONS } from './helpers';
 
 interface AdvancedFieldsProps {
   register: UseFormRegister<SaisieForm>;
@@ -23,6 +24,7 @@ interface AdvancedFieldsProps {
   isVirement: boolean;
   isCreate: boolean;
   fromEntry: boolean;
+  regimeTva: boolean;
   advancedOpen: boolean;
   setAdvancedOpen: (updater: (v: boolean) => boolean) => void;
   canAddTiers: boolean;
@@ -46,6 +48,7 @@ export function AdvancedFields({
   isVirement,
   isCreate,
   fromEntry,
+  regimeTva,
   advancedOpen,
   setAdvancedOpen,
   canAddTiers,
@@ -128,6 +131,21 @@ export function AdvancedFields({
                   </option>
                 ))}
               </Select>
+            </div>
+          )}
+          {!isVirement && regimeTva && (
+            <div>
+              <Label htmlFor="tva_taux">TVA</Label>
+              <Select id="tva_taux" className="mt-1.5" {...register('tva_taux')}>
+                {TVA_TAUX_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1.5 text-xs text-muted">
+                Le montant est TTC ; la TVA est extraite automatiquement.
+              </p>
             </div>
           )}
           <div>
