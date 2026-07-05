@@ -11,6 +11,10 @@ class Association(SQLModel, table=True):
     name: str = Field(unique=True)
     email: str = Field(unique=True)
     password: str
+    # Whether the association is subject to VAT (§4). Off by default: most
+    # associations are exempt, and while off every VAT field/column/account is
+    # hidden and the engine never books a 4456x line.
+    regime_tva: bool = Field(default=False)
 
 
 class RefreshSession(SQLModel, table=True):

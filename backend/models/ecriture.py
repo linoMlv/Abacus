@@ -108,6 +108,12 @@ class LigneEcriture(SQLModel, table=True):
     # exactly one is strictly positive (validated in ``accounting_engine.py``).
     debit: Decimal = Field(default=0, max_digits=10, decimal_places=2)
     credit: Decimal = Field(default=0, max_digits=10, decimal_places=2)
+    # VAT metadata carried by the taxable base (HT) line when the association is
+    # subject to VAT (§4): the applied rate (e.g. 20, 5.5) and the extracted VAT
+    # amount. Both null when the régime is off — informative only, the accounting
+    # truth is the dedicated 4456x line.
+    tva_taux: Decimal | None = Field(default=None, max_digits=5, decimal_places=2)
+    tva_montant: Decimal | None = Field(default=None, max_digits=10, decimal_places=2)
 
     ecriture: Ecriture | None = Relationship(back_populates="lignes")
 

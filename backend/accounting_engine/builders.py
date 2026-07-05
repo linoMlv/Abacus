@@ -11,6 +11,7 @@ from models import Ecriture, EcritureOrigine, LigneEcriture, SensCategorie
 
 from .constants import CENTS, ZERO
 from .invariants import EntryError, _as_amount, validate_lignes
+from .tva import split_ttc
 
 
 def build_ecriture_a_nouveau(
@@ -174,31 +175,62 @@ def build_ecriture_simple(
     numero_piece: int,
     created_by: str | None = None,
     origine: EcritureOrigine = EcritureOrigine.SAISIE_SIMPLE,
+    tva_taux: Decimal | None = None,
+    compte_tva_id: str | None = None,
 ) -> Ecriture:
-    """Turn a plain recette/dépense into a balanced two-line entry.
+    """Turn a plain recette/dépense into a balanced two- or three-line entry.
 
     * **Recette** — money in: D cash account / C produit account.
     * **Dépense** — money out: D charge account / C cash account.
 
     The category supplies the produit/charge account
     (``compte_categorie_id``); the cash account (``compte_tresorerie_id``,
-    512/531) is the one the money actually moved on. The result is validated
-    against the balance invariant before being returned (unsaved, so the caller
-    owns the transaction).
+    512/531) is the one the money actually moved on.
+
+    When ``tva_taux`` is given and strictly positive, ``montant`` is read as a
+    **TTC** amount: it is split into HT + VAT, the base line carries the HT and
+    the rate/amount metadata, and a third line books the VAT on the same side as
+    the category (VAT collectée credited on a recette, déductible debited on a
+    dépense) against ``compte_tva_id``. Without a rate the entry stays two lines.
+
+    The result is validated against the balance invariant before being returned
+    (unsaved, so the caller owns the transaction).
     """
     montant = _as_amount(montant, "montant")
     if montant == ZERO:
         raise EntryError("Le montant doit être strictement positif.")
 
-    if sens == SensCategorie.RECETTE:
-        debit_compte, credit_compte = compte_tresorerie_id, compte_categorie_id
-    else:
-        debit_compte, credit_compte = compte_categorie_id, compte_tresorerie_id
+    base = montant
+    tva_montant: Decimal | None = None
+    if tva_taux is not None and tva_taux > ZERO:
+        if compte_tva_id is None:
+            raise EntryError("Un compte de TVA est requis pour appliquer un taux.")
+        base, tva_montant = split_ttc(montant, tva_taux)
 
-    lignes = [
-        LigneEcriture(compte_id=debit_compte, libelle=libelle, debit=montant),
-        LigneEcriture(compte_id=credit_compte, libelle=libelle, credit=montant),
-    ]
+    tresorerie_line = LigneEcriture(compte_id=compte_tresorerie_id, libelle=libelle)
+    base_line = LigneEcriture(compte_id=compte_categorie_id, libelle=libelle)
+    tva_line = LigneEcriture(compte_id=compte_tva_id, libelle=libelle)
+    if tva_montant is not None:
+        base_line.tva_taux = tva_taux
+        base_line.tva_montant = tva_montant
+
+    if sens == SensCategorie.RECETTE:
+        # Money in: D trésorerie TTC / C produit HT (+ C TVA collectée).
+        tresorerie_line.debit = montant
+        base_line.credit = base
+        tva_line.credit = tva_montant
+        lignes = [tresorerie_line, base_line]
+        if tva_montant is not None:
+            lignes.append(tva_line)
+    else:
+        # Money out: D charge HT (+ D TVA déductible) / C trésorerie TTC.
+        base_line.debit = base
+        tva_line.debit = tva_montant
+        tresorerie_line.credit = montant
+        lignes = [base_line]
+        if tva_montant is not None:
+            lignes.append(tva_line)
+        lignes.append(tresorerie_line)
     validate_lignes(lignes)
 
     return Ecriture(

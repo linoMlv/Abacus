@@ -30,6 +30,7 @@ from .invariants import (
     validated_only,
 )
 from .numbering import next_numero_piece
+from .tva import split_ttc
 
 __all__ = [
     "CENTS",
@@ -47,6 +48,7 @@ __all__ = [
     "next_numero_piece",
     "resultat_de_gestion",
     "scope_exercice",
+    "split_ttc",
     "validate_lignes",
     "validated_only",
 ]

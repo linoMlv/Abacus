@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 from enum import Enum
 
 from sqlalchemy import UniqueConstraint
@@ -28,6 +29,9 @@ class CategorieSaisie(SQLModel, table=True):
     journal_id: str = Field(foreign_key="journal.id")  # journal par défaut
     is_active: bool = Field(default=True)
     ordre: int = Field(default=0)  # ordre d'affichage dans l'écran de saisie
+    # Default VAT rate applied when the régime TVA is on (overridable per entry);
+    # null means no default (the treasurer picks the rate at saisie).
+    tva_taux: Decimal | None = Field(default=None, max_digits=5, decimal_places=2)
 
 
 class CategorieSaisieRead(SQLModel):
@@ -38,3 +42,4 @@ class CategorieSaisieRead(SQLModel):
     journal_id: str
     is_active: bool
     ordre: int
+    tva_taux: Decimal | None
