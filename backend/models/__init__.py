@@ -47,6 +47,13 @@ from .identity import (
     User,
 )
 from .justificatif import Justificatif, JustificatifRead
+from .recu import (
+    DonRead,
+    FormeDon,
+    RecuFiscal,
+    RecuFiscalLigne,
+    RecuFiscalRead,
+)
 from .recurrence import (
     GenerationResult,
     Periodicite,
@@ -130,6 +137,11 @@ __all__ = [
     "MembershipRead",
     "MembershipStatus",
     "ModeReglement",
+    "DonRead",
+    "FormeDon",
+    "RecuFiscal",
+    "RecuFiscalLigne",
+    "RecuFiscalRead",
     "PermissionPreset",
     "Periodicite",
     "RapprochementSuggestion",

@@ -35,6 +35,10 @@ class Tiers(SQLModel, table=True):
     association_id: str = Field(foreign_key="association.id", index=True)
     type: TypeTiers
     nom: str
+    # Postal address (optional) — needed on a donor's tax receipt (§8).
+    adresse: str | None = None
+    code_postal: str | None = None
+    ville: str | None = None
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=utcnow)
 
@@ -43,4 +47,7 @@ class TiersRead(SQLModel):
     id: str
     type: TypeTiers
     nom: str
+    adresse: str | None
+    code_postal: str | None
+    ville: str | None
     is_active: bool

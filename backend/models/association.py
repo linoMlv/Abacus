@@ -15,6 +15,15 @@ class Association(SQLModel, table=True):
     # associations are exempt, and while off every VAT field/column/account is
     # hidden and the engine never books a 4456x line.
     regime_tva: bool = Field(default=False)
+    # Fiscal identity, used to issue tax receipts (§8): postal address and legal
+    # identifiers (RNA "W…", SIRET), plus the association's stated purpose. All
+    # optional; the receipt endpoint requires the mandatory ones to be filled.
+    adresse: str | None = None
+    code_postal: str | None = None
+    ville: str | None = None
+    rna: str | None = None
+    siret: str | None = None
+    objet: str | None = None
 
 
 class RefreshSession(SQLModel, table=True):

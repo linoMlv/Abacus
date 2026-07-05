@@ -22,6 +22,8 @@ from models import (  # noqa: F401
     LigneBancaire,
     LogEntry,
     Membership,
+    RecuFiscal,
+    RecuFiscalLigne,
     Recurrence,
     RefreshSession,
     Tiers,
