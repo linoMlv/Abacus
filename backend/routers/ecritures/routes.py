@@ -28,6 +28,8 @@ from models import (
     ExerciceStatut,
     Journal,
     LigneEcriture,
+    RecuFiscal,
+    RecuFiscalLigne,
 )
 
 from .builders import (
@@ -360,6 +362,26 @@ def contrepasser_ecriture(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Écriture déjà contre-passée.",
+        )
+    # A don booked on an active tax receipt cannot be reversed without first
+    # cancelling that receipt (a donor may hold a printed copy); otherwise the
+    # receipt would certify a cancelled donation.
+    receipt_link = session.exec(
+        select(RecuFiscal.numero)
+        .join(RecuFiscalLigne, RecuFiscalLigne.recu_fiscal_id == RecuFiscal.id)
+        .where(
+            RecuFiscalLigne.ecriture_id == original.id,
+            RecuFiscal.association_id == ctx.association_id,
+            RecuFiscal.annule.is_(False),
+        )
+    ).first()
+    if receipt_link is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Ce don figure sur le reçu fiscal n° {receipt_link} : "
+                "annulez d'abord le reçu."
+            ),
         )
 
     piece = next_numero_piece(session, ctx.association_id)

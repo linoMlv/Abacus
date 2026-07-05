@@ -40,6 +40,9 @@ class RecuFiscal(SQLModel, table=True):
     montant: Decimal = Field(max_digits=10, decimal_places=2)
     forme: FormeDon = Field(default=FormeDon.NUMERAIRE)
     mode_reglement: ModeReglement | None = None
+    # A receipt is never hard-deleted (its order number must never be reused): it
+    # is cancelled, which frees its dons but keeps the numbered row and its trail.
+    annule: bool = Field(default=False)
     created_by: str | None = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(default_factory=utcnow)
 
@@ -68,6 +71,7 @@ class RecuFiscalRead(SQLModel):
     montant: Decimal
     forme: FormeDon
     mode_reglement: ModeReglement | None
+    annule: bool
 
 
 class DonRead(SQLModel):

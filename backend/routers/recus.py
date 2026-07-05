@@ -15,6 +15,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func
+from sqlalchemy.orm import aliased
 from sqlmodel import Session, select
 
 from accounting_engine import validated_only
@@ -32,6 +33,8 @@ from models import (
     CategorieSaisie,
     DonRead,
     Ecriture,
+    EcritureOrigine,
+    EcritureStatut,
     FormeDon,
     LigneEcriture,
     ModeReglement,
@@ -67,11 +70,21 @@ def _eligible_dons(
     tiers_id: str | None = None,
     only_unreceipted: bool = False,
 ) -> list[DonRead]:
-    """Validated recette entries attached to a donor tiers, with receipt status.
+    """Live donation recettes attached to a donor tiers, with receipt status.
 
     A single query: total = Σ debit of the entry, left-joined to the receipt link
-    so an already-receipted don carries its receipt number.
+    so an already-receipted don carries its receipt number. Only genuine, live
+    donations qualify — reversal (extourne) entries are never dons, and an entry
+    that has been contre-passée (a validated extourne points at it) is netted to
+    zero and excluded, so a cancelled donation is neither offered nor receipted.
     """
+    reversal = aliased(Ecriture)
+    reversed_ids = select(reversal.extourne_de_id).where(
+        reversal.association_id == association_id,
+        reversal.origine == EcritureOrigine.EXTOURNE,
+        reversal.statut == EcritureStatut.VALIDEE,
+        reversal.extourne_de_id.is_not(None),
+    )
     montant = func.coalesce(func.sum(LigneEcriture.debit), 0)
     statement = (
         select(
@@ -94,6 +107,8 @@ def _eligible_dons(
             Ecriture.association_id == association_id,
             Tiers.type == TypeTiers.DONATEUR,
             CategorieSaisie.sens == SensCategorie.RECETTE,
+            Ecriture.origine != EcritureOrigine.EXTOURNE,
+            Ecriture.id.not_in(reversed_ids),
             validated_only(),
         )
         .group_by(
@@ -187,6 +202,7 @@ def _to_read(session: Session, recu: RecuFiscal) -> RecuFiscalRead:
         montant=recu.montant,
         forme=recu.forme,
         mode_reglement=recu.mode_reglement,
+        annule=recu.annule,
     )
 
 
@@ -298,6 +314,10 @@ def recu_pdf(
     recu = owned_or_404(
         session, RecuFiscal, recu_id, ctx.association_id, "Reçu introuvable"
     )
+    if recu.annule:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Ce reçu a été annulé."
+        )
     association = session.get(Association, ctx.association_id)
     tiers = session.get(Tiers, recu.tiers_id)
     content = documents.recu_pdf(association=association, tiers=tiers, recu=recu)
@@ -317,20 +337,29 @@ def recu_pdf(
 
 
 @router.delete("/recus/{recu_id}", status_code=status.HTTP_204_NO_CONTENT)
-def supprimer_recu(
+def annuler_recu(
     recu_id: str,
     ctx: AccessContext = Depends(require_permission(Permission.DONATION_MANAGE)),
     session: Session = Depends(get_session),
 ):
-    """Delete a receipt, freeing its dons to be receipted again."""
+    """Cancel a receipt: free its dons but keep the numbered row.
+
+    A receipt is never hard-deleted — its order number must never be reused
+    (a donor could hold a printed copy). Cancelling detaches the dons (they can
+    be receipted again) and marks the row ``annule``, keeping the audit trail and
+    a permanent, gapless numbering.
+    """
     recu = owned_or_404(
         session, RecuFiscal, recu_id, ctx.association_id, "Reçu introuvable"
     )
+    if recu.annule:
+        return
     for ligne in session.exec(
         select(RecuFiscalLigne).where(RecuFiscalLigne.recu_fiscal_id == recu.id)
     ).all():
         session.delete(ligne)
-    session.delete(recu)
+    recu.annule = True
+    session.add(recu)
     record_audit(
         session,
         association_id=ctx.association_id,
@@ -338,6 +367,6 @@ def supprimer_recu(
         action=AuditAction.RECU_DELETE,
         target_type="recu_fiscal",
         target_id=recu_id,
-        detail=f"reçu n° {recu.numero}",
+        detail=f"annulation reçu n° {recu.numero}",
     )
     session.commit()
