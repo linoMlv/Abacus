@@ -26,7 +26,13 @@ function renderPanel() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  context.mockResolvedValue({ id: 'A', name: 'Asso', role: 'admin', regime_tva: false, permissions: [] });
+  context.mockResolvedValue({
+    id: 'A',
+    name: 'Asso',
+    role: 'admin',
+    regime_tva: false,
+    permissions: [],
+  });
   updateSettings.mockResolvedValue({
     id: 'A',
     name: 'Asso',
