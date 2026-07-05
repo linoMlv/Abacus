@@ -124,6 +124,8 @@ class LigneEcritureRead(SQLModel):
     libelle: str
     debit: Decimal
     credit: Decimal
+    tva_taux: Decimal | None = None
+    tva_montant: Decimal | None = None
 
 
 class EcritureRead(SQLModel):

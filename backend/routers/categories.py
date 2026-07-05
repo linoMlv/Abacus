@@ -8,6 +8,8 @@ it. Deactivating never deletes (entries store the *account*, not the category).
 Every reference from the client is re-scoped to the active association.
 """
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, SQLModel, asc, select
 
@@ -42,6 +44,7 @@ class CreateCategorieRequest(SQLModel):
     sens: SensCategorie
     libelle: str
     compte_id: str | None = None  # expert override; else auto (758/658)
+    tva_taux: Decimal | None = None  # default VAT rate (honoured when régime on)
 
 
 class UpdateCategorieRequest(SQLModel):
@@ -49,10 +52,19 @@ class UpdateCategorieRequest(SQLModel):
     compte_id: str | None = None
     ordre: int | None = None
     is_active: bool | None = None
+    # Present-and-null clears the default rate; absent leaves it unchanged.
+    tva_taux: Decimal | None = None
 
 
 def _bad_request(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+
+
+def _validate_taux(taux: Decimal | None) -> Decimal | None:
+    """A VAT rate, if given, must sit in [0, 100)."""
+    if taux is not None and (taux < 0 or taux >= 100):
+        raise _bad_request("Le taux de TVA doit être compris entre 0 et 100.")
+    return taux
 
 
 def _compte_by_numero(session: Session, association_id: str, numero: str) -> Compte:
@@ -152,6 +164,7 @@ def create_categorie(
         compte_id=compte_id,
         journal_id=journal.id,
         ordre=(max_ordre + 1) if max_ordre is not None else 0,
+        tva_taux=_validate_taux(body.tva_taux),
     )
     session.add(categorie)
     record_audit(
@@ -202,6 +215,9 @@ def update_categorie(
         categorie.ordre = body.ordre
     if body.is_active is not None:
         categorie.is_active = body.is_active
+    # Present-and-null clears the default rate; absent leaves it untouched.
+    if "tva_taux" in body.model_fields_set:
+        categorie.tva_taux = _validate_taux(body.tva_taux)
 
     session.add(categorie)
     record_audit(

@@ -6,6 +6,8 @@ them keeps creation, brouillon edition and contre-passation replacement in
 lockstep — one resolution/validation path per origine, no drift.
 """
 
+from decimal import Decimal
+
 from sqlmodel import Session, SQLModel, select
 
 from accounting_engine import (
@@ -17,7 +19,14 @@ from accounting_engine import (
 from audit import AuditAction
 from auth_context import AccessContext
 from authz import Permission
-from models import CategorieSaisie, Compte, Ecriture, EcritureOrigine, LigneEcriture
+from models import (
+    Association,
+    CategorieSaisie,
+    Compte,
+    Ecriture,
+    EcritureOrigine,
+    LigneEcriture,
+)
 
 from .resolution import (
     _FINANCIAL_CLASS,
@@ -27,6 +36,7 @@ from .resolution import (
     _owned_compte,
     _owned_journal,
     _owned_treasury,
+    _resolve_compte_tva,
     _resolve_evenement_id,
     _resolve_tiers_id,
 )
@@ -76,6 +86,21 @@ def _build_simple_entry(
     exercice = _open_exercice(session, ctx.association_id, body.date)
     libelle = (body.libelle or "").strip() or categorie.libelle.strip()
 
+    # VAT is honoured only when the régime is on (server-side masking — a
+    # client-sent rate is never trusted to enable it). The effective rate is the
+    # per-entry override if given, else the category default; a positive rate
+    # makes the montant TTC and books the déductible/collectée line.
+    tva_taux: Decimal | None = None
+    compte_tva_id: str | None = None
+    association = session.get(Association, ctx.association_id)
+    if association is not None and association.regime_tva:
+        taux = body.tva_taux if body.tva_taux is not None else categorie.tva_taux
+        if taux is not None and taux > 0:
+            tva_taux = taux
+            compte_tva_id = _resolve_compte_tva(
+                session, ctx.association_id, categorie.sens
+            ).id
+
     try:
         ecriture = build_ecriture_simple(
             association_id=ctx.association_id,
@@ -89,6 +114,8 @@ def _build_simple_entry(
             libelle=libelle,
             numero_piece=numero_piece,
             created_by=ctx.user.id,
+            tva_taux=tva_taux,
+            compte_tva_id=compte_tva_id,
         )
     except EntryError as exc:
         raise _bad_request(str(exc))

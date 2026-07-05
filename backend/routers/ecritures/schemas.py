@@ -18,6 +18,9 @@ class SaisieSimpleRequest(SQLModel):
     evenement_id: str | None = None
     reference_externe: str | None = None
     mode_reglement: ModeReglement | None = None
+    # VAT rate override (percent). Honoured only when the régime TVA is on; else
+    # the category default applies. The montant is read as TTC when a rate applies.
+    tva_taux: Decimal | None = None
 
 
 class VirementRequest(SQLModel):

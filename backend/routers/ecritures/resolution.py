@@ -14,9 +14,15 @@ from accounting_engine import find_open_exercice
 from audit import AuditAction, record_audit
 from auth_context import AccessContext, owned_or_404
 from authz import Permission
-from models import Compte, Ecriture, Evenement, Exercice, Journal, Tiers
+from models import Compte, Ecriture, Evenement, Exercice, Journal, SensCategorie, Tiers
 
 _FINANCIAL_CLASS = 5  # comptes de trésorerie (512 banque, 531 caisse, …)
+
+# VAT counterpart account per sens: recette collects (44571), dépense deducts (44566).
+_TVA_ACCOUNT = {
+    SensCategorie.RECETTE: "44571",  # TVA collectée
+    SensCategorie.DEPENSE: "44566",  # TVA déductible
+}
 
 
 def _bad_request(detail: str) -> HTTPException:
@@ -103,6 +109,23 @@ def _resolve_evenement_id(
     if evenement is None:
         raise _bad_request("Événement introuvable.")
     return evenement.id
+
+
+def _resolve_compte_tva(
+    session: Session, association_id: str, sens: SensCategorie
+) -> Compte:
+    """Resolve the VAT account (44571 collectée / 44566 déductible) of the sens."""
+    numero = _TVA_ACCOUNT[sens]
+    compte = session.exec(
+        select(Compte).where(
+            Compte.association_id == association_id,
+            Compte.numero == numero,
+            Compte.is_active.is_(True),
+        )
+    ).first()
+    if compte is None:
+        raise _bad_request(f"Compte de TVA {numero} introuvable.")
+    return compte
 
 
 def _journal_by_code(session: Session, association_id: str, code: str) -> Journal:
