@@ -161,3 +161,66 @@ def test_zero_rate_stays_two_lines(session: Session):
     resp = _post_simple(admin, assoc, cat["id"], banque, "100.00", tva_taux="0")
     assert resp.status_code == 201, resp.text
     assert len(resp.json()["lignes"]) == 2
+
+
+# --- État TVA (collectée / déductible / à décaisser) ----------------------
+
+
+def _post_validated(admin, assoc, cat_id, compte, montant, **extra):
+    resp = _post_simple(admin, assoc, cat_id, compte, montant, **extra)
+    assert resp.status_code == 201, resp.text
+    ecriture_id = resp.json()["id"]
+    val = admin.post(f"/api/asso/{assoc}/ecritures/{ecriture_id}/validation")
+    assert val.status_code == 200, val.text
+    return resp.json()
+
+
+def test_etat_tva_nets_collectee_and_deductible(session: Session):
+    admin, assoc = _admin_with_association("a@example.com", "alpha")
+    _enable_tva(session, assoc)
+    banque = _compte_id(admin, assoc, "512")
+    presta = _categorie(admin, assoc, "Prestations de services")
+    loc = _categorie(admin, assoc, "Locations")
+
+    _post_validated(admin, assoc, presta["id"], banque, "240.00", tva_taux="20")
+    _post_validated(admin, assoc, loc["id"], banque, "120.00", tva_taux="20")
+
+    etat = admin.get(f"/api/asso/{assoc}/tva").json()
+    assert _dec(etat["collectee"]) == _dec("40.00")  # 240 TTC @20 -> 40 VAT
+    assert _dec(etat["deductible"]) == _dec("20.00")  # 120 TTC @20 -> 20 VAT
+    assert _dec(etat["a_decaisser"]) == _dec("20.00")  # 40 - 20
+
+
+def test_etat_tva_excludes_drafts(session: Session):
+    admin, assoc = _admin_with_association("a@example.com", "alpha")
+    _enable_tva(session, assoc)
+    banque = _compte_id(admin, assoc, "512")
+    presta = _categorie(admin, assoc, "Prestations de services")
+    # A draft (not validated) must not count in the official VAT position.
+    _post_simple(admin, assoc, presta["id"], banque, "240.00", tva_taux="20")
+
+    etat = admin.get(f"/api/asso/{assoc}/tva").json()
+    assert _dec(etat["collectee"]) == _dec("0.00")
+
+
+def test_etat_tva_requires_report_view(session: Session):
+    from models import Membership, Role
+
+    _, assoc = _admin_with_association("a@example.com", "alpha")
+    # A member with the report:view permission revoked is 403.
+    viewer = TestClient(app)
+    reg = viewer.post(
+        "/api/auth/register",
+        json={"email": "v@example.com", "password": PASSWORD, "name": "V"},
+    )
+    viewer.post("/api/auth/login", json={"email": "v@example.com", "password": PASSWORD})
+    session.add(
+        Membership(
+            user_id=reg.json()["id"],
+            association_id=assoc,
+            role=Role.VIEWER,
+            permission_overrides={"report:view": False},
+        )
+    )
+    session.commit()
+    assert viewer.get(f"/api/asso/{assoc}/tva").status_code == 403

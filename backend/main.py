@@ -33,6 +33,7 @@ from routers import (
     synthese,
     tiers,
     tresorerie,
+    tva,
 )
 from scheduler import recurrences_daily_loop
 from security import ENVIRONMENT
@@ -120,6 +121,7 @@ _fastapi_app.include_router(categories.router)
 _fastapi_app.include_router(tiers.router)
 _fastapi_app.include_router(evenements.router)
 _fastapi_app.include_router(synthese.router)
+_fastapi_app.include_router(tva.router)
 _fastapi_app.include_router(permissions.router)
 _fastapi_app.include_router(exports.router)
 _fastapi_app.include_router(justificatifs.router)
