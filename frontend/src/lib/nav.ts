@@ -118,7 +118,8 @@ export const SETTINGS_ITEM: NavItem = {
   segment: 'parametres',
   label: 'Paramètres',
   icon: Settings,
-  permissions: [PERMISSIONS.MEMBER_MANAGE],
+  // Members, Exercices and Comptabilité tabs; the page gates each tab itself.
+  permissions: [PERMISSIONS.MEMBER_MANAGE, PERMISSIONS.EXERCISE_CLOSE, PERMISSIONS.SETTINGS_MANAGE],
 };
 
 /** Every navigable segment, for route generation and lookups. */

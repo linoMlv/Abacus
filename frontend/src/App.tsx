@@ -7,6 +7,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
 import { BanquePage } from '@/pages/BanquePage';
 import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
+import { DonsPage } from '@/pages/DonsPage';
 import { JournalPage } from '@/pages/JournalPage';
 import { OnboardingSoldesPage } from '@/pages/OnboardingSoldesPage';
 import { ParametresPage } from '@/pages/ParametresPage';
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="banque" element={<BanquePage />} />
             <Route path="recurrences" element={<RecurrencesPage />} />
             <Route path="rapports" element={<RapportsPage />} />
+            <Route path="dons" element={<DonsPage />} />
             <Route path="parametres" element={<ParametresPage />} />
             {ALL_NAV_ITEMS.filter(
               (item) =>
@@ -57,6 +59,7 @@ export default function App() {
                   'banque',
                   'recurrences',
                   'rapports',
+                  'dons',
                   'parametres',
                 ].includes(item.segment)
             ).map((item) => (
