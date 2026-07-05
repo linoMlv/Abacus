@@ -44,6 +44,7 @@ import type {
 } from './referentiel';
 import type { Synthese, SyntheseParams } from './synthese';
 import type { Tiers, TypeTiers } from './tiers';
+import type { EtatTva } from './tva';
 
 const base = (associationId: string) => `/asso/${associationId}`;
 
@@ -93,6 +94,8 @@ export const accountingApi = {
     api.post<Tiers>(`${base(associationId)}/tiers`, input),
   getSynthese: (associationId: string, params: SyntheseParams = {}) =>
     api.get<Synthese>(`${base(associationId)}/synthese${qs({ ...params })}`),
+  getEtatTva: (associationId: string, params: SyntheseParams = {}) =>
+    api.get<EtatTva>(`${base(associationId)}/tva${qs({ ...params })}`),
   // Export download URLs (server streams an attachment; the cookie session is
   // sent automatically on a same-origin navigation, so a plain link works).
   // The journal export follows the active journal filters (item 8), not just the period.

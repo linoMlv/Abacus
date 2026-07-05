@@ -7,7 +7,9 @@ import { accountingApi, EXERCICE_STATUT_LABELS, TYPE_TRESORERIE_LABELS } from '@
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useRegimeTva } from '@/hooks/useRegimeTva';
 import { triggerDownload } from '@/lib/download';
+import { formatEUR } from '@/lib/format';
 import { PERMISSIONS } from '@/lib/permissions';
 
 /** A single downloadable document (server-generated, named by the server). */
@@ -51,6 +53,7 @@ const XLSX = <FileSpreadsheet className="h-4 w-4" aria-hidden />;
 export function RapportsPage() {
   const { associationId } = useParams() as { associationId: string };
   const { has } = usePermissions();
+  const regimeTva = useRegimeTva();
   const canExportFec = has(PERMISSIONS.REPORT_EXPORT_FEC);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -68,6 +71,11 @@ export function RapportsPage() {
     queryKey: ['exercices', associationId],
     queryFn: () => accountingApi.listExercices(associationId),
     enabled: canExportFec,
+  });
+  const etatTvaQuery = useQuery({
+    queryKey: ['etat-tva', associationId, period],
+    queryFn: () => accountingApi.getEtatTva(associationId, period),
+    enabled: regimeTva,
   });
   const comptes = tresorerieQuery.data ?? [];
   const evenements = evenementsQuery.data ?? [];
@@ -158,6 +166,35 @@ export function RapportsPage() {
             />
           </div>
         </Section>
+
+        {regimeTva && (
+          <Section title="TVA" description="Position de TVA sur la période (écritures validées).">
+            {etatTvaQuery.isError ? (
+              <Card className="p-4 text-sm text-muted">État de TVA indisponible.</Card>
+            ) : (
+              <Card className="divide-y divide-hairline p-0 text-sm">
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-ink-soft">TVA collectée</span>
+                  <span className="tabular-nums text-ink">
+                    {formatEUR(etatTvaQuery.data?.collectee ?? 0)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-ink-soft">TVA déductible</span>
+                  <span className="tabular-nums text-ink">
+                    {formatEUR(etatTvaQuery.data?.deductible ?? 0)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between bg-hover px-4 py-2.5 font-semibold">
+                  <span className="text-ink">À décaisser</span>
+                  <span className="tabular-nums text-ink">
+                    {formatEUR(etatTvaQuery.data?.a_decaisser ?? 0)}
+                  </span>
+                </div>
+              </Card>
+            )}
+          </Section>
+        )}
 
         <Section
           title="Relevés de trésorerie"

@@ -10,4 +10,5 @@ export * from './referentiel';
 export * from './ecriture';
 export * from './evenement';
 export * from './synthese';
+export * from './tva';
 export { accountingApi } from './client';
