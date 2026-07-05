@@ -28,6 +28,8 @@ class AuditAction:
     CATEGORIE_UPDATE = "categorie.update"
     TIERS_CREATE = "tiers.create"
     TIERS_UPDATE = "tiers.update"
+    RECU_CREATE = "recu.create"
+    RECU_DELETE = "recu.delete"
     JUSTIFICATIF_UPLOAD = "justificatif.upload"
     JUSTIFICATIF_DELETE = "justificatif.delete"
     EVENEMENT_CREATE = "evenement.create"
