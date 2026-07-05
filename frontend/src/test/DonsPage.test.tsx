@@ -100,11 +100,12 @@ it('lists issued receipts and deletes one', async () => {
       montant: '200.00',
       forme: 'numeraire',
       mode_reglement: null,
+      annule: false,
     },
   ]);
   renderPage();
   expect(await screen.findByText(/Reçu n° 1 — M\. Dupont/)).toBeInTheDocument();
 
-  await userEvent.click(screen.getByRole('button', { name: /Supprimer le reçu/ }));
+  await userEvent.click(screen.getByRole('button', { name: /Annuler le reçu/ }));
   await waitFor(() => expect(supprimerRecu).toHaveBeenCalledWith('A', 'r1'));
 });

@@ -6,6 +6,7 @@ import { useParams } from 'react-router-dom';
 import { type Don, donsApi } from '@/api/dons';
 import { RecuDialog } from '@/components/dons/RecuDialog';
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { triggerDownload } from '@/lib/download';
@@ -111,8 +112,11 @@ export function DonsPage() {
               <div key={recu.id} className="flex items-center gap-3 px-4 py-3 text-sm">
                 <HeartHandshake className="h-4 w-4 shrink-0 text-faint" aria-hidden />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-ink">
-                    Reçu n° {recu.numero} — {recu.tiers_nom}
+                  <p className="flex items-center gap-2 truncate font-medium text-ink">
+                    <span className={recu.annule ? 'text-muted line-through' : undefined}>
+                      Reçu n° {recu.numero} — {recu.tiers_nom}
+                    </span>
+                    {recu.annule && <Badge variant="neutral">Annulé</Badge>}
                   </p>
                   <p className="text-xs text-muted">
                     {formatDate(recu.date)} · année {recu.annee}
@@ -121,23 +125,27 @@ export function DonsPage() {
                 <span className="shrink-0 tabular-nums font-medium text-ink">
                   {formatEUR(recu.montant)}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => triggerDownload(donsApi.recuPdfUrl(associationId, recu.id))}
-                  className="shrink-0 rounded-md p-1.5 text-faint hover:bg-hover hover:text-accent"
-                  aria-label={`Télécharger le reçu n° ${recu.numero}`}
-                >
-                  <Download className="h-4 w-4" aria-hidden />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => deleteMutation.mutate(recu.id)}
-                  disabled={deleteMutation.isPending}
-                  className="shrink-0 rounded-md p-1.5 text-faint hover:bg-hover hover:text-depense"
-                  aria-label={`Supprimer le reçu n° ${recu.numero}`}
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden />
-                </button>
+                {!recu.annule && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => triggerDownload(donsApi.recuPdfUrl(associationId, recu.id))}
+                      className="shrink-0 rounded-md p-1.5 text-faint hover:bg-hover hover:text-accent"
+                      aria-label={`Télécharger le reçu n° ${recu.numero}`}
+                    >
+                      <Download className="h-4 w-4" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteMutation.mutate(recu.id)}
+                      disabled={deleteMutation.isPending}
+                      className="shrink-0 rounded-md p-1.5 text-faint hover:bg-hover hover:text-depense"
+                      aria-label={`Annuler le reçu n° ${recu.numero}`}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </Card>

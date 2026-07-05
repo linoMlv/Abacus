@@ -32,6 +32,7 @@ export interface RecuFiscal {
   montant: string;
   forme: FormeDon;
   mode_reglement: string | null;
+  annule: boolean;
 }
 
 export interface CreerRecuInput {
