@@ -12,11 +12,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { formatBytes } from '@/lib/format';
+import { TVA_TAUX_OPTIONS } from '@/lib/tva';
 import { cn } from '@/lib/utils';
 import { MODE_REGLEMENT_VALUES, type SaisieForm } from '@/pages/saisie.schema';
 
 import { FieldError } from './fields';
-import { TVA_TAUX_OPTIONS } from './helpers';
 
 interface AdvancedFieldsProps {
   register: UseFormRegister<SaisieForm>;

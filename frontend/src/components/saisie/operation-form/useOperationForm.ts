@@ -20,9 +20,10 @@ import { apiErrorMessage } from '@/api/client';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRegimeTva } from '@/hooks/useRegimeTva';
 import { PERMISSIONS } from '@/lib/permissions';
+import { normalizeTaux } from '@/lib/tva';
 import { amountToDecimalString, saisieSchema, type SaisieForm } from '@/pages/saisie.schema';
 
-import { entryAmount, entryTvaTaux, normalizeTaux, today } from './helpers';
+import { entryAmount, entryTvaTaux, today } from './helpers';
 
 export type OperationMode = 'create' | 'edit' | 'correct';
 

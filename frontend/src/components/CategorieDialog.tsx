@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { useRegimeTva } from '@/hooks/useRegimeTva';
+import { normalizeTaux, TVA_TAUX_OPTIONS } from '@/lib/tva';
 import { cn } from '@/lib/utils';
 
 /**
@@ -31,23 +34,35 @@ export function CategorieDialog({
   onSaved?: (categorie: Categorie) => void;
 }) {
   const isEdit = !!categorie;
+  const regimeTva = useRegimeTva();
   const queryClient = useQueryClient();
   const [sens, setSens] = useState<Sens>(defaultSens);
   const [libelle, setLibelle] = useState('');
+  const [tvaTaux, setTvaTaux] = useState('0');
 
   useEffect(() => {
     if (!open) return;
     setSens(categorie?.sens ?? defaultSens);
     setLibelle(categorie?.libelle ?? '');
+    setTvaTaux(normalizeTaux(categorie?.tva_taux));
   }, [open, categorie, defaultSens]);
 
   const mutation = useMutation({
     mutationFn: () => {
       const nom = libelle.trim();
+      // '0' clears the default rate (null); a positive rate is the category default.
+      const tva_taux = regimeTva ? (tvaTaux === '0' ? null : tvaTaux) : undefined;
       if (isEdit) {
-        return accountingApi.modifierCategorie(associationId, categorie.id, { libelle: nom });
+        return accountingApi.modifierCategorie(associationId, categorie.id, {
+          libelle: nom,
+          tva_taux,
+        });
       }
-      return accountingApi.creerCategorie(associationId, { sens, libelle: nom });
+      return accountingApi.creerCategorie(associationId, {
+        sens,
+        libelle: nom,
+        ...(tva_taux !== undefined && { tva_taux }),
+      });
     },
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['categories', associationId] });
@@ -109,6 +124,27 @@ export function CategorieDialog({
               autoFocus
             />
           </div>
+
+          {regimeTva && (
+            <div>
+              <Label htmlFor="cat-tva">TVA par défaut</Label>
+              <Select
+                id="cat-tva"
+                className="mt-1.5"
+                value={tvaTaux}
+                onChange={(e) => setTvaTaux(e.target.value)}
+              >
+                {TVA_TAUX_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1.5 text-xs text-muted">
+                Appliquée par défaut à la saisie (modifiable opération par opération).
+              </p>
+            </div>
+          )}
 
           {error && <Alert>{error}</Alert>}
 
