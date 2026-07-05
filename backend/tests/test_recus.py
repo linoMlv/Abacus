@@ -278,3 +278,25 @@ def test_receipt_isolation_cross_tenant():
         },
     )
     assert resp.status_code == 404  # donor not in B
+
+
+def test_receipt_pdf_downloads():
+    admin, assoc = _admin_with_association("a@example.com", "alpha")
+    _fill_identity(admin, assoc)
+    donor = _donor(admin, assoc)
+    eid = _post_don(admin, assoc, donor["id"], "500.00")
+    recu = admin.post(
+        f"/api/asso/{assoc}/recus",
+        json={
+            "tiers_id": donor["id"],
+            "ecriture_ids": [eid],
+            "date": "2026-04-01",
+            "annee": 2026,
+        },
+    ).json()
+
+    resp = admin.get(f"/api/asso/{assoc}/recus/{recu['id']}/pdf")
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content[:4] == b"%PDF"
+    assert "attachment" in resp.headers["content-disposition"]

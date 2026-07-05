@@ -14,6 +14,7 @@ from .journal import (
     journal_pdf,
     journal_xlsx,
 )
+from .recu import recu_pdf
 from .releve import releve_pdf
 from .resultat_bilan import bilan_pdf, compte_resultat_pdf
 
@@ -26,5 +27,6 @@ __all__ = [
     "grand_livre_xlsx",
     "journal_pdf",
     "journal_xlsx",
+    "recu_pdf",
     "releve_pdf",
 ]

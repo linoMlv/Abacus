@@ -10,8 +10,9 @@ receipted twice. Every read/write is tenant-scoped; issuing/deleting is gated by
 
 from datetime import date
 from decimal import Decimal
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -25,6 +26,7 @@ from auth_context import (
 )
 from authz import Permission
 from database import get_session
+from exports import documents
 from models import (
     Association,
     CategorieSaisie,
@@ -284,6 +286,34 @@ def creer_recu(
     session.commit()
     session.refresh(recu)
     return _to_read(session, recu)
+
+
+@router.get("/recus/{recu_id}/pdf")
+def recu_pdf(
+    recu_id: str,
+    ctx: AccessContext = Depends(require_permission(Permission.DONATION_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    """The receipt as a compliant PDF (streamed as an attachment, nosniff)."""
+    recu = owned_or_404(
+        session, RecuFiscal, recu_id, ctx.association_id, "Reçu introuvable"
+    )
+    association = session.get(Association, ctx.association_id)
+    tiers = session.get(Tiers, recu.tiers_id)
+    content = documents.recu_pdf(association=association, tiers=tiers, recu=recu)
+    filename = f"recu-fiscal-{recu.numero}.pdf"
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{filename}"; '
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.delete("/recus/{recu_id}", status_code=status.HTTP_204_NO_CONTENT)
