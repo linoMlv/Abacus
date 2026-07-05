@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from accounting_seed import seed_association_accounting
-from auth_context import AccessContext, get_active_membership, get_current_user
+from auth_context import (
+    AccessContext,
+    get_active_membership,
+    get_current_user,
+    require_permission,
+)
+from authz import Permission
 from database import get_session
 from models import Association, Membership, Role, User
 from security import get_password_hash
@@ -18,6 +24,7 @@ from .schemas import (
     AssociationContext,
     AssociationSummary,
     CreateAssociationRequest,
+    UpdateAssociationRequest,
 )
 
 router = APIRouter(tags=["identity"])
@@ -74,6 +81,16 @@ def create_association(
     )
 
 
+def _context(association: Association, ctx: AccessContext) -> AssociationContext:
+    return AssociationContext(
+        id=association.id,
+        name=association.name,
+        role=ctx.role,
+        regime_tva=association.regime_tva,
+        permissions=sorted(p.value for p in ctx.permissions),
+    )
+
+
 @router.get("/api/asso/{association_id}", response_model=AssociationContext)
 def association_context(
     ctx: AccessContext = Depends(get_active_membership),
@@ -81,9 +98,20 @@ def association_context(
 ):
     association = session.get(Association, ctx.association_id)
     # An active membership guarantees the association exists.
-    return AssociationContext(
-        id=association.id,
-        name=association.name,
-        role=ctx.role,
-        permissions=sorted(p.value for p in ctx.permissions),
-    )
+    return _context(association, ctx)
+
+
+@router.patch("/api/asso/{association_id}", response_model=AssociationContext)
+def update_association(
+    body: UpdateAssociationRequest,
+    ctx: AccessContext = Depends(require_permission(Permission.SETTINGS_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    """Update editable association settings (durable → admin, §2)."""
+    association = session.get(Association, ctx.association_id)
+    if body.regime_tva is not None:
+        association.regime_tva = body.regime_tva
+    session.add(association)
+    session.commit()
+    session.refresh(association)
+    return _context(association, ctx)

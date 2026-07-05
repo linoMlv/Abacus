@@ -50,9 +50,18 @@ class AssociationContext(BaseModel):
     id: str
     name: str
     role: Role
+    # Whether the association is subject to VAT — drives whether the UI shows any
+    # VAT field at all (masked when off).
+    regime_tva: bool
     # The caller's server-authoritative effective permissions in this association
     # (role/preset base ± overrides; ADMIN = all). The UI gates on these.
     permissions: list[str]
+
+
+class UpdateAssociationRequest(BaseModel):
+    """Editable association settings (SETTINGS_MANAGE). Absent fields untouched."""
+
+    regime_tva: bool | None = None
 
 
 class MemberRead(BaseModel):
