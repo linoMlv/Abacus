@@ -3,7 +3,7 @@ import { Plus, Users } from 'lucide-react';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { accountingApi, TYPE_TIERS_LABELS } from '@/api/accounting';
+import { accountingApi, type Tiers, TYPE_TIERS_LABELS } from '@/api/accounting';
 import { TiersDialog } from '@/components/TiersDialog';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,8 @@ export function TiersPanel() {
   const { has } = usePermissions();
   const canManage = has(PERMISSIONS.TIERS_MANAGE);
   const [dialogOpen, setDialogOpen] = useState(false);
+  // Tiers being edited (address, name…); null while the dialog is for creation.
+  const [editing, setEditing] = useState<Tiers | null>(null);
 
   const query = useQuery({
     queryKey: ['tiers', associationId],
@@ -32,7 +34,14 @@ export function TiersPanel() {
           Vos fournisseurs, donateurs et financeurs, à rattacher aux opérations.
         </p>
         {canManage && (
-          <Button variant="accent" size="sm" onClick={() => setDialogOpen(true)}>
+          <Button
+            variant="accent"
+            size="sm"
+            onClick={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          >
             <Plus className="h-4 w-4" aria-hidden />
             Nouveau tiers
           </Button>
@@ -53,17 +62,46 @@ export function TiersPanel() {
         </Card>
       ) : (
         <Card className="divide-y divide-hairline">
-          {tiers.map((t) => (
-            <div key={t.id} className="flex items-center gap-3 px-4 py-3">
-              <span className="flex-1 truncate text-sm text-ink">{t.nom}</span>
-              <Badge variant="neutral">{TYPE_TIERS_LABELS[t.type]}</Badge>
-            </div>
-          ))}
+          {tiers.map((t) => {
+            const row = (
+              <>
+                <span className="flex-1 truncate text-sm text-ink">{t.nom}</span>
+                {(t.code_postal || t.ville) && (
+                  <span className="hidden truncate text-xs text-muted sm:block">
+                    {[t.code_postal, t.ville].filter(Boolean).join(' ')}
+                  </span>
+                )}
+                <Badge variant="neutral">{TYPE_TIERS_LABELS[t.type]}</Badge>
+              </>
+            );
+            return canManage ? (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setEditing(t);
+                  setDialogOpen(true);
+                }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-hover"
+              >
+                {row}
+              </button>
+            ) : (
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3">
+                {row}
+              </div>
+            );
+          })}
         </Card>
       )}
 
       {canManage && (
-        <TiersDialog associationId={associationId} open={dialogOpen} onOpenChange={setDialogOpen} />
+        <TiersDialog
+          associationId={associationId}
+          tiers={editing}
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+        />
       )}
     </div>
   );

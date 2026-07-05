@@ -6,7 +6,27 @@ export interface Tiers {
   id: string;
   type: TypeTiers;
   nom: string;
+  adresse: string | null;
+  code_postal: string | null;
+  ville: string | null;
   is_active: boolean;
+}
+
+export interface CreateTiersInput {
+  nom: string;
+  type: TypeTiers;
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+}
+
+export interface UpdateTiersInput {
+  nom?: string;
+  type?: TypeTiers;
+  adresse?: string | null;
+  code_postal?: string | null;
+  ville?: string | null;
+  is_active?: boolean;
 }
 
 /** Human labels for the third-party types. */

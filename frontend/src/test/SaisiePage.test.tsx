@@ -245,7 +245,8 @@ describe('SaisiePage', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Créer' }));
 
     await waitFor(() => expect(creerTiers).toHaveBeenCalledTimes(1));
-    expect(creerTiers).toHaveBeenCalledWith('A', { nom: 'Imprimeur', type: 'donateur' });
+    expect(creerTiers.mock.calls[0][0]).toBe('A');
+    expect(creerTiers.mock.calls[0][1]).toMatchObject({ nom: 'Imprimeur', type: 'donateur' });
   });
 
   it('attaches a selected event from the advanced panel', async () => {

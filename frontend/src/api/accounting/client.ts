@@ -43,7 +43,7 @@ import type {
   UpdateTresorerieInput,
 } from './referentiel';
 import type { Synthese, SyntheseParams } from './synthese';
-import type { Tiers, TypeTiers } from './tiers';
+import type { CreateTiersInput, Tiers, TypeTiers, UpdateTiersInput } from './tiers';
 import type { EtatTva } from './tva';
 
 const base = (associationId: string) => `/asso/${associationId}`;
@@ -90,8 +90,10 @@ export const accountingApi = {
     api.post<Ecriture>(`${base(associationId)}/ecritures/virement`, input),
   listTiers: (associationId: string, type?: TypeTiers) =>
     api.get<Tiers[]>(`${base(associationId)}/tiers${qs({ type })}`),
-  creerTiers: (associationId: string, input: { nom: string; type: TypeTiers }) =>
+  creerTiers: (associationId: string, input: CreateTiersInput) =>
     api.post<Tiers>(`${base(associationId)}/tiers`, input),
+  modifierTiers: (associationId: string, tiersId: string, input: UpdateTiersInput) =>
+    api.patch<Tiers>(`${base(associationId)}/tiers/${tiersId}`, input),
   getSynthese: (associationId: string, params: SyntheseParams = {}) =>
     api.get<Synthese>(`${base(associationId)}/synthese${qs({ ...params })}`),
   getEtatTva: (associationId: string, params: SyntheseParams = {}) =>

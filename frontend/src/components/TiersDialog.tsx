@@ -12,32 +12,56 @@ import { Select } from '@/components/ui/select';
 
 const TYPES = Object.keys(TYPE_TIERS_LABELS) as TypeTiers[];
 
-/** Quick-add a third party (a name + a type) without leaving the saisie screen. */
+/**
+ * Create or edit a third party (name + type, plus an optional postal address).
+ * The address is what a donor's tax receipt needs, so it is offered here even
+ * though most tiers don't require it.
+ */
 export function TiersDialog({
   associationId,
+  tiers,
   defaultType = 'fournisseur',
   open,
   onOpenChange,
   onSaved,
 }: {
   associationId: string;
+  tiers?: Tiers | null;
   defaultType?: TypeTiers;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: (tiers: Tiers) => void;
 }) {
+  const isEdit = !!tiers;
   const queryClient = useQueryClient();
   const [nom, setNom] = useState('');
   const [type, setType] = useState<TypeTiers>(defaultType);
+  const [adresse, setAdresse] = useState('');
+  const [codePostal, setCodePostal] = useState('');
+  const [ville, setVille] = useState('');
 
   useEffect(() => {
     if (!open) return;
-    setNom('');
-    setType(defaultType);
-  }, [open, defaultType]);
+    setNom(tiers?.nom ?? '');
+    setType(tiers?.type ?? defaultType);
+    setAdresse(tiers?.adresse ?? '');
+    setCodePostal(tiers?.code_postal ?? '');
+    setVille(tiers?.ville ?? '');
+  }, [open, tiers, defaultType]);
 
   const mutation = useMutation({
-    mutationFn: () => accountingApi.creerTiers(associationId, { nom: nom.trim(), type }),
+    mutationFn: () => {
+      const payload = {
+        nom: nom.trim(),
+        type,
+        adresse: adresse.trim() || null,
+        code_postal: codePostal.trim() || null,
+        ville: ville.trim() || null,
+      };
+      return isEdit
+        ? accountingApi.modifierTiers(associationId, tiers.id, payload)
+        : accountingApi.creerTiers(associationId, payload);
+    },
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['tiers', associationId] });
       onSaved?.(saved);
@@ -56,9 +80,10 @@ export function TiersDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogTitle>Nouveau tiers</DialogTitle>
+        <DialogTitle>{isEdit ? 'Modifier le tiers' : 'Nouveau tiers'}</DialogTitle>
         <DialogDescription>
-          Fournisseur, adhérent, donateur ou financeur lié à l’opération.
+          Fournisseur, adhérent, donateur ou financeur. L’adresse est requise sur un reçu fiscal de
+          don.
         </DialogDescription>
 
         <form onSubmit={onSubmit} className="mt-5 space-y-4" noValidate>
@@ -88,12 +113,42 @@ export function TiersDialog({
               ))}
             </Select>
           </div>
+          <div>
+            <Label htmlFor="tiers-adresse">Adresse</Label>
+            <Input
+              id="tiers-adresse"
+              className="mt-1.5"
+              placeholder="N° et rue"
+              value={adresse}
+              onChange={(e) => setAdresse(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label htmlFor="tiers-cp">Code postal</Label>
+              <Input
+                id="tiers-cp"
+                className="mt-1.5"
+                value={codePostal}
+                onChange={(e) => setCodePostal(e.target.value)}
+              />
+            </div>
+            <div className="col-span-2">
+              <Label htmlFor="tiers-ville">Ville</Label>
+              <Input
+                id="tiers-ville"
+                className="mt-1.5"
+                value={ville}
+                onChange={(e) => setVille(e.target.value)}
+              />
+            </div>
+          </div>
 
           {error && <Alert>{error}</Alert>}
 
           <div className="flex justify-end pt-1">
             <Button type="submit" variant="accent" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Enregistrement…' : 'Créer'}
+              {mutation.isPending ? 'Enregistrement…' : isEdit ? 'Enregistrer' : 'Créer'}
             </Button>
           </div>
         </form>

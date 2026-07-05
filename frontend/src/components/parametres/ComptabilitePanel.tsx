@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { associationApi } from '@/api/members';
 import { apiErrorMessage } from '@/api/client';
+import { IdentiteFiscaleForm } from '@/components/parametres/IdentiteFiscaleForm';
 import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 
@@ -19,7 +20,8 @@ export function ComptabilitePanel({ associationId }: { associationId: string }) 
   const regimeTva = contextQuery.data?.regime_tva ?? false;
 
   const mutation = useMutation({
-    mutationFn: (next: boolean) => associationApi.updateSettings(associationId, { regime_tva: next }),
+    mutationFn: (next: boolean) =>
+      associationApi.updateSettings(associationId, { regime_tva: next }),
     onSuccess: (ctx) => {
       queryClient.setQueryData(['association-context', associationId], ctx);
     },
@@ -34,8 +36,8 @@ export function ComptabilitePanel({ associationId }: { associationId: string }) 
           <div>
             <h3 className="text-sm font-semibold text-ink">Régime de TVA</h3>
             <p className="mt-1 text-sm text-muted">
-              Activez si l’association est assujettie à la TVA. La TVA apparaît alors à la
-              saisie (montants TTC) et un état de TVA devient disponible dans les rapports.
+              Activez si l’association est assujettie à la TVA. La TVA apparaît alors à la saisie
+              (montants TTC) et un état de TVA devient disponible dans les rapports.
             </p>
           </div>
           <label className="inline-flex shrink-0 items-center gap-2 text-sm">
@@ -55,6 +57,8 @@ export function ComptabilitePanel({ associationId }: { associationId: string }) 
           </div>
         )}
       </Card>
+
+      <IdentiteFiscaleForm associationId={associationId} />
     </div>
   );
 }

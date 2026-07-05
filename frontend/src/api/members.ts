@@ -109,9 +109,27 @@ export interface AssociationContext {
   permissions: string[];
 }
 
+/** Full association settings incl. fiscal identity (SETTINGS_MANAGE). */
+export interface AssociationSettings {
+  regime_tva: boolean;
+  adresse: string | null;
+  code_postal: string | null;
+  ville: string | null;
+  rna: string | null;
+  siret: string | null;
+  objet: string | null;
+}
+
+export type UpdateAssociationSettings = Partial<
+  Omit<AssociationSettings, 'regime_tva'> & { regime_tva: boolean }
+>;
+
 export const associationApi = {
   context: (associationId: string) => api.get<AssociationContext>(`${base(associationId)}`),
+  /** Full settings incl. fiscal identity (SETTINGS_MANAGE). */
+  settings: (associationId: string) =>
+    api.get<AssociationSettings>(`${base(associationId)}/parametres`),
   /** Update editable association settings (SETTINGS_MANAGE). */
-  updateSettings: (associationId: string, input: { regime_tva?: boolean }) =>
+  updateSettings: (associationId: string, input: UpdateAssociationSettings) =>
     api.patch<AssociationContext>(`${base(associationId)}`, input),
 };
