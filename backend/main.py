@@ -9,6 +9,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlmodel import Session
 
+import mcp_server
 from database import engine
 from log_retention import purge_old_logs
 from middleware import (
@@ -70,12 +71,14 @@ async def lifespan(app: FastAPI):
     # Daily job booking recurring entries that have fallen due (no cron in the
     # container). Runs a pass at startup, then every 24 h, over all associations.
     scheduler_task = asyncio.create_task(recurrences_daily_loop())
-    try:
-        yield
-    finally:
-        scheduler_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await scheduler_task
+    # The MCP session manager must run for the app's lifetime (Streamable HTTP).
+    async with mcp_server.get_session_manager().run():
+        try:
+            yield
+        finally:
+            scheduler_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await scheduler_task
 
 
 def _purge_logs_on_startup() -> None:
@@ -144,5 +147,14 @@ def health_check():
 mount_frontend(_fastapi_app, os.getenv("FRONTEND_DIST", "static"))
 
 
-# ASGI entrypoint served by uvicorn (``main:app``).
-app = _fastapi_app
+# Top-level ASGI app: intercept /mcp before FastAPI's middleware stack (the
+# browser-oriented CSP/CSRF middleware must not apply to the machine MCP
+# transport, and its streaming must not be buffered). Everything else — including
+# lifespan events — goes to the FastAPI app.
+async def app(scope, receive, send):
+    if scope["type"] == "http" and (
+        scope["path"] == "/mcp" or scope["path"].startswith("/mcp/")
+    ):
+        await mcp_server.handle_mcp(scope, receive, send)
+    else:
+        await _fastapi_app(scope, receive, send)

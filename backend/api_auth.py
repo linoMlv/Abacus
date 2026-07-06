@@ -25,12 +25,15 @@ API_KEY_HEADER = "X-API-Key"
 API_KEY_PREFIX = "abk_"
 
 
-def resolve_api_key(session: Session, raw_key: str | None) -> AccessContext | None:
+def resolve_api_key(
+    session: Session, raw_key: str | None, *, touch: bool = True
+) -> AccessContext | None:
     """Resolve an ``abk_…`` key into an :class:`AccessContext`, or ``None``.
 
     Returns ``None`` for anything that must not grant access: absent/garbage key,
     unknown or revoked key, a membership that is missing, suspended, or whose
-    user is inactive. On success the key's ``last_used_at`` is stamped.
+    user is inactive. On success the key's ``last_used_at`` is stamped unless
+    ``touch`` is ``False`` (used by cheap, read-only validity checks).
     """
     if not raw_key or not raw_key.startswith(API_KEY_PREFIX):
         return None
@@ -52,9 +55,10 @@ def resolve_api_key(session: Session, raw_key: str | None) -> AccessContext | No
     if user is None or not user.is_active:
         return None
 
-    key.last_used_at = utcnow()
-    session.add(key)
-    session.commit()
+    if touch:
+        key.last_used_at = utcnow()
+        session.add(key)
+        session.commit()
 
     return AccessContext(
         user=user,
