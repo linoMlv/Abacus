@@ -19,6 +19,13 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-dvh bg-canvas">
+      {/* Keyboard skip link: first focusable element, visible only on focus. */}
+      <a
+        href="#contenu"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+      >
+        Aller au contenu
+      </a>
       <div className="sticky top-0 hidden h-dvh self-start lg:block">
         <Sidebar />
       </div>
@@ -39,7 +46,7 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar onMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 px-6 py-7 lg:px-8">
+        <main id="contenu" className="flex-1 px-6 py-7 lg:px-8">
           <Outlet />
         </main>
       </div>
