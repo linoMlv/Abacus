@@ -19,6 +19,7 @@ from middleware import (
 from rate_limit import limiter
 from routers import (
     accounting,
+    apikeys,
     banque,
     budget,
     categories,
@@ -127,6 +128,7 @@ _fastapi_app.include_router(evenements.router)
 _fastapi_app.include_router(synthese.router)
 _fastapi_app.include_router(tva.router)
 _fastapi_app.include_router(permissions.router)
+_fastapi_app.include_router(apikeys.router)
 _fastapi_app.include_router(exports.router)
 _fastapi_app.include_router(justificatifs.router)
 _fastapi_app.include_router(logs.router)

@@ -45,6 +45,9 @@ class AuditAction:
     RECURRENCE_UPDATE = "recurrence.update"
     RECURRENCE_DELETE = "recurrence.delete"
     RECURRENCE_GENERATE = "recurrence.generate"
+    APIKEY_CREATE = "apikey.create"
+    APIKEY_REVOKE = "apikey.revoke"
+    MCP_TOOL_CALL = "mcp.tool_call"
 
 
 def record_audit(
