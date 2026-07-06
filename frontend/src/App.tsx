@@ -6,6 +6,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/RequireAuth';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
 import { BanquePage } from '@/pages/BanquePage';
+import { BudgetPage } from '@/pages/BudgetPage';
 import { CreateAssociationPage } from '@/pages/CreateAssociationPage';
 import { DonsPage } from '@/pages/DonsPage';
 import { JournalPage } from '@/pages/JournalPage';
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="journal" element={<JournalPage />} />
             <Route path="banque" element={<BanquePage />} />
             <Route path="recurrences" element={<RecurrencesPage />} />
+            <Route path="budget" element={<BudgetPage />} />
             <Route path="rapports" element={<RapportsPage />} />
             <Route path="dons" element={<DonsPage />} />
             <Route path="parametres" element={<ParametresPage />} />
@@ -58,6 +60,7 @@ export default function App() {
                   'journal',
                   'banque',
                   'recurrences',
+                  'budget',
                   'rapports',
                   'dons',
                   'parametres',
