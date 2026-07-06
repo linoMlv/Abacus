@@ -15,7 +15,7 @@ from sqlmodel import Session, desc, select
 from accounting_engine import ZERO, find_open_exercice
 from audit import AuditAction, record_audit
 from auth_context import owned_or_404
-from budget_engine import build_budget_view, realise_par_categorie
+from budget_engine import build_budget_view, load_prevu, realise_par_categorie
 from models import (
     Budget,
     BudgetRead,
@@ -74,20 +74,10 @@ def _budget_row(
     ).first()
 
 
-def _prevu_map(session: Session, budget_id: str) -> dict[str, Decimal]:
-    return {
-        ligne.categorie_id: ligne.montant_prevu
-        for ligne in session.exec(
-            select(LigneBudget).where(LigneBudget.budget_id == budget_id)
-        ).all()
-    }
-
-
 def build_read(session: Session, association_id: str, exercice: Exercice) -> BudgetRead:
     """Assemble the full budget of ``exercice``: every active category + totals."""
     categories = _active_categories(session, association_id)
-    budget = _budget_row(session, association_id, exercice.id)
-    prevu = _prevu_map(session, budget.id) if budget is not None else {}
+    prevu = load_prevu(session, association_id, exercice.id)
     realise = realise_par_categorie(session, association_id, exercice.id)
     view = build_budget_view(categories, prevu, realise)
     return BudgetRead(

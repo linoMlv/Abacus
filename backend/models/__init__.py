@@ -85,8 +85,10 @@ from .referentiel import (
     TypeTresorerie,
 )
 from .synthese import (
+    AlerteBudget,
     AlerteEvenement,
     AlerteExercice,
+    BudgetSynthese,
     CourbePoint,
     RepartitionCategorieItem,
     RepartitionEvenementItem,
@@ -98,6 +100,7 @@ from .tiers import Tiers, TiersRead, TypeTiers
 
 __all__ = [
     "AffectationResultat",
+    "AlerteBudget",
     "AlerteEvenement",
     "AlerteExercice",
     "Association",
@@ -106,6 +109,7 @@ __all__ = [
     "BalanceCompteRead",
     "Budget",
     "BudgetRead",
+    "BudgetSynthese",
     "BudgetUpsert",
     "CategorieSaisie",
     "CategorieSaisieRead",

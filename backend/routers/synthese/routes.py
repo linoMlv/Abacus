@@ -45,4 +45,5 @@ def get_synthese(
         ),
         courbe_tresorerie=service.courbe_tresorerie(session, aid, date_from, date_to),
         alertes=service.alertes(session, aid),
+        budget=service.budget_synthese(session, aid, date_from),
     )

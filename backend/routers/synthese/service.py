@@ -18,9 +18,18 @@ from accounting_engine import (
     scope_exercice,
     validated_only,
 )
+from budget_engine import (
+    BudgetLigneView,
+    build_budget_view,
+    load_prevu,
+    overruns,
+    realise_par_categorie,
+)
 from models import (
+    AlerteBudget,
     AlerteEvenement,
     AlerteExercice,
+    BudgetSynthese,
     CategorieSaisie,
     Compte,
     CourbePoint,
@@ -262,6 +271,72 @@ def courbe_tresorerie(
     return points
 
 
+def _active_categories(session: Session, association_id: str) -> list[CategorieSaisie]:
+    return session.exec(
+        select(CategorieSaisie).where(
+            CategorieSaisie.association_id == association_id,
+            CategorieSaisie.is_active.is_(True),
+        )
+    ).all()
+
+
+def _to_alerte_budget(ligne: BudgetLigneView) -> AlerteBudget:
+    return AlerteBudget(
+        categorie_id=ligne.categorie_id,
+        libelle=ligne.libelle,
+        montant_prevu=ligne.montant_prevu,
+        realise=ligne.realise,
+    )
+
+
+def _budget_view_for(session: Session, association_id: str, exercice_id: str):
+    """The budget view of an exercice, or ``None`` when no budget amount is set."""
+    prevu = load_prevu(session, association_id, exercice_id)
+    if not prevu:
+        return None
+    categories = _active_categories(session, association_id)
+    realise = realise_par_categorie(session, association_id, exercice_id)
+    return build_budget_view(categories, prevu, realise)
+
+
+def budget_synthese(
+    session: Session, association_id: str, date_from: date
+) -> BudgetSynthese | None:
+    """Widget: prévu vs réalisé of the budget for the exercice covering the period.
+
+    The budget is annual, so the réalisé spans the whole covering exercice (not the
+    selected sub-period). ``None`` when that exercice has no budget defined.
+    """
+    exercice = scope_exercice(session, association_id, date_from)
+    if exercice is None:
+        return None
+    view = _budget_view_for(session, association_id, exercice.id)
+    if view is None:
+        return None
+    return BudgetSynthese(
+        exercice_id=exercice.id,
+        exercice_libelle=exercice.libelle,
+        recettes_prevu=view.total_recettes_prevu,
+        recettes_realise=view.total_recettes_realise,
+        depenses_prevu=view.total_depenses_prevu,
+        depenses_realise=view.total_depenses_realise,
+        resultat_prevu=view.resultat_prevu,
+        resultat_realise=view.resultat_realise,
+        depassements=[_to_alerte_budget(ligne) for ligne in overruns(view)],
+    )
+
+
+def _budget_overruns_now(session: Session, association_id: str) -> list[AlerteBudget]:
+    """Overrun alerts for the current open exercice's budget (current state)."""
+    exercice = find_open_exercice(session, association_id, date.today())
+    if exercice is None:
+        return []
+    view = _budget_view_for(session, association_id, exercice.id)
+    if view is None:
+        return []
+    return [_to_alerte_budget(ligne) for ligne in overruns(view)]
+
+
 def alertes(session: Session, association_id: str) -> SyntheseAlertes:
     brouillons = session.exec(
         select(func.count())
@@ -333,4 +408,5 @@ def alertes(session: Session, association_id: str) -> SyntheseAlertes:
         brouillons=brouillons,
         evenements_depasses=evenements_depasses,
         exercices_a_cloturer=exercices_a_cloturer,
+        budgets_depasses=_budget_overruns_now(session, association_id),
     )

@@ -244,3 +244,47 @@ def test_synthese_is_tenant_scoped():
     assert data_b["resultat"]["recettes"] == "0.00"
     assert data_b["repartition_categories"] == []
     assert data_b["courbe_tresorerie"] == []
+
+
+# --- budget widget & overrun alert (Phase 5) -------------------------------
+
+
+def _put_budget(client: TestClient, assoc: str, prevu: dict[str, str]) -> None:
+    ex = client.get(f"/api/asso/{assoc}/exercices").json()[0]["id"]
+    lignes = [
+        {"categorie_id": _categorie_id(client, assoc, libelle), "montant_prevu": m}
+        for libelle, m in prevu.items()
+    ]
+    resp = client.put(
+        f"/api/asso/{assoc}/budget", json={"exercice_id": ex, "lignes": lignes}
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_budget_widget_and_overrun_alert():
+    client, assoc = _admin_with_association("bud@example.com", "alpha")
+    _put_budget(client, assoc, {"Cotisations": "5000.00", "Locations": "1000.00"})
+    _post_simple(client, assoc, "Cotisations", "3000.00", "2026-06-15")
+    _post_simple(client, assoc, "Locations", "1500.00", "2026-06-15")  # over budget
+
+    data = _synthese(client, assoc, date_from=FROM, date_to=TO)
+
+    budget = data["budget"]
+    assert budget is not None
+    assert budget["recettes_prevu"] == "5000.00"
+    assert budget["depenses_prevu"] == "1000.00"
+    assert budget["depenses_realise"] == "1500.00"
+    assert budget["resultat_prevu"] == "4000.00"
+    assert [d["libelle"] for d in budget["depassements"]] == ["Locations"]
+
+    over = data["alertes"]["budgets_depasses"]
+    assert [a["libelle"] for a in over] == ["Locations"]
+    assert over[0]["montant_prevu"] == "1000.00"
+    assert over[0]["realise"] == "1500.00"
+
+
+def test_no_budget_means_no_widget_and_no_overrun():
+    client, assoc = _admin_with_association("nob@example.com", "alpha")
+    data = _synthese(client, assoc, date_from=FROM, date_to=TO)
+    assert data["budget"] is None
+    assert data["alertes"]["budgets_depasses"] == []

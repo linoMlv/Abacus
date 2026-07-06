@@ -16,7 +16,15 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from accounting_engine import CENTS, ZERO, validated_only
-from models import CategorieSaisie, Compte, Ecriture, LigneEcriture, SensCategorie
+from models import (
+    Budget,
+    CategorieSaisie,
+    Compte,
+    Ecriture,
+    LigneBudget,
+    LigneEcriture,
+    SensCategorie,
+)
 
 # Income-statement classes: charges (6) and produits (7).
 _CHARGE, _PRODUIT = 6, 7
@@ -90,6 +98,26 @@ def realise_par_categorie(
         montant = credit - debit if sens == SensCategorie.RECETTE else debit - credit
         out[categorie_id] = montant.quantize(CENTS)
     return out
+
+
+def load_prevu(
+    session: Session, association_id: str, exercice_id: str
+) -> dict[str, Decimal]:
+    """The prévu amount per category for an exercice budget (empty if none)."""
+    budget = session.exec(
+        select(Budget).where(
+            Budget.association_id == association_id,
+            Budget.exercice_id == exercice_id,
+        )
+    ).first()
+    if budget is None:
+        return {}
+    return {
+        ligne.categorie_id: ligne.montant_prevu
+        for ligne in session.exec(
+            select(LigneBudget).where(LigneBudget.budget_id == budget.id)
+        ).all()
+    }
 
 
 def _sort_key(categorie: CategorieSaisie) -> tuple[int, int, str]:
