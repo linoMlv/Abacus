@@ -16,7 +16,12 @@ from sqlmodel import Session, SQLModel, desc, select
 
 from api_auth import API_KEY_PREFIX
 from audit import AuditAction, record_audit
-from auth_context import AccessContext, owned_or_404, require_permission
+from auth_context import (
+    AccessContext,
+    find_membership,
+    owned_or_404,
+    require_permission,
+)
 from authz import Permission
 from database import get_session
 from models import (
@@ -35,8 +40,8 @@ router = APIRouter(prefix="/api/asso/{association_id}", tags=["api-keys"])
 
 class CreateApiKeyRequest(SQLModel):
     name: str
-    # The member the key acts as; defaults to the calling admin's own membership.
-    membership_id: str | None = None
+    # The member the key acts as (by user id); defaults to the calling admin.
+    user_id: str | None = None
 
 
 def _generate_raw_key() -> str:
@@ -90,17 +95,16 @@ def create_api_key(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Le nom est obligatoire."
         )
 
-    if body.membership_id is None:
+    if body.user_id is None or body.user_id == ctx.user.id:
         membership = ctx.membership
     else:
-        # Re-scope the target membership to this tenant (no cross-tenant binding).
-        membership = owned_or_404(
-            session,
-            Membership,
-            body.membership_id,
-            ctx.association_id,
-            "Membre introuvable",
-        )
+        # Re-derive the target member's membership within THIS tenant only; a
+        # user id from another association simply has no membership here (404).
+        membership = find_membership(session, ctx.association_id, body.user_id)
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Membre introuvable"
+            )
     if membership.status != MembershipStatus.ACTIVE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

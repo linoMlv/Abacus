@@ -114,13 +114,10 @@ def test_non_admin_cannot_manage_keys(session: Session):
 def test_key_bound_to_chosen_member_inherits_that_role(session: Session):
     client, assoc = _admin_with_association("admin3@a.com", "Gamma")
     viewer_id = _add_member(session, assoc, "viewer@a.com", Role.VIEWER)
-    membership = session.exec(
-        Membership.__table__.select().where(Membership.user_id == viewer_id)
-    ).first()
 
     resp = client.post(
         f"/api/asso/{assoc}/api-keys",
-        json={"name": "read-only", "membership_id": membership.id},
+        json={"name": "read-only", "user_id": viewer_id},
     )
     assert resp.status_code == 201, resp.text
     raw = resp.json()["key"]
@@ -134,17 +131,15 @@ def test_key_bound_to_chosen_member_inherits_that_role(session: Session):
     assert Permission.ENTRY_CREATE_SIMPLE not in ctx.permissions
 
 
-def test_cannot_bind_key_to_foreign_membership(session: Session):
+def test_cannot_bind_key_to_foreign_member(session: Session):
     client_a, assoc_a = _admin_with_association("a@x.com", "AX")
     _, assoc_b = _admin_with_association("b@x.com", "BX")
     foreign = _add_member(session, assoc_b, "m@bx.com", Role.TREASURER)
-    membership_b = session.exec(
-        Membership.__table__.select().where(Membership.user_id == foreign)
-    ).first()
 
+    # A user id that has no membership in tenant A resolves to 404 (no binding).
     resp = client_a.post(
         f"/api/asso/{assoc_a}/api-keys",
-        json={"name": "x", "membership_id": membership_b.id},
+        json={"name": "x", "user_id": foreign},
     )
     assert resp.status_code == 404
 
@@ -168,17 +163,17 @@ def test_resolver_rejects_revoked_key(session: Session):
 def test_resolver_rejects_key_of_suspended_member(session: Session):
     client, assoc = _admin_with_association("admin5@a.com", "Eps")
     viewer_id = _add_member(session, assoc, "v2@a.com", Role.VIEWER)
-    membership = session.exec(
-        Membership.__table__.select().where(Membership.user_id == viewer_id)
-    ).first()
     created = client.post(
         f"/api/asso/{assoc}/api-keys",
-        json={"name": "k", "membership_id": membership.id},
+        json={"name": "k", "user_id": viewer_id},
     ).json()
 
     assert resolve_api_key(session, created["key"]) is not None
 
-    m = session.get(Membership, membership.id)
+    m = session.exec(
+        Membership.__table__.select().where(Membership.user_id == viewer_id)
+    ).first()
+    m = session.get(Membership, m.id)
     m.status = MembershipStatus.SUSPENDED
     session.add(m)
     session.commit()
