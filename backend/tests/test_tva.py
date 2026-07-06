@@ -213,7 +213,9 @@ def test_etat_tva_requires_report_view(session: Session):
         "/api/auth/register",
         json={"email": "v@example.com", "password": PASSWORD, "name": "V"},
     )
-    viewer.post("/api/auth/login", json={"email": "v@example.com", "password": PASSWORD})
+    viewer.post(
+        "/api/auth/login", json={"email": "v@example.com", "password": PASSWORD}
+    )
     session.add(
         Membership(
             user_id=reg.json()["id"],

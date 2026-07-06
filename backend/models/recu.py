@@ -52,9 +52,7 @@ class RecuFiscalLigne(SQLModel, table=True):
     can appear on at most one receipt (no double tax deduction)."""
 
     __tablename__ = "recu_fiscal_ligne"
-    __table_args__ = (
-        UniqueConstraint("ecriture_id", name="uq_recu_ligne_ecriture"),
-    )
+    __table_args__ = (UniqueConstraint("ecriture_id", name="uq_recu_ligne_ecriture"),)
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     recu_fiscal_id: str = Field(foreign_key="recu_fiscal.id", index=True)
