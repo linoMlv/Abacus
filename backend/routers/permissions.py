@@ -82,7 +82,7 @@ def _reject_unknown_permissions(values: list[str]) -> None:
     unknown = [v for v in values if v not in _PERMISSION_VALUES]
     if unknown:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Permissions inconnues : {', '.join(sorted(set(unknown)))}",
         )
 

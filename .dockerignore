@@ -13,5 +13,4 @@ backend/.ruff_cache/
 .git/
 .github/
 backend/tests/
-backend/requirements-migration.txt
 ROADMAP.local.md
