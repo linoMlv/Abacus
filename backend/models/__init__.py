@@ -5,6 +5,7 @@ Historically a single ``models.py`` module. Kept importable exactly as before
 change when the file was split.
 """
 
+from .apikey import ApiKey, ApiKeyCreated, ApiKeyRead
 from .association import (
     Association,
     AuditLog,
@@ -103,6 +104,9 @@ __all__ = [
     "AlerteBudget",
     "AlerteEvenement",
     "AlerteExercice",
+    "ApiKey",
+    "ApiKeyCreated",
+    "ApiKeyRead",
     "Association",
     "AuditLog",
     "AuditLogRead",
