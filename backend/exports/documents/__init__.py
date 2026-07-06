@@ -7,6 +7,7 @@ unchanged.
 """
 
 from .annexe import annexe_pdf
+from .budget import budget_pdf, budget_xlsx
 from .evenement import evenement_bilan_pdf
 from .journal import (
     grand_livre_pdf,
@@ -21,6 +22,8 @@ from .resultat_bilan import bilan_pdf, compte_resultat_pdf
 __all__ = [
     "annexe_pdf",
     "bilan_pdf",
+    "budget_pdf",
+    "budget_xlsx",
     "compte_resultat_pdf",
     "evenement_bilan_pdf",
     "grand_livre_pdf",

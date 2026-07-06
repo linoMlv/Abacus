@@ -8,6 +8,7 @@ primitives. Every dataclass and gatherer is re-exported so
 
 from .annexe import AnnexeData, AnnexeSection, annexe_data
 from .bilan import BilanData, bilan_data
+from .budget import BudgetData, BudgetLigneExport, budget_data
 from .common import LigneCompte, Mouvement, resolve_period
 from .evenement import EvenementBilanData, EvenementOperation, evenement_bilan_data
 from .journal import (
@@ -25,6 +26,8 @@ __all__ = [
     "AnnexeData",
     "AnnexeSection",
     "BilanData",
+    "BudgetData",
+    "BudgetLigneExport",
     "CompteLedger",
     "CompteResultatData",
     "EvenementBilanData",
@@ -37,6 +40,7 @@ __all__ = [
     "ReleveData",
     "annexe_data",
     "bilan_data",
+    "budget_data",
     "compte_resultat_data",
     "evenement_bilan_data",
     "grand_livre_data",

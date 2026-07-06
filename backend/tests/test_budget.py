@@ -234,3 +234,12 @@ def test_budget_is_tenant_scoped():
     admin_b, _ = _admin_with_association("b@example.com", "beta")
     # A member of B is a stranger to A: no existence leak.
     assert admin_b.get(f"/api/asso/{assoc_a}/budget").status_code == 404
+
+
+def test_budget_export_requires_budget_manage(session: Session):
+    admin, assoc = _admin_with_association("a@example.com", "alpha")
+    viewer = _member_client(session, assoc, "v@example.com", Role.VIEWER)
+    assert viewer.get(f"/api/asso/{assoc}/exports/budget.pdf").status_code == 403
+    assert viewer.get(f"/api/asso/{assoc}/exports/budget.xlsx").status_code == 403
+    # The admin can export.
+    assert admin.get(f"/api/asso/{assoc}/exports/budget.pdf").status_code == 200

@@ -21,6 +21,7 @@ from exports import documents
 from exports.data import (
     annexe_data,
     bilan_data,
+    budget_data,
     compte_resultat_data,
     evenement_bilan_data,
     grand_livre_data,
@@ -31,6 +32,7 @@ from exports.data import (
 from exports.fec import FEC_MEDIA_TYPE, build_fec
 from exports.xlsx import XLSX_MEDIA_TYPE
 from models import Association, Compte, EcritureStatut, Evenement, Exercice
+from routers.budget.service import resolve_exercice as resolve_budget_exercice
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["exports"])
 
@@ -230,6 +232,33 @@ def export_evenement_bilan_pdf(
         _association_name(session, ctx.association_id), data
     )
     return _file_response(pdf, f"bilan-evenement-{evenement.nom}.pdf", PDF_MEDIA_TYPE)
+
+
+@router.get("/exports/budget.pdf")
+def export_budget_pdf(
+    exercice_id: str | None = None,
+    ctx: AccessContext = Depends(require_permission(Permission.BUDGET_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    """Budget (prévu/réalisé) of an exercice as PDF, gated by BUDGET_MANAGE."""
+    exercice = resolve_budget_exercice(session, ctx.association_id, exercice_id)
+    data = budget_data(session, ctx.association_id, exercice)
+    pdf = documents.budget_pdf(_association_name(session, ctx.association_id), data)
+    return _file_response(pdf, f"budget-{exercice.libelle}.pdf", PDF_MEDIA_TYPE)
+
+
+@router.get("/exports/budget.xlsx")
+def export_budget_xlsx(
+    exercice_id: str | None = None,
+    ctx: AccessContext = Depends(require_permission(Permission.BUDGET_MANAGE)),
+    session: Session = Depends(get_session),
+):
+    """Budget (prévu/réalisé) of an exercice as Excel, gated by BUDGET_MANAGE."""
+    exercice = resolve_budget_exercice(session, ctx.association_id, exercice_id)
+    data = budget_data(session, ctx.association_id, exercice)
+    return _file_response(
+        documents.budget_xlsx(data), f"budget-{exercice.libelle}.xlsx", XLSX_MEDIA_TYPE
+    )
 
 
 def _resolve_exercice(session: Session, association_id: str, exercice_id: str | None):

@@ -172,6 +172,43 @@ def _load(resp) -> object:
     return load_workbook(BytesIO(resp.content))
 
 
+def _put_budget(client: TestClient, assoc: str, prevu: dict[str, str]) -> None:
+    ex = client.get(f"/api/asso/{assoc}/exercices").json()[0]["id"]
+    lignes = [
+        {"categorie_id": _categorie_id(client, assoc, libelle), "montant_prevu": m}
+        for libelle, m in prevu.items()
+    ]
+    assert (
+        client.put(
+            f"/api/asso/{assoc}/budget", json={"exercice_id": ex, "lignes": lignes}
+        ).status_code
+        == 200
+    )
+
+
+def test_budget_pdf():
+    client, assoc = _books()
+    _put_budget(client, assoc, {"Cotisations": "500.00", "Locations": "100.00"})
+    _assert_pdf(client.get(f"/api/asso/{assoc}/exports/budget.pdf"))
+
+
+def test_budget_xlsx_has_headers_and_amounts():
+    client, assoc = _books()
+    _put_budget(client, assoc, {"Cotisations": "500.00"})
+    wb = _load(client.get(f"/api/asso/{assoc}/exports/budget.xlsx"))
+    ws = wb["Budget"]
+    assert [ws.cell(row=1, column=c).value for c in range(1, 6)] == [
+        "Poste",
+        "Catégorie",
+        "Prévu",
+        "Réalisé",
+        "Écart",
+    ]
+    amounts = {cell.value for row in ws.iter_rows(min_row=2) for cell in row}
+    assert 500.0 in amounts  # the Cotisations prévu
+    assert 150.0 in amounts  # the Cotisations réalisé (validated)
+
+
 def test_journal_xlsx_has_headers_and_amounts():
     client, assoc = _books()
     wb = _load(
