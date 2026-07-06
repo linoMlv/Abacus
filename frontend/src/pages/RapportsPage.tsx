@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 
 import { accountingApi, EXERCICE_STATUT_LABELS, TYPE_TRESORERIE_LABELS } from '@/api/accounting';
+import { budgetApi } from '@/api/budget';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -55,6 +56,7 @@ export function RapportsPage() {
   const { has } = usePermissions();
   const regimeTva = useRegimeTva();
   const canExportFec = has(PERMISSIONS.REPORT_EXPORT_FEC);
+  const canBudget = has(PERMISSIONS.BUDGET_MANAGE);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const period = { date_from: dateFrom || undefined, date_to: dateTo || undefined };
@@ -239,6 +241,26 @@ export function RapportsPage() {
             </div>
           )}
         </Section>
+
+        {canBudget && (
+          <Section
+            title="Budget"
+            description="Le prévu vs réalisé par catégorie (exercice ouvert)."
+          >
+            <div className="space-y-2">
+              <DownloadRow
+                icon={PDF}
+                label="Budget (PDF)"
+                url={budgetApi.budgetPdfUrl(associationId)}
+              />
+              <DownloadRow
+                icon={XLSX}
+                label="Budget (Excel)"
+                url={budgetApi.budgetXlsxUrl(associationId)}
+              />
+            </div>
+          </Section>
+        )}
 
         {canExportFec && (
           <Section

@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { accountingApi, type CompteTresorerie } from '@/api/accounting';
 import { EvenementCard } from '@/components/evenements/EvenementCard';
 import { AlertesPanel } from '@/components/synthese/AlertesPanel';
+import { BudgetWidget } from '@/components/synthese/BudgetWidget';
 import { ChartsSkeleton } from '@/components/synthese/ChartsSkeleton';
 import { type Preset, presetParams } from '@/components/synthese/period';
 import { PeriodControl } from '@/components/synthese/PeriodControl';
@@ -133,6 +134,8 @@ export function SynthesePage() {
       </div>
 
       {synthese && <AlertesPanel synthese={synthese} associationId={associationId} />}
+
+      {synthese?.budget && <BudgetWidget budget={synthese.budget} associationId={associationId} />}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">

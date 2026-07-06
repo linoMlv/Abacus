@@ -35,7 +35,13 @@ const EMPTY_SYNTHESE = {
   repartition_categories: [],
   repartition_evenements: [],
   courbe_tresorerie: [],
-  alertes: { brouillons: 0, evenements_depasses: [], exercices_a_cloturer: [] },
+  alertes: {
+    brouillons: 0,
+    evenements_depasses: [],
+    exercices_a_cloturer: [],
+    budgets_depasses: [],
+  },
+  budget: null,
 };
 
 vi.mock('@/hooks/usePermissions', () => ({
@@ -158,18 +164,54 @@ describe('SynthesePage', () => {
           },
         ],
         exercices_a_cloturer: [{ exercice_id: 'ex1', libelle: '2025', date_fin: '2025-12-31' }],
+        budgets_depasses: [
+          { categorie_id: 'c1', libelle: 'Locations', montant_prevu: '100.00', realise: '150.00' },
+        ],
       },
     });
     renderPage();
     expect(await screen.findByText(/3 écritures en brouillon à valider/)).toBeInTheDocument();
     expect(await screen.findByText(/« Gala » dépasse son budget/)).toBeInTheDocument();
     expect(await screen.findByText(/Exercice « 2025 » échu/)).toBeInTheDocument();
+    expect(await screen.findByText(/« Locations » dépasse son budget/)).toBeInTheDocument();
+  });
+
+  it('shows the budget widget when a budget is set', async () => {
+    getSynthese.mockResolvedValue({
+      ...EMPTY_SYNTHESE,
+      budget: {
+        exercice_id: 'ex1',
+        exercice_libelle: '2026',
+        recettes_prevu: '5000.00',
+        recettes_realise: '3000.00',
+        depenses_prevu: '1000.00',
+        depenses_realise: '1500.00',
+        resultat_prevu: '4000.00',
+        resultat_realise: '1500.00',
+        depassements: [
+          {
+            categorie_id: 'c1',
+            libelle: 'Locations',
+            montant_prevu: '1000.00',
+            realise: '1500.00',
+          },
+        ],
+      },
+    });
+    renderPage();
+    expect(await screen.findByText('Budget 2026')).toBeInTheDocument();
+    expect(await screen.findByText(/1 poste en dépassement/)).toBeInTheDocument();
   });
 
   it('dismisses an alert so it no longer shows', async () => {
     getSynthese.mockResolvedValue({
       ...EMPTY_SYNTHESE,
-      alertes: { brouillons: 3, evenements_depasses: [], exercices_a_cloturer: [] },
+      alertes: {
+        brouillons: 3,
+        evenements_depasses: [],
+        exercices_a_cloturer: [],
+        budgets_depasses: [],
+      },
     });
     renderPage();
     expect(await screen.findByText(/3 écritures en brouillon à valider/)).toBeInTheDocument();

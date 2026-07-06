@@ -41,10 +41,31 @@ export interface AlerteExercice {
   date_fin: string;
 }
 
+export interface AlerteBudget {
+  categorie_id: string;
+  libelle: string;
+  montant_prevu: string;
+  realise: string;
+}
+
 export interface SyntheseAlertes {
   brouillons: number;
   evenements_depasses: AlerteEvenement[];
   exercices_a_cloturer: AlerteExercice[];
+  budgets_depasses: AlerteBudget[];
+}
+
+/** Dashboard budget widget: prévu vs réalisé of the period's exercice budget. */
+export interface BudgetSynthese {
+  exercice_id: string;
+  exercice_libelle: string;
+  recettes_prevu: string;
+  recettes_realise: string;
+  depenses_prevu: string;
+  depenses_realise: string;
+  resultat_prevu: string;
+  resultat_realise: string;
+  depassements: AlerteBudget[];
 }
 
 export interface Synthese {
@@ -55,6 +76,7 @@ export interface Synthese {
   repartition_evenements: RepartitionEvenement[];
   courbe_tresorerie: CourbePoint[];
   alertes: SyntheseAlertes;
+  budget: BudgetSynthese | null;
 }
 
 /** Period for the synthesis; omit both to let the server use the open exercice. */

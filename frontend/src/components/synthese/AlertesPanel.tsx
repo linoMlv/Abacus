@@ -85,7 +85,8 @@ export function AlertesPanel({
 }) {
   const navigate = useNavigate();
   const { isDismissed, dismiss } = useDismissedAlerts(associationId);
-  const { brouillons, evenements_depasses, exercices_a_cloturer } = synthese.alertes;
+  const { brouillons, evenements_depasses, exercices_a_cloturer, budgets_depasses } =
+    synthese.alertes;
 
   const alertes: AlerteItem[] = [];
   if (brouillons > 0) {
@@ -114,6 +115,16 @@ export function AlertesPanel({
       text: `« ${ev.nom} » dépasse son budget (${formatEUR(ev.realise_depenses)} / ${formatEUR(ev.budget_depenses)})`,
       action: 'Voir les événements',
       onClick: () => navigate(`/asso/${associationId}/saisie?tab=evenements`),
+    });
+  }
+  for (const b of budgets_depasses) {
+    alertes.push({
+      signature: `budget:${b.categorie_id}:${b.realise}`,
+      icon: <AlertTriangle className="h-4 w-4" aria-hidden />,
+      tone: 'depense',
+      text: `« ${b.libelle} » dépasse son budget (${formatEUR(b.realise)} / ${formatEUR(b.montant_prevu)})`,
+      action: 'Voir le budget',
+      onClick: () => navigate(`/asso/${associationId}/budget`),
     });
   }
 
