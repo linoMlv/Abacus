@@ -12,6 +12,7 @@ load_dotenv()
 # Ensure all models are imported so their tables are registered on SQLModel.metadata
 from models import (  # noqa: F401
     Association,
+    Budget,
     Compte,
     Evenement,
     Exercice,
@@ -20,6 +21,7 @@ from models import (  # noqa: F401
     Journal,
     Justificatif,
     LigneBancaire,
+    LigneBudget,
     LogEntry,
     Membership,
     RecuFiscal,

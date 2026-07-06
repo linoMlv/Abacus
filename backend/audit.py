@@ -36,6 +36,7 @@ class AuditAction:
     EVENEMENT_UPDATE = "evenement.update"
     EXERCICE_CREATE = "exercice.create"
     EXERCICE_CLOTURE = "exercice.cloture"
+    BUDGET_UPDATE = "budget.update"
     RELEVE_IMPORT = "releve.import"
     RELEVE_DELETE = "releve.delete"
     LIGNE_BANCAIRE_RAPPROCHE = "ligne_bancaire.rapproche"

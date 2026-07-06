@@ -21,6 +21,14 @@ from .banque import (
     LigneBancaireStatut,
     RapprochementSuggestion,
 )
+from .budget import (
+    Budget,
+    BudgetRead,
+    BudgetUpsert,
+    LigneBudget,
+    LigneBudgetInput,
+    LigneBudgetRead,
+)
 from .categorie import CategorieSaisie, CategorieSaisieRead, SensCategorie
 from .common import utcnow
 from .ecriture import (
@@ -96,6 +104,9 @@ __all__ = [
     "AuditLog",
     "AuditLogRead",
     "BalanceCompteRead",
+    "Budget",
+    "BudgetRead",
+    "BudgetUpsert",
     "CategorieSaisie",
     "CategorieSaisieRead",
     "ClotureResult",
@@ -129,6 +140,9 @@ __all__ = [
     "LigneBancaire",
     "LigneBancaireRead",
     "LigneBancaireStatut",
+    "LigneBudget",
+    "LigneBudgetInput",
+    "LigneBudgetRead",
     "LigneEcriture",
     "LigneEcritureRead",
     "LogEntry",
