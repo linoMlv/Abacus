@@ -43,6 +43,7 @@ class Permission(str, Enum):
     # Clôture & exports légaux
     EXERCISE_CLOSE = "exercise:close"
     REPORT_EXPORT_FEC = "report:export_fec"
+    ANNEXE_MANAGE = "annexe:manage"  # annexe narrative (rubriques ANC : CRUD)
 
     # Périphérie métier
     TRESORERIE_MANAGE = "tresorerie:manage"  # comptes de trésorerie (création/édition)
@@ -86,6 +87,7 @@ _TREASURER: frozenset[Permission] = _VIEWER | {
     Permission.TIERS_MANAGE,
     Permission.DONATION_MANAGE,
     Permission.BUDGET_MANAGE,
+    Permission.ANNEXE_MANAGE,
 }
 
 # Full accounting authority: expert-comptable.
@@ -182,6 +184,7 @@ PERMISSION_CATALOG: tuple[PermissionInfo, ...] = (
     # Clôture & exports légaux
     PermissionInfo(Permission.EXERCISE_CLOSE, "Clôture", "Clôturer un exercice"),
     PermissionInfo(Permission.REPORT_EXPORT_FEC, "Clôture", "Exporter le FEC"),
+    PermissionInfo(Permission.ANNEXE_MANAGE, "Clôture", "Rédiger l'annexe"),
     # Périphérie métier
     PermissionInfo(
         Permission.TRESORERIE_MANAGE, "Gestion", "Gérer les comptes de trésorerie"

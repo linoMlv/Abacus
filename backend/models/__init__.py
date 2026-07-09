@@ -5,6 +5,7 @@ Historically a single ``models.py`` module. Kept importable exactly as before
 change when the file was split.
 """
 
+from .annexe import DEFAULT_ANNEXE_RUBRIQUES, AnnexeRubrique, AnnexeRubriqueRead
 from .apikey import ApiKey, ApiKeyCreated, ApiKeyRead
 from .association import (
     Association,
@@ -104,6 +105,8 @@ __all__ = [
     "AlerteBudget",
     "AlerteEvenement",
     "AlerteExercice",
+    "AnnexeRubrique",
+    "AnnexeRubriqueRead",
     "ApiKey",
     "ApiKeyCreated",
     "ApiKeyRead",
@@ -123,6 +126,7 @@ __all__ = [
     "CompteTresorerieRead",
     "CompteType",
     "CourbePoint",
+    "DEFAULT_ANNEXE_RUBRIQUES",
     "Ecriture",
     "EcritureDetailRead",
     "EcritureListItem",

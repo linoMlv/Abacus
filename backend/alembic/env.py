@@ -11,6 +11,7 @@ load_dotenv()
 
 # Ensure all models are imported so their tables are registered on SQLModel.metadata
 from models import (  # noqa: F401
+    AnnexeRubrique,
     ApiKey,
     Association,
     Budget,
