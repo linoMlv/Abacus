@@ -34,11 +34,39 @@ ACCESS_COOKIE = "access_token"
 REFRESH_COOKIE = "refresh_token"
 COOKIE_PATH = "/api"
 INVITATION_EXPIRE_DAYS = int(os.getenv("INVITATION_EXPIRE_DAYS", "7"))
+# Per-account brute-force lockout: after this many consecutive failed logins the
+# account is locked for this many minutes (complements the per-IP rate limit).
+LOGIN_MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
+LOGIN_LOCKOUT_MINUTES = int(os.getenv("LOGIN_LOCKOUT_MINUTES", "15"))
 
 
 def _utcnow() -> datetime:
     """Naive UTC, matching how datetimes are stored in the DB."""
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _is_locked(user: User, now: datetime) -> bool:
+    """True while the account is under a brute-force lockout."""
+    return user.locked_until is not None and user.locked_until > now
+
+
+def _register_failed_login(session: Session, user: User) -> None:
+    """Count a failed login; lock the account once the threshold is crossed."""
+    user.failed_login_count += 1
+    if user.failed_login_count >= LOGIN_MAX_ATTEMPTS:
+        user.locked_until = _utcnow() + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+        user.failed_login_count = 0
+    session.add(user)
+    session.commit()
+
+
+def _reset_login_attempts(session: Session, user: User) -> None:
+    """Clear any failed-login state after a successful login."""
+    if user.failed_login_count or user.locked_until is not None:
+        user.failed_login_count = 0
+        user.locked_until = None
+        session.add(user)
+        session.commit()
 
 
 def _normalize_email(email: str) -> str:

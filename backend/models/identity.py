@@ -36,6 +36,10 @@ class User(SQLModel, table=True):
     name: str
     is_active: bool = Field(default=True)
     created_at: datetime = Field(default_factory=utcnow)
+    # Brute-force lockout: consecutive failed logins and, once the threshold is
+    # crossed, the (naive UTC) instant until which login is refused (429).
+    failed_login_count: int = Field(default=0)
+    locked_until: datetime | None = Field(default=None)
 
 
 class Membership(SQLModel, table=True):

@@ -16,6 +16,7 @@ from authz import Permission
 from database import get_session
 from email_service import send_invitation_email
 from models import Association, Invitation, Membership, User
+from rate_limit import AUTH_RATE_LIMIT, limiter
 from security import get_password_hash, hash_token
 
 from .helpers import (
@@ -151,6 +152,7 @@ def preview_invitation(token: str, session: Session = Depends(get_session)):
 
 
 @router.post("/api/auth/invitations/accept", response_model=SessionResponse)
+@limiter.limit(AUTH_RATE_LIMIT)
 def accept_invitation(
     request: Request,
     response: Response,

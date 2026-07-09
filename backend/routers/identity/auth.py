@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from auth_context import get_current_user
 from database import get_session
 from models import User
-from rate_limit import AUTH_RATE_LIMIT, limiter
+from rate_limit import AUTH_RATE_LIMIT, REFRESH_RATE_LIMIT, limiter
 from security import (
     get_password_hash,
     password_needs_rehash,
@@ -18,8 +18,11 @@ from .helpers import (
     COOKIE_PATH,
     REFRESH_COOKIE,
     _check_password_strength,
+    _is_locked,
     _issue_user_session,
     _normalize_email,
+    _register_failed_login,
+    _reset_login_attempts,
     _revoke_user_sessions,
     _session_response,
     _user_session_by_token,
@@ -37,9 +40,14 @@ router = APIRouter(tags=["identity"])
 
 
 @router.post("/api/auth/register", response_model=UserRead, status_code=201)
-def register(request: RegisterRequest, session: Session = Depends(get_session)):
-    _check_password_strength(request.password)
-    email = _normalize_email(request.email)
+@limiter.limit(AUTH_RATE_LIMIT)
+def register(
+    request: Request,
+    body: RegisterRequest,
+    session: Session = Depends(get_session),
+):
+    _check_password_strength(body.password)
+    email = _normalize_email(body.email)
     existing = session.exec(select(User).where(User.email == email)).first()
     if existing:
         # Generic message: do not confirm which emails are registered.
@@ -47,8 +55,8 @@ def register(request: RegisterRequest, session: Session = Depends(get_session)):
 
     user = User(
         email=email,
-        password=get_password_hash(request.password),
-        name=request.name,
+        password=get_password_hash(body.password),
+        name=body.name,
     )
     session.add(user)
     session.commit()
@@ -66,10 +74,23 @@ def login(
 ):
     email = _normalize_email(credentials.email)
     user = session.exec(select(User).where(User.email == email)).first()
+
+    # Per-account lockout: while locked, refuse even a correct password (429).
+    if user is not None and _is_locked(user, _utcnow()):
+        raise HTTPException(
+            status_code=429,
+            detail="Trop de tentatives. Réessayez dans quelques minutes.",
+        )
+
     if not user or not verify_password(credentials.password, user.password):
+        if user is not None:
+            _register_failed_login(session, user)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Successful login clears any accumulated failed-attempt state.
+    _reset_login_attempts(session, user)
 
     # Transparently upgrade a legacy/outdated hash now that we have the plaintext.
     if password_needs_rehash(user.password):
@@ -82,6 +103,7 @@ def login(
 
 
 @router.post("/api/auth/refresh", response_model=SessionResponse)
+@limiter.limit(REFRESH_RATE_LIMIT)
 def refresh(
     request: Request, response: Response, session: Session = Depends(get_session)
 ):

@@ -25,3 +25,23 @@ def test_auth_endpoints_are_rate_limited(client: TestClient):
     assert 429 in codes
     # At most the per-minute allowance reaches the handler before throttling.
     assert len([c for c in codes if c != 429]) <= 5
+
+
+def test_register_is_rate_limited(client: TestClient):
+    limiter.enabled = True
+    try:
+        codes = [
+            client.post(
+                "/api/auth/register",
+                json={
+                    "email": f"u{i}@example.com",
+                    "password": "password123",
+                    "name": "U",
+                },
+            ).status_code
+            for i in range(7)
+        ]
+    finally:
+        limiter.enabled = False
+
+    assert 429 in codes
