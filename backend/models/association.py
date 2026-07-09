@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 
+from sqlalchemy import CheckConstraint
 from sqlmodel import Field, SQLModel
 
 from .common import utcnow
@@ -9,8 +10,11 @@ from .common import utcnow
 class Association(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     name: str = Field(unique=True)
-    email: str = Field(unique=True)
-    password: str
+    # Contact e-mail only (no longer a login identity since the V2 removal), so it
+    # is not globally unique: two associations may legitimately share a contact.
+    email: str = Field(index=True)
+    # Vestige of V2 association-login (removed): V3 associations have no password.
+    password: str | None = Field(default=None)
     # Whether the association is subject to VAT (§4). Off by default: most
     # associations are exempt, and while off every VAT field/column/account is
     # hidden and the engine never books a 4456x line.
@@ -28,6 +32,14 @@ class Association(SQLModel, table=True):
 
 class RefreshSession(SQLModel, table=True):
     __tablename__ = "refresh_session"
+    # Owner XOR: exactly one of user_id / association_id is set (B12). Enforced in
+    # the DB so a malformed session (no owner, or two owners) can never persist.
+    __table_args__ = (
+        CheckConstraint(
+            "(user_id IS NULL) <> (association_id IS NULL)",
+            name="ck_refresh_session_one_owner",
+        ),
+    )
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     # Exactly one of association_id (legacy) / user_id (V3) identifies the owner.

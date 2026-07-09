@@ -2,8 +2,6 @@
 ``/api/asso/{id}``).
 """
 
-import secrets
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
@@ -17,7 +15,6 @@ from auth_context import (
 from authz import Permission
 from database import get_session
 from models import Association, Membership, Role, User
-from security import get_password_hash
 
 from .helpers import _associations_for, _normalize_email
 from .schemas import (
@@ -51,16 +48,13 @@ def create_association(
     ).first():
         raise HTTPException(status_code=400, detail="Association name already taken")
 
-    email = _normalize_email(request.email)
-    if session.exec(select(Association).where(Association.email == email)).first():
-        raise HTTPException(status_code=400, detail="Email already in use")
-
+    # The e-mail is contact info only (not a login identity), so it is not unique:
+    # two associations may share a contact address.
     association = Association(
         name=request.name,
-        email=email,
-        # V3 associations have no login of their own; store an unusable secret
-        # so the legacy association-login path can never authenticate them.
-        password=get_password_hash(secrets.token_urlsafe(32)),
+        email=_normalize_email(request.email),
+        # V3 associations have no login of their own — no password.
+        password=None,
     )
     session.add(association)
     session.commit()

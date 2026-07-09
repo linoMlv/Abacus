@@ -108,16 +108,25 @@ def test_logout_all_revokes_every_session():
 
 def test_refresh_session_without_user_is_rejected(session: Session):
     """A refresh session not bound to a user (``user_id`` NULL) — e.g. a legacy
-    association session — must never be accepted by the user refresh endpoint."""
+    association session — must never be accepted by the user refresh endpoint.
+
+    Such a session carries an ``association_id`` instead (the owner-XOR invariant
+    requires exactly one owner), which is exactly the legacy shape being refused.
+    """
     from datetime import UTC, datetime, timedelta
 
-    from models import RefreshSession
+    from models import Association, RefreshSession
     from security import generate_refresh_token, hash_refresh_token
+
+    association = Association(name="legacy", email="legacy@example.com")
+    session.add(association)
+    session.commit()
 
     raw = generate_refresh_token()
     session.add(
         RefreshSession(
             user_id=None,
+            association_id=association.id,
             token_hash=hash_refresh_token(raw),
             expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=1),
         )
