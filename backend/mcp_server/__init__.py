@@ -31,6 +31,7 @@ from .context import (
 )
 from .dispatch import ToolError, available_tools_for_key, run_tool
 from .session import new_session
+from .throttle import allow_request
 
 __all__ = ["get_session_manager", "handle_mcp"]
 
@@ -85,6 +86,13 @@ def _key_is_valid(raw_key: str | None) -> bool:
 async def handle_mcp(scope, receive, send) -> None:
     """ASGI entrypoint for ``/mcp``: authenticate, then delegate to MCP."""
     if scope["type"] != "http":
+        return
+
+    # Per-IP throttle first, before touching the DB for key resolution.
+    if not allow_request(scope):
+        await JSONResponse(
+            {"error": "Trop de requêtes. Réessayez plus tard."}, status_code=429
+        )(scope, receive, send)
         return
 
     raw_key = extract_api_key(scope)
