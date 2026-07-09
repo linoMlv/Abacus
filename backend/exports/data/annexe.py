@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlmodel import Session, asc, select
 
 from accounting_engine import ZERO, scope_exercice, validated_only
-from models import Compte, CompteType, Ecriture, LigneEcriture
+from models import AnnexeRubrique, Compte, CompteType, Ecriture, LigneEcriture
 
 from .common import LigneCompte, _dec
 
@@ -29,8 +29,15 @@ class AnnexeSection:
 
 
 @dataclass
+class AnnexeNarrative:
+    titre: str
+    contenu: str
+
+
+@dataclass
 class AnnexeData:
     date_to: date
+    narrative: list[AnnexeNarrative]
     sections: list[AnnexeSection]
 
 
@@ -101,4 +108,33 @@ def annexe_data(session: Session, association_id: str, date_to: date) -> AnnexeD
         AnnexeSection(titre=titre, lignes=buckets[titre], total=totals[titre])
         for titre in _ANNEXE_SECTIONS
     ]
-    return AnnexeData(date_to=date_to, sections=sections)
+    return AnnexeData(
+        date_to=date_to,
+        narrative=_narrative(session, association_id, exercice_id),
+        sections=sections,
+    )
+
+
+def _narrative(
+    session: Session, association_id: str, exercice_id: str | None
+) -> list[AnnexeNarrative]:
+    """Filled-in narrative rubrics of the covering exercice, in display order.
+
+    Empty rubrics (title only, no body) are skipped so the document shows only
+    what the association actually wrote.
+    """
+    if exercice_id is None:
+        return []
+    rows = session.exec(
+        select(AnnexeRubrique)
+        .where(
+            AnnexeRubrique.association_id == association_id,
+            AnnexeRubrique.exercice_id == exercice_id,
+        )
+        .order_by(asc(AnnexeRubrique.ordre), asc(AnnexeRubrique.titre))
+    ).all()
+    return [
+        AnnexeNarrative(titre=r.titre, contenu=r.contenu.strip())
+        for r in rows
+        if r.contenu.strip()
+    ]

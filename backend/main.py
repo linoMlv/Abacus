@@ -20,6 +20,7 @@ from middleware import (
 from rate_limit import limiter
 from routers import (
     accounting,
+    annexe,
     apikeys,
     banque,
     budget,
@@ -119,6 +120,7 @@ _fastapi_app.add_middleware(SecurityHeadersMiddleware, hsts=ENVIRONMENT == "prod
 _fastapi_app.include_router(identity.router)
 _fastapi_app.include_router(accounting.router)
 _fastapi_app.include_router(exercices.router)
+_fastapi_app.include_router(annexe.router)
 _fastapi_app.include_router(ecritures.router)
 _fastapi_app.include_router(tresorerie.router)
 _fastapi_app.include_router(banque.router)

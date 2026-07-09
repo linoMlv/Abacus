@@ -6,7 +6,7 @@ primitives. Every dataclass and gatherer is re-exported so
 ``from exports.data import X`` call sites are unchanged.
 """
 
-from .annexe import AnnexeData, AnnexeSection, annexe_data
+from .annexe import AnnexeData, AnnexeNarrative, AnnexeSection, annexe_data
 from .bilan import BilanData, bilan_data
 from .budget import BudgetData, BudgetLigneExport, budget_data
 from .common import LigneCompte, Mouvement, resolve_period
@@ -24,6 +24,7 @@ from .resultat import CompteResultatData, compte_resultat_data
 
 __all__ = [
     "AnnexeData",
+    "AnnexeNarrative",
     "AnnexeSection",
     "BilanData",
     "BudgetData",
