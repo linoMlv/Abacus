@@ -19,6 +19,7 @@ export const PERMISSIONS = {
   ENTRY_DELETE: 'entry:delete',
   EXERCISE_CLOSE: 'exercise:close',
   REPORT_EXPORT_FEC: 'report:export_fec',
+  ANNEXE_MANAGE: 'annexe:manage',
   TRESORERIE_MANAGE: 'tresorerie:manage',
   CATEGORIE_MANAGE: 'categorie:manage',
   ATTACHMENT_MANAGE: 'attachment:manage',

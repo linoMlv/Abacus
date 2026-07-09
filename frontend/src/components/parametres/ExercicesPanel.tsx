@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lock, Plus } from 'lucide-react';
+import { FileText, Lock, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { accountingApi, EXERCICE_STATUT_LABELS, type Exercice } from '@/api/accounting';
@@ -11,12 +11,18 @@ import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePermissions } from '@/hooks/usePermissions';
 import { formatDate } from '@/lib/format';
+import { PERMISSIONS } from '@/lib/permissions';
+import { AnnexeDialog } from './AnnexeDialog';
 import { ClotureDialog } from './ClotureDialog';
 
-/** Manage fiscal years: list them, open a new one, close the current one. */
+/** Manage fiscal years: list them, open a new one, close it, and write its annexe. */
 export function ExercicesPanel({ associationId }: { associationId: string }) {
   const queryClient = useQueryClient();
+  const { has } = usePermissions();
+  const canClose = has(PERMISSIONS.EXERCISE_CLOSE);
+  const canAnnexe = has(PERMISSIONS.ANNEXE_MANAGE);
   const exercicesQuery = useQuery({
     queryKey: ['exercices', associationId],
     queryFn: () => accountingApi.listExercices(associationId),
@@ -25,6 +31,7 @@ export function ExercicesPanel({ associationId }: { associationId: string }) {
 
   const [creating, setCreating] = useState(false);
   const [closing, setClosing] = useState<Exercice | null>(null);
+  const [annexe, setAnnexe] = useState<Exercice | null>(null);
 
   return (
     <div className="space-y-5">
@@ -33,9 +40,11 @@ export function ExercicesPanel({ associationId }: { associationId: string }) {
           Un exercice comptable couvre une période (souvent l’année civile). Le clôturer détermine
           le résultat, génère le report à nouveau et verrouille les écritures.
         </p>
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus className="h-4 w-4" aria-hidden /> Nouvel exercice
-        </Button>
+        {canClose && (
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" aria-hidden /> Nouvel exercice
+          </Button>
+        )}
       </div>
 
       {exercicesQuery.isError ? (
@@ -58,13 +67,22 @@ export function ExercicesPanel({ associationId }: { associationId: string }) {
                     du {formatDate(exercice.date_debut)} au {formatDate(exercice.date_fin)}
                   </p>
                 </div>
-                {exercice.statut === 'ouvert' ? (
-                  <Button size="sm" variant="outline" onClick={() => setClosing(exercice)}>
-                    <Lock className="h-4 w-4" aria-hidden /> Clôturer
-                  </Button>
-                ) : (
-                  <span className="text-xs text-faint">Verrouillé</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {canAnnexe && (
+                    <Button size="sm" variant="outline" onClick={() => setAnnexe(exercice)}>
+                      <FileText className="h-4 w-4" aria-hidden /> Annexe
+                    </Button>
+                  )}
+                  {exercice.statut === 'ouvert' ? (
+                    canClose && (
+                      <Button size="sm" variant="outline" onClick={() => setClosing(exercice)}>
+                        <Lock className="h-4 w-4" aria-hidden /> Clôturer
+                      </Button>
+                    )
+                  ) : (
+                    <span className="text-xs text-faint">Verrouillé</span>
+                  )}
+                </div>
               </Card>
             </li>
           ))}
@@ -81,6 +99,11 @@ export function ExercicesPanel({ associationId }: { associationId: string }) {
         associationId={associationId}
         exercice={closing}
         onOpenChange={(open) => !open && setClosing(null)}
+      />
+      <AnnexeDialog
+        associationId={associationId}
+        exercice={annexe}
+        onOpenChange={(open) => !open && setAnnexe(null)}
       />
     </div>
   );

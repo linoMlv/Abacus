@@ -1,4 +1,5 @@
 import { api, apiUrl } from '../client';
+import type { AnnexeRubrique, CreateRubriqueInput, UpdateRubriqueInput } from './annexe';
 import type {
   CreerEcritureDepuisLigneInput,
   ImportReleve,
@@ -84,6 +85,19 @@ export const accountingApi = {
   /** Close a fiscal year: determine the result, carry balances forward, lock it. */
   cloturerExercice: (associationId: string, exerciceId: string, affectation: AffectationResultat) =>
     api.post<ClotureResult>(`${base(associationId)}/exercices/${exerciceId}/cloture`, affectation),
+  // --- Annexe narrative (rubriques ANC par exercice) ---
+  listAnnexe: (associationId: string, exerciceId: string) =>
+    api.get<AnnexeRubrique[]>(`${base(associationId)}/exercices/${exerciceId}/annexe`),
+  ajouterRubrique: (associationId: string, exerciceId: string, input: CreateRubriqueInput) =>
+    api.post<AnnexeRubrique>(`${base(associationId)}/exercices/${exerciceId}/annexe`, input),
+  modifierRubrique: (associationId: string, rubriqueId: string, input: UpdateRubriqueInput) =>
+    api.patch<AnnexeRubrique>(`${base(associationId)}/annexe/${rubriqueId}`, input),
+  supprimerRubrique: (associationId: string, rubriqueId: string) =>
+    api.del<void>(`${base(associationId)}/annexe/${rubriqueId}`),
+  reordonnerAnnexe: (associationId: string, exerciceId: string, ids: string[]) =>
+    api.put<AnnexeRubrique[]>(`${base(associationId)}/exercices/${exerciceId}/annexe/ordre`, {
+      ids,
+    }),
   creerSaisieSimple: (associationId: string, input: SaisieSimpleInput) =>
     api.post<Ecriture>(`${base(associationId)}/ecritures/simple`, input),
   creerVirement: (associationId: string, input: VirementInput) =>

@@ -26,7 +26,11 @@ export function ParametresPage() {
 
   const tabs: Array<{ id: TabId; label: string; allowed: boolean }> = [
     { id: 'membres', label: 'Membres', allowed: has(PERMISSIONS.MEMBER_MANAGE) },
-    { id: 'exercices', label: 'Exercices', allowed: has(PERMISSIONS.EXERCISE_CLOSE) },
+    {
+      id: 'exercices',
+      label: 'Exercices',
+      allowed: has(PERMISSIONS.EXERCISE_CLOSE) || has(PERMISSIONS.ANNEXE_MANAGE),
+    },
     { id: 'comptabilite', label: 'Comptabilité', allowed: has(PERMISSIONS.SETTINGS_MANAGE) },
     { id: 'api', label: 'Clés API / MCP', allowed: has(PERMISSIONS.APIKEY_MANAGE) },
   ];

@@ -2,6 +2,7 @@
 // categorie, tiers, referentiel, ecriture, evenement, synthese) plus the client;
 // this barrel re-exports everything so `@/api/accounting` imports are unchanged.
 export * from './common';
+export * from './annexe';
 export * from './categorie';
 export * from './banque';
 export * from './recurrence';

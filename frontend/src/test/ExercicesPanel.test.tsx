@@ -21,6 +21,11 @@ vi.mock('@/api/accounting', async (importOriginal) => {
   };
 });
 
+// Full permissions: both "Nouvel exercice"/"Clôturer" and "Annexe" are visible.
+vi.mock('@/hooks/usePermissions', () => ({
+  usePermissions: () => ({ isLoading: false, has: () => true }),
+}));
+
 import { ExercicesPanel } from '@/components/parametres/ExercicesPanel';
 
 function renderPanel() {
