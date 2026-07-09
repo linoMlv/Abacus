@@ -2,13 +2,13 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 from models import MembershipStatus, Role
 
 
 class RegisterRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
     name: str
 
@@ -43,7 +43,7 @@ class SessionResponse(BaseModel):
 
 class CreateAssociationRequest(BaseModel):
     name: str
-    email: str
+    email: EmailStr
 
 
 class AssociationContext(BaseModel):
@@ -97,7 +97,7 @@ class UpdateMemberRequest(BaseModel):
 
 
 class CreateInvitationRequest(BaseModel):
-    email: str
+    email: EmailStr
     role: Role
 
 
