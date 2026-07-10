@@ -9,13 +9,14 @@ the client is re-scoped to the active association before use.
 from datetime import date
 from decimal import Decimal
 
-from fastapi import HTTPException, status
 from sqlmodel import Session, desc, select
 
 from accounting_engine import ZERO, find_open_exercice
 from audit import AuditAction, record_audit
 from auth_context import owned_or_404
 from budget_engine import build_budget_view, load_prevu, realise_par_categorie
+from http_errors import bad_request as _bad_request
+from http_errors import not_found as _not_found
 from models import (
     Budget,
     BudgetRead,
@@ -25,10 +26,6 @@ from models import (
     LigneBudget,
     LigneBudgetRead,
 )
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
 def resolve_exercice(
@@ -48,9 +45,7 @@ def resolve_exercice(
         .order_by(desc(Exercice.date_debut))
     ).first()
     if exercice is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Aucun exercice."
-        )
+        raise _not_found("Aucun exercice.")
     return exercice
 
 
@@ -117,17 +112,29 @@ def upsert(
         session, Exercice, body.exercice_id, association_id, "Exercice introuvable"
     )
 
+    # Re-scope every referenced category in one query (not one round-trip per line).
+    requested_ids = [item.categorie_id for item in body.lignes]
+    categories = (
+        {
+            categorie.id: categorie
+            for categorie in session.exec(
+                select(CategorieSaisie).where(
+                    CategorieSaisie.id.in_(requested_ids),
+                    CategorieSaisie.association_id == association_id,
+                )
+            ).all()
+        }
+        if requested_ids
+        else {}
+    )
+
     montants: dict[str, Decimal] = {}
     for item in body.lignes:
         if item.montant_prevu < ZERO:
             raise _bad_request("Les montants prévus ne peuvent pas être négatifs.")
-        categorie = owned_or_404(
-            session,
-            CategorieSaisie,
-            item.categorie_id,
-            association_id,
-            "Catégorie introuvable",
-        )
+        categorie = categories.get(item.categorie_id)
+        if categorie is None:
+            raise _not_found("Catégorie introuvable")
         if not categorie.is_active:
             raise _bad_request("Impossible de budgéter une catégorie archivée.")
         montants[item.categorie_id] = item.montant_prevu  # last wins on duplicates

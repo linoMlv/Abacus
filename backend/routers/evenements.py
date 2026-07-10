@@ -10,11 +10,19 @@ read. Every id from the client is re-scoped to the active association
 from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlmodel import Session, SQLModel, asc, select
 
-from accounting_engine import CENTS, ZERO, validated_only
+from accounting_engine import (
+    CENTS,
+    CLASSE_CHARGE,
+    CLASSE_PRODUIT,
+    CLASSES_GESTION,
+    ZERO,
+    to_decimal,
+    validated_only,
+)
 from audit import AuditAction, record_audit
 from auth_context import (
     AccessContext,
@@ -24,6 +32,7 @@ from auth_context import (
 )
 from authz import Permission
 from database import get_session
+from http_errors import bad_request as _bad_request
 from models import (
     Compte,
     Ecriture,
@@ -36,7 +45,7 @@ from models import (
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["evenements"])
 
 # Income-statement classes: charges (6) and produits (7).
-_CHARGE, _PRODUIT = 6, 7
+_CHARGE, _PRODUIT = CLASSE_CHARGE, CLASSE_PRODUIT
 
 # Fields a PATCH may set directly (None = left unchanged). ``nom`` is handled
 # apart because it is trimmed and checked for uniqueness.
@@ -72,19 +81,24 @@ class UpdateEvenementRequest(SQLModel):
     couleur: str | None = None
 
 
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
-
-
 def _realise(
-    session: Session, association_id: str
+    session: Session, association_id: str, evenement_id: str | None = None
 ) -> dict[str, tuple[Decimal, Decimal]]:
     """Per event, the réalisé (produits cl.7, charges cl.6) of its tagged entries.
 
     Produits are credited (credit − debit on class 7), charges are debited
     (debit − credit on class 6). Computed in one grouped query for the whole
-    association (no per-event round-trip).
+    association, or restricted to a single event when ``evenement_id`` is given
+    (a single-event GET/PATCH need not scan every event's tagged volume).
     """
+    where = [
+        Ecriture.association_id == association_id,
+        Ecriture.evenement_id.is_not(None),
+        Compte.classe.in_(CLASSES_GESTION),
+        validated_only(),
+    ]
+    if evenement_id is not None:
+        where.append(Ecriture.evenement_id == evenement_id)
     rows = session.exec(
         select(
             Ecriture.evenement_id,
@@ -94,18 +108,13 @@ def _realise(
         )
         .join(LigneEcriture, LigneEcriture.ecriture_id == Ecriture.id)
         .join(Compte, Compte.id == LigneEcriture.compte_id)
-        .where(
-            Ecriture.association_id == association_id,
-            Ecriture.evenement_id.is_not(None),
-            Compte.classe.in_([_CHARGE, _PRODUIT]),
-            validated_only(),
-        )
+        .where(*where)
         .group_by(Ecriture.evenement_id, Compte.classe)
     ).all()
     out: dict[str, dict[str, Decimal]] = {}
     for evenement_id, classe, total_debit, total_credit in rows:
-        debit = Decimal(str(total_debit))
-        credit = Decimal(str(total_credit))
+        debit = to_decimal(total_debit)
+        credit = to_decimal(total_credit)
         acc = out.setdefault(evenement_id, {"recettes": ZERO, "depenses": ZERO})
         if classe == _PRODUIT:
             acc["recettes"] += credit - debit
@@ -164,7 +173,7 @@ def get_evenement(
     session: Session = Depends(get_session),
 ):
     evenement = _owned_evenement(session, ctx.association_id, evenement_id)
-    recettes, depenses = _realise(session, ctx.association_id).get(
+    recettes, depenses = _realise(session, ctx.association_id, evenement.id).get(
         evenement.id, (ZERO, ZERO)
     )
     return _to_read(evenement, recettes, depenses)
@@ -239,7 +248,7 @@ def update_evenement(
     )
     session.commit()
     session.refresh(evenement)
-    recettes, depenses = _realise(session, ctx.association_id).get(
+    recettes, depenses = _realise(session, ctx.association_id, evenement.id).get(
         evenement.id, (ZERO, ZERO)
     )
     return _to_read(evenement, recettes, depenses)

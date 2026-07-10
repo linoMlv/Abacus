@@ -28,6 +28,7 @@ from auth_context import (
 from authz import Permission
 from database import get_session
 from exports import documents
+from http_errors import bad_request as _bad_request
 from models import (
     Association,
     CategorieSaisie,
@@ -56,10 +57,6 @@ class CreerRecuRequest(BaseModel):
     annee: int
     forme: FormeDon = FormeDon.NUMERAIRE
     mode_reglement: ModeReglement | None = None
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
 def _eligible_dons(
@@ -190,13 +187,12 @@ def _require_donor_address(tiers: Tiers) -> None:
         )
 
 
-def _to_read(session: Session, recu: RecuFiscal) -> RecuFiscalRead:
-    nom = session.get(Tiers, recu.tiers_id).nom
+def _to_read(recu: RecuFiscal, tiers_nom: str) -> RecuFiscalRead:
     return RecuFiscalRead(
         id=recu.id,
         numero=recu.numero,
         tiers_id=recu.tiers_id,
-        tiers_nom=nom,
+        tiers_nom=tiers_nom,
         date=recu.date,
         annee=recu.annee,
         montant=recu.montant,
@@ -224,12 +220,13 @@ def list_recus(
     ctx: AccessContext = Depends(require_permission(Permission.DONATION_MANAGE)),
     session: Session = Depends(get_session),
 ):
-    recus = session.exec(
-        select(RecuFiscal)
+    rows = session.exec(
+        select(RecuFiscal, Tiers.nom)
+        .join(Tiers, Tiers.id == RecuFiscal.tiers_id)
         .where(RecuFiscal.association_id == ctx.association_id)
         .order_by(RecuFiscal.numero.desc())
     ).all()
-    return [_to_read(session, r) for r in recus]
+    return [_to_read(recu, nom) for recu, nom in rows]
 
 
 @router.post("/recus", response_model=RecuFiscalRead, status_code=201)
@@ -301,7 +298,7 @@ def creer_recu(
     )
     session.commit()
     session.refresh(recu)
-    return _to_read(session, recu)
+    return _to_read(recu, tiers.nom)
 
 
 @router.get("/recus/{recu_id}/pdf")

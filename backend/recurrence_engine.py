@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlmodel import Session, select
 
 from accounting_engine import (
+    CLASSE_TRESORERIE,
     build_ecriture_simple,
     find_open_exercice,
     next_numero_piece,
@@ -27,7 +28,6 @@ from models import (
     RecurrenceMode,
 )
 
-_FINANCIAL_CLASS = 5
 # Safety cap per recurrence per run: a template stuck far in the past can never
 # spawn an unbounded number of entries in one pass.
 _MAX_OCCURRENCES = 366
@@ -52,12 +52,13 @@ def next_echeance(day: date, periodicite: Periodicite) -> date:
     return add_months(day, 12)  # ANNUELLE
 
 
-def _build_occurrence(session: Session, rec: Recurrence, jour: date) -> Ecriture | None:
-    """Build (unsaved) the simple entry a recurrence produces on ``jour``.
+def _resolve_template(
+    session: Session, rec: Recurrence
+) -> tuple[CategorieSaisie, Compte] | None:
+    """The recurrence's category and treasury account, or ``None`` if unusable.
 
-    Returns ``None`` when it cannot be posted (template's category/account
-    archived, or no open exercice covers the date) — the caller then stops for
-    this recurrence and retries on a later run.
+    Invariant across every occurrence of one recurrence, so it is resolved once
+    per recurrence rather than per generated entry.
     """
     categorie = session.exec(
         select(CategorieSaisie).where(
@@ -73,9 +74,23 @@ def _build_occurrence(session: Session, rec: Recurrence, jour: date) -> Ecriture
             Compte.is_active.is_(True),
         )
     ).first()
-    if categorie is None or compte is None or compte.classe != _FINANCIAL_CLASS:
+    if categorie is None or compte is None or compte.classe != CLASSE_TRESORERIE:
         return None
+    return categorie, compte
 
+
+def _build_occurrence(
+    session: Session,
+    rec: Recurrence,
+    jour: date,
+    categorie: CategorieSaisie,
+    compte: Compte,
+) -> Ecriture | None:
+    """Build (unsaved) the simple entry a recurrence produces on ``jour``.
+
+    Returns ``None`` when no open exercice covers the date — the caller then
+    stops for this recurrence and retries on a later run.
+    """
     exercice = find_open_exercice(session, rec.association_id, jour)
     if exercice is None:
         return None
@@ -132,14 +147,16 @@ def generate_due(
 
     generated = 0
     for rec in session.exec(statement).all():
+        template = _resolve_template(session, rec)  # invariant per recurrence
         occurrences = 0
         while (
-            rec.prochaine_echeance <= today
+            template is not None
+            and rec.prochaine_echeance <= today
             and (rec.date_fin is None or rec.prochaine_echeance <= rec.date_fin)
             and occurrences < _MAX_OCCURRENCES
         ):
             jour = rec.prochaine_echeance
-            ecriture = _build_occurrence(session, rec, jour)
+            ecriture = _build_occurrence(session, rec, jour, *template)
             if ecriture is None:
                 break  # cannot post now — leave prochaine_echeance, retry later
             session.add(ecriture)
