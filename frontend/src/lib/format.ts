@@ -45,9 +45,15 @@ export function formatDate(value: string | Date | null | undefined): string {
   return Number.isNaN(d.getTime()) ? '' : DATE.format(d);
 }
 
-/** Today as an ISO `yyyy-mm-dd` string — the value date/datetime inputs expect. */
+/** Today as an ISO `yyyy-mm-dd` string — the value date/datetime inputs expect.
+ * Built from the *local* calendar day (not `toISOString`, which is UTC and can
+ * be off by one either side of midnight for a French user). */
 export function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /** "3 Ko" / "1.2 Mo" — a human file size from a byte count. */
