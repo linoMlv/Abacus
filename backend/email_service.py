@@ -1,3 +1,4 @@
+import html
 import logging
 import os
 import smtplib
@@ -38,14 +39,20 @@ def _send_email(to: str, subject: str, html_body: str) -> bool:
         return False
 
 
-def send_invitation_email(to: str, association_name: str, token: str) -> bool:
-    accept_url = f"{APP_URL}/invitation?token={token}"
-    html = f"""
+def _invitation_html(association_name: str, accept_url: str) -> str:
+    """Render the invitation email body, escaping tenant-controlled text.
+
+    ``association_name`` is chosen by an admin, so it is HTML-escaped before being
+    interpolated into the message (defense against HTML/content injection). The
+    accept URL only carries a server-generated, URL-safe token.
+    """
+    safe_name = html.escape(association_name)
+    return f"""
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
         <h2 style="color: #1f2937;">Abacus — Invitation</h2>
         <p style="color: #4b5563;">
             Vous avez été invité·e à rejoindre l'association
-            <strong>{association_name}</strong> sur Abacus.
+            <strong>{safe_name}</strong> sur Abacus.
         </p>
         <a href="{accept_url}"
            style="display: inline-block; padding: 12px 24px; background: #1f2937; color: #fff;
@@ -58,4 +65,10 @@ def send_invitation_email(to: str, association_name: str, token: str) -> bool:
         </p>
     </div>
     """
-    return _send_email(to, "Abacus — Invitation", html)
+
+
+def send_invitation_email(to: str, association_name: str, token: str) -> bool:
+    accept_url = f"{APP_URL}/invitation?token={token}"
+    return _send_email(
+        to, "Abacus — Invitation", _invitation_html(association_name, accept_url)
+    )
