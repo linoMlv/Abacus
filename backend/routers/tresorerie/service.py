@@ -12,14 +12,20 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from accounting_engine import (
+    COMPTE_REPORT_CREDITEUR,
+    JOURNAL_DIVERS,
+    PREFIXE_BANQUE,
+    PREFIXE_CAISSE,
     EntryError,
     build_ecriture_a_nouveau,
     find_open_exercice,
     next_numero_piece,
     scope_exercice,
+    to_decimal,
     validated_only,
 )
 from auth_context import AccessContext, owned_or_404
+from http_errors import bad_request as _bad_request
 from models import (
     Compte,
     CompteTresorerieRead,
@@ -34,19 +40,12 @@ from models import (
 # ANC account-number prefix per treasury type: physical cash -> 531, everything
 # financial (bank, online, savings, other) -> 512 (cf. §15.4 "512/551").
 _TYPE_PREFIX: dict[TypeTresorerie, str] = {
-    TypeTresorerie.BANQUE: "512",
-    TypeTresorerie.EN_LIGNE: "512",
-    TypeTresorerie.EPARGNE: "512",
-    TypeTresorerie.AUTRE: "512",
-    TypeTresorerie.CAISSE: "531",
+    TypeTresorerie.BANQUE: PREFIXE_BANQUE,
+    TypeTresorerie.EN_LIGNE: PREFIXE_BANQUE,
+    TypeTresorerie.EPARGNE: PREFIXE_BANQUE,
+    TypeTresorerie.AUTRE: PREFIXE_BANQUE,
+    TypeTresorerie.CAISSE: PREFIXE_CAISSE,
 }
-
-_REPORT_A_NOUVEAU_NUMERO = "110"  # contrepartie du solde initial
-_JOURNAL_A_NOUVEAU = "OD"  # opérations diverses
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
 def _next_treasury_numero(session: Session, association_id: str, prefix: str) -> str:
@@ -98,7 +97,7 @@ def _treasury_soldes(
     if current is not None:
         statement = statement.where(Ecriture.exercice_id == current.id)
     return {
-        cid: Decimal(str(d)) - Decimal(str(c))
+        cid: to_decimal(d) - to_decimal(c)
         for cid, d, c in session.exec(statement).all()
     }
 
@@ -164,13 +163,13 @@ def _post_solde_initial(
     journal = session.exec(
         select(Journal).where(
             Journal.association_id == ctx.association_id,
-            Journal.code == _JOURNAL_A_NOUVEAU,
+            Journal.code == JOURNAL_DIVERS,
         )
     ).first()
     report = session.exec(
         select(Compte).where(
             Compte.association_id == ctx.association_id,
-            Compte.numero == _REPORT_A_NOUVEAU_NUMERO,
+            Compte.numero == COMPTE_REPORT_CREDITEUR,
         )
     ).first()
     if journal is None or report is None:

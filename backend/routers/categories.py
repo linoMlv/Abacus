@@ -10,9 +10,10 @@ Every reference from the client is re-scoped to the active association.
 
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlmodel import Session, SQLModel, asc, select
 
+from accounting_engine import JOURNAL_ACHATS, JOURNAL_VENTES
 from audit import AuditAction, record_audit
 from auth_context import (
     AccessContext,
@@ -22,6 +23,7 @@ from auth_context import (
 )
 from authz import Permission
 from database import get_session
+from http_errors import bad_request as _bad_request
 from models import (
     CategorieSaisie,
     CategorieSaisieRead,
@@ -35,8 +37,8 @@ router = APIRouter(prefix="/api/asso/{association_id}", tags=["categories"])
 
 # Soft-creation defaults per sens: (compte numéro, journal code, attendu type).
 _DEFAULTS: dict[SensCategorie, tuple[str, str, CompteType]] = {
-    SensCategorie.RECETTE: ("758", "VE", CompteType.PRODUIT),
-    SensCategorie.DEPENSE: ("658", "AC", CompteType.CHARGE),
+    SensCategorie.RECETTE: ("758", JOURNAL_VENTES, CompteType.PRODUIT),
+    SensCategorie.DEPENSE: ("658", JOURNAL_ACHATS, CompteType.CHARGE),
 }
 
 
@@ -54,10 +56,6 @@ class UpdateCategorieRequest(SQLModel):
     is_active: bool | None = None
     # Present-and-null clears the default rate; absent leaves it unchanged.
     tva_taux: Decimal | None = None
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
 def _validate_taux(taux: Decimal | None) -> Decimal | None:

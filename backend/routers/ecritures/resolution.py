@@ -10,23 +10,25 @@ from datetime import date
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
-from accounting_engine import find_open_exercice
+from accounting_engine import (
+    CLASSE_TRESORERIE,
+    COMPTE_TVA_COLLECTEE,
+    COMPTE_TVA_DEDUCTIBLE,
+    find_open_exercice,
+)
 from audit import AuditAction, record_audit
 from auth_context import AccessContext, owned_or_404
 from authz import Permission
+from http_errors import bad_request as _bad_request
 from models import Compte, Ecriture, Evenement, Exercice, Journal, SensCategorie, Tiers
 
-_FINANCIAL_CLASS = 5  # comptes de trésorerie (512 banque, 531 caisse, …)
+_FINANCIAL_CLASS = CLASSE_TRESORERIE  # comptes de trésorerie (512 banque, 531 caisse…)
 
 # VAT counterpart account per sens: recette collects (44571), dépense deducts (44566).
 _TVA_ACCOUNT = {
-    SensCategorie.RECETTE: "44571",  # TVA collectée
-    SensCategorie.DEPENSE: "44566",  # TVA déductible
+    SensCategorie.RECETTE: COMPTE_TVA_COLLECTEE,
+    SensCategorie.DEPENSE: COMPTE_TVA_DEDUCTIBLE,
 }
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
 def _require(ctx: AccessContext, permission: Permission) -> None:

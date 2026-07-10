@@ -10,13 +10,14 @@ is one accounting truth, not a parallel one.
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from accounting_engine import next_numero_piece
+from accounting_engine import next_numero_piece, to_decimal
 from auth_context import AccessContext, owned_or_404
 from banque import ParsedLigne
+from http_errors import bad_request as _bad_request
+from http_errors import conflict as _conflict
 from models import (
     CategorieSaisie,
     Compte,
@@ -35,14 +36,6 @@ from routers.tresorerie.service import _owned_treasury
 # Entries within this many days of a statement line are offered as matches.
 _MATCH_WINDOW_DAYS = 30
 _ZERO = Decimal("0")
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
-
-
-def _conflict(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
 def owned_treasury(session: Session, association_id: str, compte_id: str) -> Compte:
@@ -161,7 +154,7 @@ def _net_on_compte(
     ).one()
     if not count:
         return None
-    return Decimal(str(total_debit)) - Decimal(str(total_credit))
+    return to_decimal(total_debit) - to_decimal(total_credit)
 
 
 def _linked_ecriture_ids(session: Session, association_id: str) -> set[str]:
@@ -214,7 +207,7 @@ def suggestions(
     for eid, piece, jour, libelle, deb, cred in rows:
         if eid in linked:
             continue
-        net = Decimal(str(deb)) - Decimal(str(cred))
+        net = to_decimal(deb) - to_decimal(cred)
         if net != ligne.montant:
             continue
         matches.append(

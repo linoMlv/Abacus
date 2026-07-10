@@ -3,11 +3,24 @@
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from accounting_engine import CENTS, ZERO, find_exercice_covering, validated_only
+from accounting_engine import (
+    CENTS,
+    COMPTE_REPORT_CREDITEUR,
+    COMPTE_REPORT_DEBITEUR,
+    COMPTE_RESERVES,
+    COMPTE_RESULTAT_DEFICIT,
+    COMPTE_RESULTAT_EXCEDENT,
+    JOURNAL_DIVERS,
+    PREFIXE_RESULTAT,
+    ZERO,
+    find_exercice_covering,
+    to_decimal,
+    validated_only,
+)
+from http_errors import bad_request as _bad_request
 from models import (
     Compte,
     Ecriture,
@@ -17,17 +30,14 @@ from models import (
     LigneEcriture,
 )
 
-_JOURNAL_CLOTURE = "OD"  # opérations diverses
-# Result accounts: excédent (120) / déficit (129) and their affectation targets.
-_COMPTE_EXCEDENT = "120"
-_COMPTE_DEFICIT = "129"
-_REPORT_EXCEDENT = "110"  # report à nouveau créditeur
-_REPORT_DEFICIT = "119"  # report à nouveau débiteur
-_RESERVES = "106"
-
-
-def _bad_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+# Local aliases for the ANC roles used by the closing flow (single source of
+# truth: accounting_engine.constants).
+_JOURNAL_CLOTURE = JOURNAL_DIVERS
+_COMPTE_EXCEDENT = COMPTE_RESULTAT_EXCEDENT
+_COMPTE_DEFICIT = COMPTE_RESULTAT_DEFICIT
+_REPORT_EXCEDENT = COMPTE_REPORT_CREDITEUR
+_REPORT_DEFICIT = COMPTE_REPORT_DEBITEUR
+_RESERVES = COMPTE_RESERVES
 
 
 def _account_soldes(
@@ -54,9 +64,9 @@ def _account_soldes(
     for compte_id, numero, d, c in rows:
         # The result account (12) is not a carried-forward balance: it is
         # affected explicitly, so keep it out of the report à nouveau.
-        if numero.startswith("12"):
+        if numero.startswith(PREFIXE_RESULTAT):
             continue
-        solde = (Decimal(str(d)) - Decimal(str(c))).quantize(CENTS)
+        solde = (to_decimal(d) - to_decimal(c)).quantize(CENTS)
         if solde != ZERO:
             result.append((compte_id, solde))
     return result
