@@ -17,12 +17,27 @@ _CENTS = Decimal("0.01")
 _MAX_LABEL = 255
 
 
+def _reject_dtd(content: bytes) -> None:
+    """Refuse a DOCTYPE/entity declaration before parsing (anti-XXE).
+
+    A legitimate OFX statement (SGML 1.x or XML 2.x) never carries a DOCTYPE or
+    ``<!ENTITY>`` — one is an XXE attempt. ``ofxparse`` delegates to a third-party
+    XML backend whose entity handling we do not control, so the safe place to
+    stop it is here, on the raw bytes, before that backend ever sees them.
+    """
+    lowered = content.lower()
+    if b"<!doctype" in lowered or b"<!entity" in lowered:
+        raise ReleveParseError("Fichier OFX invalide (déclaration DTD non autorisée).")
+
+
 def parse_releve_ofx(content: bytes) -> list[ParsedLigne]:
     """Parse OFX ``content`` (raw bytes) into signed statement rows.
 
-    Raises :class:`ReleveParseError` on an unreadable file or one with no
+    Raises :class:`ReleveParseError` on an unreadable file, one carrying a
+    DOCTYPE/entity declaration (rejected as an XXE attempt), or one with no
     transaction.
     """
+    _reject_dtd(content)
     try:
         ofx = OfxParser.parse(io.BytesIO(content))
     except Exception as exc:  # ofxparse raises a variety of parse errors

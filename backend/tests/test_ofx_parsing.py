@@ -75,3 +75,21 @@ def test_parses_ofx_xml():
 def test_unreadable_ofx_raises():
     with pytest.raises(ReleveParseError):
         parse_releve_ofx(b"this is not an ofx file at all")
+
+
+# An OFX file has no legitimate use for a DOCTYPE/entity declaration; one is an
+# XXE attempt and is refused before the third-party XML backend can resolve an
+# external entity (defense in depth).
+OFX_XXE = b"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE OFX [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<?OFX OFXHEADER="200" VERSION="211" SECURITY="NONE"?>
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>EUR</CURDEF>
+<BANKTRANLIST>
+<STMTTRN><TRNTYPE>CREDIT</TRNTYPE><DTPOSTED>20260615</DTPOSTED>
+<TRNAMT>150.00</TRNAMT><FITID>ABC1</FITID><NAME>&xxe;</NAME></STMTTRN>
+</BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>"""
+
+
+def test_ofx_with_doctype_entity_is_refused():
+    with pytest.raises(ReleveParseError):
+        parse_releve_ofx(OFX_XXE)
