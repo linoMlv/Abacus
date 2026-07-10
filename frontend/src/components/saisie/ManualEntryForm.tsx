@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { cents, formatEUR } from '@/lib/format';
+import { invalidateAfterEntry } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { MODE_REGLEMENT_VALUES } from '@/pages/saisie.schema';
 
@@ -85,13 +86,6 @@ export function ManualEntryForm({ action, entry, onSaved, onCancel }: ManualEntr
   });
   const mutation = isCorrect ? correctMutation : editMutation;
 
-  function invalidateLists() {
-    queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
-    queryClient.invalidateQueries({ queryKey: ['balance', associationId] });
-    queryClient.invalidateQueries({ queryKey: ['tresorerie', associationId] });
-    queryClient.invalidateQueries({ queryKey: ['synthese', associationId] });
-  }
-
   const onSubmit = handleSubmit(async (values) => {
     const manuelle: SaisieManuelleInput = {
       journal_id: values.journal_id,
@@ -108,7 +102,7 @@ export function ManualEntryForm({ action, entry, onSaved, onCancel }: ManualEntr
     setBusy(true);
     try {
       await mutation.mutateAsync({ manuelle });
-      invalidateLists();
+      invalidateAfterEntry(queryClient, associationId);
       onSaved();
     } catch {
       // The mutation's error state drives the Alert below.

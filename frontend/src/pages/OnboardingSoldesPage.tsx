@@ -12,13 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
+import { today } from '@/lib/format';
 import { amountToDecimalString } from '@/pages/saisie.schema';
 
 const AMOUNT_PATTERN = /^-?\d+([.,]\d{1,2})?$/;
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /**
  * Onboarding step right after creating an association: declare the starting

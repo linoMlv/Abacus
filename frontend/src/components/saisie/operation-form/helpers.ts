@@ -1,9 +1,7 @@
 import type { LigneEcriture } from '@/api/accounting';
 import { normalizeTaux } from '@/lib/tva';
 
-export function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+export { today } from '@/lib/format';
 
 /** The total amount of an entry (Σ debit = Σ credit), as a "0.00" string. */
 export function entryAmount(lignes: LigneEcriture[]): string {

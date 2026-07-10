@@ -103,7 +103,8 @@ export function BudgetPage() {
   const resultatPrevu = totals.recettesPrevu - totals.depensesPrevu;
   const resultatRealise = totals.recettesRealise - totals.depensesRealise;
 
-  const readOnly = !canManage || budget?.exercice_statut === 'cloture';
+  const isCloture = budget?.exercice_statut === 'cloture';
+  const readOnly = !canManage || isCloture;
   const dirty = lignes.some(
     (l) => cents(montants[l.categorie_id] ?? '') !== cents(l.montant_prevu)
   );
@@ -154,7 +155,7 @@ export function BudgetPage() {
         </Card>
       ) : (
         <>
-          {budget.exercice_statut === 'cloture' && (
+          {isCloture && (
             <div className="flex items-center gap-2 text-sm text-muted">
               <Badge variant="neutral">Clôturé</Badge>
               <span>Exercice clôturé : le budget est en lecture seule.</span>

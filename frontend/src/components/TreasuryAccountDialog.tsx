@@ -17,14 +17,11 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { today } from '@/lib/format';
 import { amountToDecimalString } from '@/pages/saisie.schema';
 import { type TresorerieForm, tresorerieSchema } from '@/pages/tresorerie.schema';
 
 const TYPES = Object.keys(TYPE_TRESORERIE_LABELS) as TypeTresorerie[];
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;

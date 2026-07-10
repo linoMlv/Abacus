@@ -1,5 +1,5 @@
 import type { Sens } from './accounting/common';
-import { api, apiUrl } from './client';
+import { api, apiUrl, assoBase as base, qs } from './client';
 
 /** One budget row: prévu (editable), réalisé (from the ledger) and écart. */
 export interface LigneBudget {
@@ -30,17 +30,13 @@ export interface BudgetUpsertInput {
   lignes: { categorie_id: string; montant_prevu: string }[];
 }
 
-const base = (associationId: string) => `/asso/${associationId}`;
-const withExercice = (exerciceId?: string) =>
-  exerciceId ? `?exercice_id=${encodeURIComponent(exerciceId)}` : '';
-
 export const budgetApi = {
   getBudget: (associationId: string, exerciceId?: string) =>
-    api.get<Budget>(`${base(associationId)}/budget${withExercice(exerciceId)}`),
+    api.get<Budget>(`${base(associationId)}/budget${qs({ exercice_id: exerciceId })}`),
   saveBudget: (associationId: string, input: BudgetUpsertInput) =>
     api.put<Budget>(`${base(associationId)}/budget`, input),
   budgetPdfUrl: (associationId: string, exerciceId?: string) =>
-    apiUrl(`${base(associationId)}/exports/budget.pdf${withExercice(exerciceId)}`),
+    apiUrl(`${base(associationId)}/exports/budget.pdf${qs({ exercice_id: exerciceId })}`),
   budgetXlsxUrl: (associationId: string, exerciceId?: string) =>
-    apiUrl(`${base(associationId)}/exports/budget.xlsx${withExercice(exerciceId)}`),
+    apiUrl(`${base(associationId)}/exports/budget.xlsx${qs({ exercice_id: exerciceId })}`),
 };

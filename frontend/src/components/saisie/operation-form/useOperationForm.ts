@@ -20,6 +20,7 @@ import { apiErrorMessage } from '@/api/client';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRegimeTva } from '@/hooks/useRegimeTva';
 import { PERMISSIONS } from '@/lib/permissions';
+import { invalidateAfterEntry } from '@/lib/queries';
 import { normalizeTaux } from '@/lib/tva';
 import { amountToDecimalString, saisieSchema, type SaisieForm } from '@/pages/saisie.schema';
 
@@ -155,7 +156,9 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
   // for a transfer, a distinct source and destination.
   useEffect(() => {
     if (fromEntry || !comptes.length) return;
-    const bank = comptes.find((c) => c.numero.startsWith('512')) ?? comptes[0];
+    // Default to a non-cash (bank/online/savings) account; use the server's
+    // semantic type_tresorerie rather than re-deriving "bank" from the 512 number.
+    const bank = comptes.find((c) => c.type_tresorerie !== 'caisse') ?? comptes[0];
     if (!isVirement) {
       if (!getValues('compte_tresorerie_id')) {
         setValue('compte_tresorerie_id', bank.id, { shouldValidate: false });
@@ -225,13 +228,6 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
     setPrefilled(true);
   }, [fromEntry, entry, prefilled, categoriesQuery.data, comptesQuery.data, reset]);
 
-  function invalidateAfterEntry() {
-    queryClient.invalidateQueries({ queryKey: ['ecritures', associationId] });
-    queryClient.invalidateQueries({ queryKey: ['balance', associationId] });
-    queryClient.invalidateQueries({ queryKey: ['tresorerie', associationId] });
-    queryClient.invalidateQueries({ queryKey: ['synthese', associationId] });
-  }
-
   const simpleMutation = useMutation({
     mutationFn: (input: SaisieSimpleInput) => accountingApi.creerSaisieSimple(associationId, input),
   });
@@ -286,7 +282,7 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
       try {
         const mutation = isCorrect ? correctMutation : editMutation;
         await mutation.mutateAsync(contenuFor(values));
-        invalidateAfterEntry();
+        invalidateAfterEntry(queryClient, associationId);
         queryClient.invalidateQueries({ queryKey: ['ecriture', associationId, entry!.id] });
         onSaved?.();
       } catch {
@@ -314,7 +310,7 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
           failed += 1;
         }
       }
-      invalidateAfterEntry();
+      invalidateAfterEntry(queryClient, associationId);
       queryClient.invalidateQueries({ queryKey: ['justificatifs', associationId, ecriture.id] });
 
       const label = values.type === 'virement' ? 'Virement' : 'Écriture';

@@ -1,4 +1,4 @@
-import { api, apiUrl } from './client';
+import { api, apiUrl, assoBase as base, qs } from './client';
 
 export type FormeDon = 'numeraire' | 'titres' | 'autre';
 
@@ -44,16 +44,14 @@ export interface CreerRecuInput {
   mode_reglement?: string;
 }
 
-const base = (associationId: string) => `/asso/${associationId}`;
-
 export const donsApi = {
-  listDons: (associationId: string, params: { annee?: number; non_recu?: boolean } = {}) => {
-    const q = new URLSearchParams();
-    if (params.annee != null) q.set('annee', String(params.annee));
-    if (params.non_recu) q.set('non_recu', 'true');
-    const suffix = q.toString() ? `?${q}` : '';
-    return api.get<Don[]>(`${base(associationId)}/dons${suffix}`);
-  },
+  listDons: (associationId: string, params: { annee?: number; non_recu?: boolean } = {}) =>
+    api.get<Don[]>(
+      `${base(associationId)}/dons${qs({
+        annee: params.annee,
+        non_recu: params.non_recu ? 'true' : undefined,
+      })}`
+    ),
   listRecus: (associationId: string) => api.get<RecuFiscal[]>(`${base(associationId)}/recus`),
   creerRecu: (associationId: string, input: CreerRecuInput) =>
     api.post<RecuFiscal>(`${base(associationId)}/recus`, input),

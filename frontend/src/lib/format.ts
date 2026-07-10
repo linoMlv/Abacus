@@ -45,6 +45,11 @@ export function formatDate(value: string | Date | null | undefined): string {
   return Number.isNaN(d.getTime()) ? '' : DATE.format(d);
 }
 
+/** Today as an ISO `yyyy-mm-dd` string — the value date/datetime inputs expect. */
+export function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /** "3 Ko" / "1.2 Mo" — a human file size from a byte count. */
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} o`;

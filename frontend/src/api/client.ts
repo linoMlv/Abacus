@@ -120,3 +120,25 @@ export const api = {
 export function apiUrl(path: string): string {
   return BASE + path;
 }
+
+/** The tenant-scoped path prefix for an association (`/asso/{id}`). */
+export function assoBase(associationId: string): string {
+  return `/asso/${associationId}`;
+}
+
+/**
+ * Build a query string from defined, non-empty params (else empty). An array
+ * value emits one repeated param per entry (`?k=a&k=b`, the multi-value form).
+ */
+export function qs(params: Record<string, string | number | string[] | undefined>): string {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === '') continue;
+    const values = Array.isArray(v) ? v : [v];
+    for (const value of values) {
+      if (value === undefined || value === '') continue;
+      parts.push(`${k}=${encodeURIComponent(String(value))}`);
+    }
+  }
+  return parts.length === 0 ? '' : '?' + parts.join('&');
+}

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { formatDate, formatEUR } from '@/lib/format';
+import { formatDate, formatEUR, today } from '@/lib/format';
 
 const FORMES = Object.keys(FORME_DON_LABELS) as FormeDon[];
 
@@ -30,14 +30,14 @@ export function RecuDialog({
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [forme, setForme] = useState<FormeDon>('numeraire');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today);
   const [annee, setAnnee] = useState(() => new Date().getFullYear());
 
   useEffect(() => {
     if (!open) return;
     setSelected(new Set(dons.map((d) => d.ecriture_id)));
     setForme('numeraire');
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(today());
     // Default the fiscal year to the most recent don's year, else this year.
     const years = dons.map((d) => Number(d.date.slice(0, 4)));
     setAnnee(years.length ? Math.max(...years) : new Date().getFullYear());

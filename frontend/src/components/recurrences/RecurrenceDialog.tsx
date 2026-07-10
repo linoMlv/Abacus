@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { today } from '@/lib/format';
 
 interface Props {
   associationId: string;
@@ -27,10 +28,6 @@ interface Props {
 
 const PERIODICITES = Object.keys(PERIODICITE_LABELS) as Periodicite[];
 const MODES = Object.keys(RECURRENCE_MODE_LABELS) as RecurrenceMode[];
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /** Create or edit a recurring entry template + its schedule. */
 export function RecurrenceDialog({ associationId, recurrence, open, onClose }: Props) {

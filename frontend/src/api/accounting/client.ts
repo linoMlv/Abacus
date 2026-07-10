@@ -1,4 +1,4 @@
-import { api, apiUrl } from '../client';
+import { api, apiUrl, assoBase as base, qs } from '../client';
 import type { AnnexeRubrique, CreateRubriqueInput, UpdateRubriqueInput } from './annexe';
 import type {
   CreerEcritureDepuisLigneInput,
@@ -46,23 +46,6 @@ import type {
 import type { Synthese, SyntheseParams } from './synthese';
 import type { CreateTiersInput, Tiers, TypeTiers, UpdateTiersInput } from './tiers';
 import type { EtatTva } from './tva';
-
-const base = (associationId: string) => `/asso/${associationId}`;
-
-/** Build a query string from defined, non-empty params (else empty). */
-function qs(params: Record<string, string | number | string[] | undefined>): string {
-  const parts: string[] = [];
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === '') continue;
-    // An array emits one repeated param per value (?k=a&k=b), the multi-value form.
-    const values = Array.isArray(v) ? v : [v];
-    for (const value of values) {
-      if (value === undefined || value === '') continue;
-      parts.push(`${k}=${encodeURIComponent(String(value))}`);
-    }
-  }
-  return parts.length === 0 ? '' : '?' + parts.join('&');
-}
 
 export const accountingApi = {
   listCategories: (associationId: string, sens?: Sens, includeInactive = false) =>
