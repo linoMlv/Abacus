@@ -6,14 +6,18 @@ from decimal import Decimal
 
 from sqlmodel import Session
 
-from accounting_engine import ZERO, find_open_exercice
+from accounting_engine import (
+    CLASSE_CHARGE,
+    CLASSE_PRODUIT,
+    CLASSES_BILAN,
+    find_open_exercice,
+    to_decimal,
+)
 
-_CHARGE, _PRODUIT = 6, 7
-_BALANCE_CLASSES = (1, 2, 3, 4, 5)
-
-
-def _dec(value) -> Decimal:
-    return Decimal(str(value)) if value is not None else ZERO
+# Aliases of the shared accounting roles (single source: accounting_engine).
+_CHARGE, _PRODUIT = CLASSE_CHARGE, CLASSE_PRODUIT
+_BALANCE_CLASSES = CLASSES_BILAN
+_dec = to_decimal
 
 
 @dataclass

@@ -12,6 +12,15 @@ to start being possible later; here they all seed active.
 
 from datetime import date
 
+from accounting_engine import (
+    JOURNAL_ACHATS,
+    JOURNAL_BANQUE,
+    JOURNAL_CAISSE,
+    JOURNAL_DIVERS,
+    JOURNAL_VENTES,
+    PREFIXE_BANQUE,
+    PREFIXE_CAISSE,
+)
 from models import (
     CategorieSaisie,
     Compte,
@@ -30,11 +39,11 @@ R = CompteType.PRODUIT
 
 # Default journals (code, libellé).
 DEFAULT_JOURNALS: list[tuple[str, str]] = [
-    ("BQ", "Banque"),
-    ("CA", "Caisse"),
-    ("AC", "Achats"),
-    ("VE", "Ventes / Recettes"),
-    ("OD", "Opérations diverses"),
+    (JOURNAL_BANQUE, "Banque"),
+    (JOURNAL_CAISSE, "Caisse"),
+    (JOURNAL_ACHATS, "Achats"),
+    (JOURNAL_VENTES, "Ventes / Recettes"),
+    (JOURNAL_DIVERS, "Opérations diverses"),
 ]
 
 # Chart of accounts: (numéro, libellé, nature). classe = int(numéro[0]).
@@ -119,8 +128,8 @@ DEPENSE = SensCategorie.DEPENSE
 # fresh association can record and track money straight away (§15.4). Users rename
 # them, set opening balances and add more. (compte numéro -> type de trésorerie).
 DEFAULT_TRESORERIE: list[tuple[str, TypeTresorerie]] = [
-    ("512", TypeTresorerie.BANQUE),
-    ("531", TypeTresorerie.CAISSE),
+    (PREFIXE_BANQUE, TypeTresorerie.BANQUE),
+    (PREFIXE_CAISSE, TypeTresorerie.CAISSE),
 ]
 
 # Plain-language entry categories for the assisted "saisie simple" screen.

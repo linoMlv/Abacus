@@ -11,6 +11,7 @@ from decimal import Decimal
 from sqlmodel import Session, SQLModel, select
 
 from accounting_engine import (
+    JOURNAL_DIVERS,
     EntryError,
     build_ecriture_simple,
     build_ecriture_virement,
@@ -137,7 +138,7 @@ def _build_virement_entry(
     destination = _owned_treasury(
         session, ctx.association_id, body.compte_destination_id
     )
-    journal = _journal_by_code(session, ctx.association_id, "OD")
+    journal = _journal_by_code(session, ctx.association_id, JOURNAL_DIVERS)
     exercice = _open_exercice(session, ctx.association_id, body.date)
     libelle = (body.libelle or "").strip() or (
         f"Virement {source.libelle} → {destination.libelle}"

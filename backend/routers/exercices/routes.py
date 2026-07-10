@@ -7,6 +7,8 @@ from sqlmodel import Session, desc, select
 
 from accounting_engine import (
     CENTS,
+    CLASSES_BILAN,
+    CLASSES_GESTION,
     ZERO,
     build_ecriture_determination_resultat,
     build_ecriture_report_a_nouveau,
@@ -162,7 +164,7 @@ def cloturer_exercice(
             detail="Validez ou supprimez les brouillons avant de clôturer l'exercice.",
         )
 
-    soldes_gestion = _account_soldes(session, aid, exercice_id, [6, 7])
+    soldes_gestion = _account_soldes(session, aid, exercice_id, list(CLASSES_GESTION))
     resultat = resultat_de_gestion(soldes_gestion)
 
     report_montant = affectation.report_a_nouveau.quantize(CENTS)
@@ -221,7 +223,7 @@ def cloturer_exercice(
         session.add(determination)
         piece += 1
 
-    soldes_bilan = _account_soldes(session, aid, exercice_id, [1, 2, 3, 4, 5])
+    soldes_bilan = _account_soldes(session, aid, exercice_id, list(CLASSES_BILAN))
     report_entry = build_ecriture_report_a_nouveau(
         association_id=aid,
         exercice_id=suivant.id,

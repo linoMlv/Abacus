@@ -11,7 +11,15 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, SQLModel, func, select
 
-from accounting_engine import CENTS, ZERO, exclude_cloture, validated_only
+from accounting_engine import (
+    CENTS,
+    COMPTE_TVA_COLLECTEE,
+    COMPTE_TVA_DEDUCTIBLE,
+    ZERO,
+    exclude_cloture,
+    to_decimal,
+    validated_only,
+)
 from auth_context import AccessContext, require_permission
 from authz import Permission
 from database import get_session
@@ -20,9 +28,6 @@ from models import Compte, Ecriture, LigneEcriture
 from .synthese import service as synthese_service
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["tva"])
-
-_COLLECTEE = "44571"
-_DEDUCTIBLE = "44566"
 
 
 class EtatTvaRead(SQLModel):
@@ -59,10 +64,7 @@ def _net_on_account(
             exclude_cloture(),
         )
     ).first()
-    debit, credit = (
-        (Decimal(str(row[0])), Decimal(str(row[1]))) if row else (ZERO, ZERO)
-    )
-    return debit, credit
+    return (to_decimal(row[0]), to_decimal(row[1])) if row else (ZERO, ZERO)
 
 
 @router.get("/tva", response_model=EtatTvaRead)
@@ -80,10 +82,10 @@ def etat_tva(
     aid = ctx.association_id
 
     col_debit, col_credit = _net_on_account(
-        session, aid, _COLLECTEE, date_from, date_to
+        session, aid, COMPTE_TVA_COLLECTEE, date_from, date_to
     )
     ded_debit, ded_credit = _net_on_account(
-        session, aid, _DEDUCTIBLE, date_from, date_to
+        session, aid, COMPTE_TVA_DEDUCTIBLE, date_from, date_to
     )
     collectee = (col_credit - col_debit).quantize(CENTS)
     deductible = (ded_debit - ded_credit).quantize(CENTS)

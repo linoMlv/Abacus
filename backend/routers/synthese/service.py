@@ -12,10 +12,14 @@ from sqlmodel import Session, asc, select
 
 from accounting_engine import (
     CENTS,
+    CLASSE_CHARGE,
+    CLASSE_PRODUIT,
+    CLASSES_GESTION,
     ZERO,
     exclude_cloture,
     find_open_exercice,
     scope_exercice,
+    to_decimal,
     validated_only,
 )
 from budget_engine import (
@@ -47,12 +51,20 @@ from models import (
 )
 
 # Income-statement classes: charges (6) and produits (7).
-_CHARGE, _PRODUIT = 6, 7
+_CHARGE, _PRODUIT = CLASSE_CHARGE, CLASSE_PRODUIT
+_dec = to_decimal
 
 
-def _dec(value) -> Decimal:
-    """SQL SUM/COALESCE comes back as a string or int depending on the driver."""
-    return Decimal(str(value))
+def _signed(classe: int, debit: Decimal, credit: Decimal) -> tuple[Decimal, Decimal]:
+    """The (recette, dépense) contribution of one class-6/7 aggregate line.
+
+    A produit (class 7) reads as a recette (crédit − débit); a charge (class 6)
+    as a dépense (débit − crédit). Centralises the sign convention shared by the
+    résultat and the per-event répartition.
+    """
+    if classe == _PRODUIT:
+        return credit - debit, ZERO
+    return ZERO, debit - credit
 
 
 def default_range(session: Session, association_id: str) -> tuple[date, date]:
@@ -81,7 +93,7 @@ def resultat(
             Compte.association_id == association_id,
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
-            Compte.classe.in_([_CHARGE, _PRODUIT]),
+            Compte.classe.in_(CLASSES_GESTION),
             validated_only(),
             exclude_cloture(),
         )
@@ -90,11 +102,9 @@ def resultat(
 
     recettes, depenses = ZERO, ZERO
     for classe, total_debit, total_credit in rows:
-        debit, credit = _dec(total_debit), _dec(total_credit)
-        if classe == _PRODUIT:
-            recettes += credit - debit
-        else:
-            depenses += debit - credit
+        recette, depense = _signed(classe, _dec(total_debit), _dec(total_credit))
+        recettes += recette
+        depenses += depense
     recettes, depenses = recettes.quantize(CENTS), depenses.quantize(CENTS)
     return SyntheseResultat(
         recettes=recettes, depenses=depenses, resultat=recettes - depenses
@@ -121,7 +131,7 @@ def repartition_categories(
             CategorieSaisie.association_id == association_id,
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
-            Compte.classe.in_([_CHARGE, _PRODUIT]),
+            Compte.classe.in_(CLASSES_GESTION),
             validated_only(),
         )
         .group_by(CategorieSaisie.id, CategorieSaisie.libelle, CategorieSaisie.sens)
@@ -158,7 +168,7 @@ def repartition_evenements(
             Ecriture.evenement_id.is_not(None),
             Ecriture.date >= date_from,
             Ecriture.date <= date_to,
-            Compte.classe.in_([_CHARGE, _PRODUIT]),
+            Compte.classe.in_(CLASSES_GESTION),
             validated_only(),
         )
         .group_by(Ecriture.evenement_id, Compte.classe)
@@ -166,12 +176,10 @@ def repartition_evenements(
 
     agg: dict[str, list[Decimal]] = {}
     for evenement_id, classe, total_debit, total_credit in rows:
-        debit, credit = _dec(total_debit), _dec(total_credit)
+        recette, depense = _signed(classe, _dec(total_debit), _dec(total_credit))
         acc = agg.setdefault(evenement_id, [ZERO, ZERO])
-        if classe == _PRODUIT:
-            acc[0] += credit - debit
-        else:
-            acc[1] += debit - credit
+        acc[0] += recette
+        acc[1] += depense
 
     evenements = {
         e.id: e

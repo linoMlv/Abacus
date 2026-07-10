@@ -15,7 +15,13 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from accounting_engine import CENTS, ZERO, validated_only
+from accounting_engine import (
+    CENTS,
+    CLASSES_GESTION,
+    ZERO,
+    to_decimal,
+    validated_only,
+)
 from models import (
     Budget,
     CategorieSaisie,
@@ -25,14 +31,6 @@ from models import (
     LigneEcriture,
     SensCategorie,
 )
-
-# Income-statement classes: charges (6) and produits (7).
-_CHARGE, _PRODUIT = 6, 7
-
-
-def _dec(value) -> Decimal:
-    """SQL SUM/COALESCE comes back as a string or int depending on the driver."""
-    return Decimal(str(value))
 
 
 @dataclass
@@ -86,7 +84,7 @@ def realise_par_categorie(
             Ecriture.association_id == association_id,
             CategorieSaisie.association_id == association_id,
             Ecriture.exercice_id == exercice_id,
-            Compte.classe.in_([_CHARGE, _PRODUIT]),
+            Compte.classe.in_(CLASSES_GESTION),
             validated_only(),
         )
         .group_by(CategorieSaisie.id, CategorieSaisie.sens)
@@ -94,7 +92,7 @@ def realise_par_categorie(
 
     out: dict[str, Decimal] = {}
     for categorie_id, sens, total_debit, total_credit in rows:
-        debit, credit = _dec(total_debit), _dec(total_credit)
+        debit, credit = to_decimal(total_debit), to_decimal(total_credit)
         montant = credit - debit if sens == SensCategorie.RECETTE else debit - credit
         out[categorie_id] = montant.quantize(CENTS)
     return out
