@@ -43,6 +43,9 @@ def get_synthese(
         repartition_evenements=service.repartition_evenements(
             session, aid, date_from, date_to
         ),
+        repartition_tresorerie=service.repartition_tresorerie(
+            session, aid, date_from, date_to
+        ),
         courbe_tresorerie=service.courbe_tresorerie(session, aid, date_from, date_to),
         alertes=service.alertes(session, aid),
         budget=service.budget_synthese(session, aid, date_from),

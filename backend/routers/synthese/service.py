@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import func
+from sqlalchemy.orm import aliased
 from sqlmodel import Session, asc, select
 
 from accounting_engine import (
@@ -46,6 +47,8 @@ from models import (
     LigneEcriture,
     RepartitionCategorieItem,
     RepartitionEvenementItem,
+    RepartitionTresorerieItem,
+    SensCategorie,
     SyntheseAlertes,
     SyntheseResultat,
 )
@@ -204,6 +207,70 @@ def repartition_evenements(
             )
         )
     items.sort(key=lambda i: i.nom)
+    return items
+
+
+def repartition_tresorerie(
+    session: Session, association_id: str, date_from: date, date_to: date
+) -> list[RepartitionTresorerieItem]:
+    """Per treasury account, the recette/dépense flow that ran through it.
+
+    For each categorised (assisted) entry, the class-6/7 magnitude is attributed to
+    the treasury account (class-5 line) on that entry, split by the category sens —
+    the per-category breakdown, regrouped by the account the money moved through.
+    Virements, à-nouveaux and manual entries carry no category and are excluded.
+    """
+    tres_line = aliased(LigneEcriture)
+    gest_line = aliased(LigneEcriture)
+    tres_compte = aliased(Compte)
+    gest_compte = aliased(Compte)
+
+    rows = session.exec(
+        select(
+            tres_line.compte_id,
+            tres_compte.libelle,
+            CategorieSaisie.sens,
+            func.coalesce(func.sum(gest_line.debit + gest_line.credit), 0),
+        )
+        .select_from(Ecriture)
+        .join(CategorieSaisie, CategorieSaisie.id == Ecriture.categorie_id)
+        .join(tres_line, tres_line.ecriture_id == Ecriture.id)
+        .join(tres_compte, tres_compte.id == tres_line.compte_id)
+        .join(gest_line, gest_line.ecriture_id == Ecriture.id)
+        .join(gest_compte, gest_compte.id == gest_line.compte_id)
+        .where(
+            Ecriture.association_id == association_id,
+            CategorieSaisie.association_id == association_id,
+            tres_compte.association_id == association_id,
+            tres_compte.type_tresorerie.is_not(None),
+            gest_compte.classe.in_(CLASSES_GESTION),
+            Ecriture.date >= date_from,
+            Ecriture.date <= date_to,
+            validated_only(),
+        )
+        .group_by(tres_line.compte_id, tres_compte.libelle, CategorieSaisie.sens)
+    ).all()
+
+    agg: dict[str, dict] = {}
+    for compte_id, libelle, sens, magnitude in rows:
+        acc = agg.setdefault(
+            compte_id, {"libelle": libelle, "recettes": ZERO, "depenses": ZERO}
+        )
+        if sens == SensCategorie.RECETTE:
+            acc["recettes"] += _dec(magnitude)
+        else:
+            acc["depenses"] += _dec(magnitude)
+
+    items = [
+        RepartitionTresorerieItem(
+            compte_id=cid,
+            libelle=vals["libelle"],
+            recettes=vals["recettes"].quantize(CENTS),
+            depenses=vals["depenses"].quantize(CENTS),
+        )
+        for cid, vals in agg.items()
+    ]
+    items.sort(key=lambda i: i.libelle)
     return items
 
 

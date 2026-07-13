@@ -34,6 +34,15 @@ class RepartitionEvenementItem(SQLModel):
     resultat: Decimal
 
 
+class RepartitionTresorerieItem(SQLModel):
+    """One treasury account's recette/dépense flow over the period."""
+
+    compte_id: str
+    libelle: str
+    recettes: Decimal
+    depenses: Decimal
+
+
 class CourbePoint(SQLModel):
     """One point of the treasury balance curve (cumulative end-of-day balance)."""
 
@@ -94,6 +103,7 @@ class SyntheseRead(SQLModel):
     resultat: SyntheseResultat
     repartition_categories: list[RepartitionCategorieItem]
     repartition_evenements: list[RepartitionEvenementItem]
+    repartition_tresorerie: list[RepartitionTresorerieItem]
     courbe_tresorerie: list[CourbePoint]
     alertes: SyntheseAlertes
     budget: "BudgetSynthese | None" = None

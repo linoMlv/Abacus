@@ -172,6 +172,35 @@ def test_repartition_evenements_over_the_range():
     assert events["Gala"]["resultat"] == "-50.00"
 
 
+def test_repartition_tresorerie_splits_recettes_depenses_by_account():
+    client, assoc, _ = _books()  # all on Banque (512): recettes 300, dépenses 50
+    # A recette booked on the Caisse (531) too, to prove the per-account split.
+    caisse = _treso_id(client, assoc, "531")
+    resp = client.post(
+        f"/api/asso/{assoc}/ecritures/simple",
+        json={
+            "categorie_id": _categorie_id(client, assoc, "Cotisations"),
+            "compte_tresorerie_id": caisse,
+            "montant": "80.00",
+            "date": "2026-06-15",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    eid = resp.json()["id"]
+    assert (
+        client.post(f"/api/asso/{assoc}/ecritures/{eid}/validation").status_code == 200
+    )
+
+    data = _synthese(client, assoc, date_from=FROM, date_to=TO)
+    tr = {t["libelle"]: t for t in data["repartition_tresorerie"]}
+    # Banque: 200 + 100 recettes (the July 999 is out of range, the à-nouveau has no
+    # category), 50 dépenses. Caisse: only the 80 recette.
+    assert tr["Banque"]["recettes"] == "300.00"
+    assert tr["Banque"]["depenses"] == "50.00"
+    assert tr["Caisse"]["recettes"] == "80.00"
+    assert tr["Caisse"]["depenses"] == "0.00"
+
+
 def test_courbe_tresorerie_opening_then_cumulative():
     client, assoc, _ = _books()
     data = _synthese(client, assoc, date_from=FROM, date_to=TO)
@@ -243,6 +272,7 @@ def test_synthese_is_tenant_scoped():
     data_b = _synthese(client_b, assoc_b)
     assert data_b["resultat"]["recettes"] == "0.00"
     assert data_b["repartition_categories"] == []
+    assert data_b["repartition_tresorerie"] == []
     assert data_b["courbe_tresorerie"] == []
 
 
