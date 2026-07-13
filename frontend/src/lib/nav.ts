@@ -72,7 +72,9 @@ export const NAV_SECTIONS: NavSection[] = [
         segment: 'comptes',
         label: 'Comptes',
         icon: ListTree,
-        permissions: [PERMISSIONS.REPORT_VIEW],
+        // Consultation (plan, balance, grand livre, rapprochement) for any reader;
+        // an expert-comptable who only holds ACCOUNT_MANAGE still reaches the plan.
+        permissions: [PERMISSIONS.REPORT_VIEW, PERMISSIONS.ACCOUNT_MANAGE],
       },
       {
         segment: 'banque',

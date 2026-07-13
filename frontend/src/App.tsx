@@ -27,6 +27,7 @@ const OnboardingSoldesPage = lazyPage(
 const SynthesePage = lazyPage(() => import('@/pages/SynthesePage'), 'SynthesePage');
 const SaisiePage = lazyPage(() => import('@/pages/SaisiePage'), 'SaisiePage');
 const JournalPage = lazyPage(() => import('@/pages/JournalPage'), 'JournalPage');
+const ComptesPage = lazyPage(() => import('@/pages/ComptesPage'), 'ComptesPage');
 const BanquePage = lazyPage(() => import('@/pages/BanquePage'), 'BanquePage');
 const RecurrencesPage = lazyPage(() => import('@/pages/RecurrencesPage'), 'RecurrencesPage');
 const BudgetPage = lazyPage(() => import('@/pages/BudgetPage'), 'BudgetPage');
@@ -68,6 +69,7 @@ export default function App() {
               <Route path="synthese" element={<SynthesePage />} />
               <Route path="saisie" element={<SaisiePage />} />
               <Route path="journal" element={<JournalPage />} />
+              <Route path="comptes" element={<ComptesPage />} />
               <Route path="banque" element={<BanquePage />} />
               <Route path="recurrences" element={<RecurrencesPage />} />
               <Route path="budget" element={<BudgetPage />} />
@@ -80,6 +82,7 @@ export default function App() {
                     'synthese',
                     'saisie',
                     'journal',
+                    'comptes',
                     'banque',
                     'recurrences',
                     'budget',
