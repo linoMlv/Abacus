@@ -33,6 +33,7 @@ from routers import (
     identity,
     justificatifs,
     logs,
+    notifications,
     permissions,
     recurrences,
     recus,
@@ -130,6 +131,7 @@ _fastapi_app.include_router(recurrences.router)
 _fastapi_app.include_router(recus.router)
 _fastapi_app.include_router(budget.router)
 _fastapi_app.include_router(categories.router)
+_fastapi_app.include_router(notifications.router)
 _fastapi_app.include_router(tiers.router)
 _fastapi_app.include_router(evenements.router)
 _fastapi_app.include_router(synthese.router)

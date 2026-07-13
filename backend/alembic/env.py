@@ -26,6 +26,7 @@ from models import (  # noqa: F401
     LigneBudget,
     LogEntry,
     Membership,
+    Notification,
     RecuFiscal,
     RecuFiscalLigne,
     Recurrence,

@@ -59,6 +59,12 @@ from .identity import (
     User,
 )
 from .justificatif import Justificatif, JustificatifRead
+from .notification import (
+    Notification,
+    NotificationRead,
+    NotificationsRead,
+    NotificationType,
+)
 from .recu import (
     DonRead,
     FormeDon,
@@ -167,6 +173,10 @@ __all__ = [
     "MembershipRead",
     "MembershipStatus",
     "ModeReglement",
+    "Notification",
+    "NotificationRead",
+    "NotificationType",
+    "NotificationsRead",
     "DonRead",
     "FormeDon",
     "RecuFiscal",
