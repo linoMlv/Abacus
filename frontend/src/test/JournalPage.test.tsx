@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DisplayModeProvider } from '@/display/DisplayModeProvider';
+
 const listEcritures = vi.fn();
 const listJournaux = vi.fn();
 const listComptes = vi.fn();
@@ -123,11 +125,13 @@ function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/asso/A/journal']}>
-        <Routes>
-          <Route path="/asso/:associationId/journal" element={<JournalPage />} />
-        </Routes>
-      </MemoryRouter>
+      <DisplayModeProvider>
+        <MemoryRouter initialEntries={['/asso/A/journal']}>
+          <Routes>
+            <Route path="/asso/:associationId/journal" element={<JournalPage />} />
+          </Routes>
+        </MemoryRouter>
+      </DisplayModeProvider>
     </QueryClientProvider>
   );
 }
@@ -182,11 +186,11 @@ async function openFilterSection(name: RegExp) {
 }
 
 describe('JournalPage', () => {
-  it('lists the entries with their journal code', async () => {
+  it('lists the entries (journal codes belong to the accounting view — cf. JournalViews)', async () => {
     renderPage();
     expect(await screen.findByText('Cotisation Mars')).toBeInTheDocument();
     expect(screen.getByText('Loyer')).toBeInTheDocument();
-    expect(screen.getByText('VE')).toBeInTheDocument();
+    expect(screen.queryByText('VE')).not.toBeInTheDocument();
   });
 
   it('loads the next page with the "Charger plus" button', async () => {

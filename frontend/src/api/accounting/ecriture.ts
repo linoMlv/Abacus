@@ -42,10 +42,33 @@ interface EcritureBase {
   validated_at: string | null;
 }
 
-/** A journal row: entry metadata plus its total and human journal code. */
+/** One line of a journal row, with its account already named (accounting view). */
+export interface LigneJournal {
+  compte_id: string;
+  compte_numero: string;
+  compte_libelle: string;
+  libelle: string;
+  debit: string;
+  credit: string;
+}
+
+/**
+ * A journal row, readable both ways without a follow-up request (C24): the plain
+ * -language reading (`sens`, treasury account, signed movement) and the
+ * accountant's one (`lignes` with débit/crédit and counterpart accounts).
+ */
 export interface EcritureListItem extends EcritureBase {
   montant: string;
   journal_code: string;
+  /** recette / depense / virement — null when the entry claims no direction. */
+  sens: 'recette' | 'depense' | 'virement' | null;
+  /** Treasury account touched (the *source*, for a virement). */
+  compte_libelle: string | null;
+  /** Destination account of a virement. */
+  compte_contrepartie_libelle: string | null;
+  /** Signed movement on treasury: >0 money in, <0 money out, null when none. */
+  montant_tresorerie: string | null;
+  lignes: LigneJournal[];
 }
 
 /** A posted accounting entry with its balanced lines. */
