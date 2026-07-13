@@ -21,6 +21,7 @@ from .banque import (
     LigneBancaire,
     LigneBancaireRead,
     LigneBancaireStatut,
+    RapprochementCompteRead,
     RapprochementSuggestion,
 )
 from .budget import (
@@ -171,6 +172,7 @@ __all__ = [
     "RecuFiscalRead",
     "PermissionPreset",
     "Periodicite",
+    "RapprochementCompteRead",
     "RapprochementSuggestion",
     "Recurrence",
     "RecurrenceMode",

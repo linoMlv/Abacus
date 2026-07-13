@@ -26,12 +26,13 @@ from models import (
     LigneBancaire,
     LigneBancaireStatut,
     LigneEcriture,
+    RapprochementCompteRead,
     RapprochementSuggestion,
     SensCategorie,
 )
 from routers.ecritures.builders import _build_simple_entry
 from routers.ecritures.schemas import SaisieSimpleRequest
-from routers.tresorerie.service import _owned_treasury
+from routers.tresorerie.service import _owned_treasury, treasury_soldes
 
 # Entries within this many days of a statement line are offered as matches.
 _MATCH_WINDOW_DAYS = 30
@@ -58,6 +59,78 @@ def owned_import(session: Session, association_id: str, import_id: str) -> Impor
     return owned_or_404(
         session, ImportReleve, import_id, association_id, "Import introuvable"
     )
+
+
+def etat_rapprochement(
+    session: Session, association_id: str
+) -> list[RapprochementCompteRead]:
+    """Reconciliation state of every treasury account, in one pass.
+
+    Three grouped queries (accounts, unreconciled lines, last import) rather than
+    a per-account round-trip, then the books' balance from the shared treasury
+    helper — the same figure the Synthèse cards show, so the two screens can never
+    disagree.
+    """
+    comptes = session.exec(
+        select(Compte)
+        .where(
+            Compte.association_id == association_id,
+            Compte.type_tresorerie.is_not(None),
+            Compte.is_active.is_(True),
+        )
+        .order_by(Compte.ordre, Compte.numero)
+    ).all()
+    if not comptes:
+        return []
+
+    compte_ids = [c.id for c in comptes]
+    soldes = treasury_soldes(session, association_id, compte_ids)
+
+    pending = {
+        compte_id: (int(nb), to_decimal(total))
+        for compte_id, nb, total in session.exec(
+            select(
+                LigneBancaire.compte_id,
+                func.count(LigneBancaire.id),
+                func.coalesce(func.sum(LigneBancaire.montant), 0),
+            )
+            .where(
+                LigneBancaire.association_id == association_id,
+                LigneBancaire.compte_id.in_(compte_ids),
+                LigneBancaire.statut == LigneBancaireStatut.NON_RAPPROCHE,
+            )
+            .group_by(LigneBancaire.compte_id)
+        ).all()
+    }
+    derniers = {
+        compte_id: dernier
+        for compte_id, dernier in session.exec(
+            select(ImportReleve.compte_id, func.max(ImportReleve.created_at))
+            .where(
+                ImportReleve.association_id == association_id,
+                ImportReleve.compte_id.in_(compte_ids),
+            )
+            .group_by(ImportReleve.compte_id)
+        ).all()
+    }
+
+    etat: list[RapprochementCompteRead] = []
+    for compte in comptes:
+        solde = soldes.get(compte.id, _ZERO)
+        nb, montant = pending.get(compte.id, (0, _ZERO))
+        etat.append(
+            RapprochementCompteRead(
+                compte_id=compte.id,
+                numero=compte.numero,
+                libelle=compte.libelle,
+                solde_comptable=solde,
+                nb_non_rapprochees=nb,
+                montant_non_rapproche=montant,
+                solde_bancaire_estime=solde + montant,
+                dernier_import=derniers.get(compte.id),
+            )
+        )
+    return etat
 
 
 def persist_import(

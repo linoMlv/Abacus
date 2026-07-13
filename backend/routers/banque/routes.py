@@ -22,6 +22,7 @@ from models import (
     LigneBancaire,
     LigneBancaireRead,
     LigneBancaireStatut,
+    RapprochementCompteRead,
     RapprochementSuggestion,
 )
 from routers.ecritures.resolution import _require
@@ -200,6 +201,20 @@ def supprimer_import(
 
 
 # --- Reconciliation -------------------------------------------------------
+
+
+@router.get("/banque/rapprochement", response_model=list[RapprochementCompteRead])
+def etat_rapprochement(
+    ctx: AccessContext = Depends(require_permission(Permission.REPORT_VIEW)),
+    session: Session = Depends(get_session),
+):
+    """Per-account reconciliation state, for the Comptes page (C25).
+
+    A read-only restitution — counts and totals, no statement content — so it sits
+    behind ``REPORT_VIEW`` and stays visible to a président/CA who never touches
+    the bank screens.
+    """
+    return service.etat_rapprochement(session, ctx.association_id)
 
 
 @router.get("/banque/lignes", response_model=list[LigneBancaireRead])

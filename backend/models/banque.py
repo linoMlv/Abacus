@@ -80,3 +80,21 @@ class RapprochementSuggestion(SQLModel):
     date: date
     libelle: str
     montant: Decimal  # signed net on the treasury account (matches the line)
+
+
+class RapprochementCompteRead(SQLModel):
+    """Reconciliation state of one treasury account (page Comptes, C25).
+
+    ``solde_bancaire_estime`` is what the bank should show: the books plus the
+    movements the bank reported and nobody has booked yet. When every line is
+    reconciled the two coincide — that is the whole point of the screen.
+    """
+
+    compte_id: str
+    numero: str
+    libelle: str
+    solde_comptable: Decimal
+    nb_non_rapprochees: int
+    montant_non_rapproche: Decimal
+    solde_bancaire_estime: Decimal
+    dernier_import: datetime | None
