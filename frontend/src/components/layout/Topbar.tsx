@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { DisplayModeToggle } from '@/display/DisplayModeToggle';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
 
+import { NotificationBell } from './NotificationBell';
 import { UserMenu } from './UserMenu';
 
 function currentTitle(pathname: string): string {
@@ -25,8 +26,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <Menu className="h-5 w-5" aria-hidden />
       </button>
       <h1 className="text-[15px] font-semibold text-ink">{currentTitle(pathname)}</h1>
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex items-center gap-3 sm:gap-4">
         <DisplayModeToggle />
+        <NotificationBell />
         <UserMenu />
       </div>
     </header>

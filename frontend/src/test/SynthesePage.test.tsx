@@ -152,30 +152,23 @@ describe('SynthesePage', () => {
     expect(await screen.findByText(/75,00/)).toBeInTheDocument();
   });
 
-  it('surfaces alerts (drafts, over-budget event, fiscal year due)', async () => {
+  it('leaves the pending work to the bell: no alert panel here', async () => {
     getSynthese.mockResolvedValue({
       ...EMPTY_SYNTHESE,
       alertes: {
         brouillons: 3,
-        evenements_depasses: [
-          {
-            evenement_id: 'ev1',
-            nom: 'Gala',
-            budget_depenses: '10.00',
-            realise_depenses: '50.00',
-          },
-        ],
+        evenements_depasses: [],
         exercices_a_cloturer: [{ exercice_id: 'ex1', libelle: '2025', date_fin: '2025-12-31' }],
-        budgets_depasses: [
-          { categorie_id: 'c1', libelle: 'Locations', montant_prevu: '100.00', realise: '150.00' },
-        ],
+        budgets_depasses: [],
       },
     });
     renderPage();
-    expect(await screen.findByText(/3 écritures en brouillon à valider/)).toBeInTheDocument();
-    expect(await screen.findByText(/« Gala » dépasse son budget/)).toBeInTheDocument();
-    expect(await screen.findByText(/Exercice « 2025 » échu/)).toBeInTheDocument();
-    expect(await screen.findByText(/« Locations » dépasse son budget/)).toBeInTheDocument();
+    await screen.findAllByText('Compte courant');
+
+    // The dashboard says where the association stands; what is *mine to do* is the
+    // bell's job (C28) — see NotificationBell.test.
+    expect(screen.queryByText(/écritures en brouillon à valider/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Exercice « 2025 » échu/)).not.toBeInTheDocument();
   });
 
   it('shows the budget widget when a budget is set', async () => {
@@ -203,26 +196,6 @@ describe('SynthesePage', () => {
     renderPage();
     expect(await screen.findByText('Budget 2026')).toBeInTheDocument();
     expect(await screen.findByText(/1 poste en dépassement/)).toBeInTheDocument();
-  });
-
-  it('dismisses an alert so it no longer shows', async () => {
-    getSynthese.mockResolvedValue({
-      ...EMPTY_SYNTHESE,
-      alertes: {
-        brouillons: 3,
-        evenements_depasses: [],
-        exercices_a_cloturer: [],
-        budgets_depasses: [],
-      },
-    });
-    renderPage();
-    expect(await screen.findByText(/3 écritures en brouillon à valider/)).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: /Masquer cette alerte/ }));
-
-    await waitFor(() =>
-      expect(screen.queryByText(/3 écritures en brouillon à valider/)).not.toBeInTheDocument()
-    );
   });
 
   it('refetches with an explicit period when a preset is chosen', async () => {

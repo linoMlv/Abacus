@@ -5,7 +5,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { accountingApi, type CompteTresorerie } from '@/api/accounting';
 import { EvenementCard } from '@/components/evenements/EvenementCard';
-import { AlertesPanel } from '@/components/synthese/AlertesPanel';
 import { BudgetWidget } from '@/components/synthese/BudgetWidget';
 import { ChartsSkeleton } from '@/components/synthese/ChartsSkeleton';
 import { type Preset, presetParams } from '@/components/synthese/period';
@@ -112,8 +111,6 @@ export function SynthesePage() {
           onCustomTo={setCustomTo}
         />
       </div>
-
-      {synthese && <AlertesPanel synthese={synthese} associationId={associationId} />}
 
       {tresorerieQuery.isLoading ? (
         <Card className="h-40 animate-pulse bg-hover" aria-hidden />
