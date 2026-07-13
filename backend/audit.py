@@ -22,6 +22,8 @@ class AuditAction:
     ECRITURE_VALIDATE = "ecriture.validate"
     ECRITURE_DELETE = "ecriture.delete"
     ECRITURE_CONTREPASSATION = "ecriture.contrepassation"
+    COMPTE_CREATE = "compte.create"
+    COMPTE_UPDATE = "compte.update"
     COMPTE_TRESORERIE_CREATE = "compte_tresorerie.create"
     COMPTE_TRESORERIE_UPDATE = "compte_tresorerie.update"
     CATEGORIE_CREATE = "categorie.create"

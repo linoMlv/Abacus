@@ -15,8 +15,8 @@ from auth_context import AccessContext
 from exports.data.bilan import bilan_data
 from exports.data.resultat import compte_resultat_data
 from models import CategorieSaisie, SensCategorie
-from routers.accounting import balance_comptes, grand_livre, list_comptes
 from routers.categories import list_categories
+from routers.comptes.routes import balance_comptes, grand_livre, list_comptes
 from routers.ecritures.routes import creer_saisie_simple, list_ecritures
 from routers.ecritures.schemas import SaisieSimpleRequest
 from routers.recus import list_dons
