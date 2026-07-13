@@ -17,6 +17,7 @@ import {
   type VirementInput,
 } from '@/api/accounting';
 import { apiErrorMessage } from '@/api/client';
+import { useDisplayMode } from '@/display/useDisplayMode';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRegimeTva } from '@/hooks/useRegimeTva';
 import { PERMISSIONS } from '@/lib/permissions';
@@ -58,10 +59,14 @@ export function useOperationForm({ mode, entry, onSaved }: UseOperationFormArgs)
   const fromEntry = !isCreate;
   const { associationId } = useParams() as { associationId: string };
   const { has } = usePermissions();
+  const { isAdvanced } = useDisplayMode();
   const regimeTva = useRegimeTva();
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState<string | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(fromEntry);
+  // Folded away by default (§15.1). It opens on an existing entry — whose optional
+  // fields must stay visible to be edited — and for someone reading in accounting
+  // mode, who asked to see everything.
+  const [advancedOpen, setAdvancedOpen] = useState(fromEntry || isAdvanced);
 
   const canCreate = has(PERMISSIONS.ENTRY_CREATE_SIMPLE);
   const canTransfer = has(PERMISSIONS.ENTRY_CREATE_TRANSFER);

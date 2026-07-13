@@ -5,7 +5,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { accountingApi } from '@/api/accounting';
 import { ExportMenu } from '@/components/ExportMenu';
-import { AdvancedSwitch } from '@/components/journal/AdvancedSwitch';
 import { EcritureDrawer } from '@/components/journal/EcritureDrawer';
 import { EmptyState } from '@/components/journal/EmptyState';
 import { FilterPanel, ResetButton } from '@/components/journal/FilterPanel';
@@ -132,8 +131,7 @@ export function JournalPage() {
             Toutes les écritures de l’exercice, les plus récentes d’abord.
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <AdvancedSwitch />
+        <div className="flex items-center gap-2">
           {canExport && (
             <ExportMenu
               label="Exporter"

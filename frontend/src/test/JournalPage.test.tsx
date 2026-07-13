@@ -380,8 +380,9 @@ describe('JournalPage', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
-    // Lines render account labels resolved from the chart of accounts.
-    expect(await screen.findByText('512 — Banque')).toBeInTheDocument();
+    // The drawer opens in plain language; the débit/crédit lines belong to the
+    // accounting mode (covered by EcritureDrawer.test).
+    expect(await screen.findByText('Reçu sur')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /Valider/ }));
     await waitFor(() => expect(validerEcriture).toHaveBeenCalledWith('A', 'e2'));

@@ -8,10 +8,12 @@ import { ManualEntryForm } from '@/components/saisie/ManualEntryForm';
 import { OperationForm } from '@/components/saisie/OperationForm';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { useDisplayMode } from '@/display/useDisplayMode';
 import { usePermissions } from '@/hooks/usePermissions';
 import { formatAmount, formatDate } from '@/lib/format';
 import { PERMISSIONS } from '@/lib/permissions';
 
+import { EcritureResume } from './EcritureResume';
 import { JustificatifsSection } from './JustificatifsSection';
 import { StatutBadge } from './StatutBadge';
 
@@ -26,6 +28,7 @@ export function EcritureDrawer({
 }) {
   const queryClient = useQueryClient();
   const { has } = usePermissions();
+  const { isAdvanced } = useDisplayMode();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // null = detail; 'edit' rebuilds a draft; 'correct' annule-et-remplace a validated entry.
   const [formAction, setFormAction] = useState<null | 'edit' | 'correct'>(null);
@@ -175,28 +178,43 @@ export function EcritureDrawer({
               </div>
               <p className="text-sm text-ink">{entry.libelle}</p>
 
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-hairline text-left text-xs uppercase tracking-wider text-faint">
-                    <th className="py-2 font-medium">Compte</th>
-                    <th className="py-2 text-right font-medium">Débit</th>
-                    <th className="py-2 text-right font-medium">Crédit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entry.lignes.map((l) => (
-                    <tr key={l.id} className="border-b border-hairline last:border-0">
-                      <td className="py-2 pr-2 text-ink">{compteLabel(l.compte_id)}</td>
-                      <td className="py-2 text-right font-mono tabular-nums text-ink">
-                        {Number(l.debit) > 0 ? formatAmount(l.debit) : ''}
-                      </td>
-                      <td className="py-2 text-right font-mono tabular-nums text-ink">
-                        {Number(l.credit) > 0 ? formatAmount(l.credit) : ''}
-                      </td>
+              {isAdvanced ? (
+                <table className="w-full text-sm">
+                  <caption className="sr-only">Lignes de l’écriture en débit / crédit</caption>
+                  <thead>
+                    <tr className="border-b border-hairline text-left text-xs uppercase tracking-wider text-faint">
+                      <th scope="col" className="py-2 font-medium">
+                        Compte
+                      </th>
+                      <th scope="col" className="py-2 text-right font-medium">
+                        Débit
+                      </th>
+                      <th scope="col" className="py-2 text-right font-medium">
+                        Crédit
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {entry.lignes.map((l) => (
+                      <tr key={l.id} className="border-b border-hairline last:border-0">
+                        <td className="py-2 pr-2 text-ink">{compteLabel(l.compte_id)}</td>
+                        <td className="py-2 text-right font-mono tabular-nums text-ink">
+                          {Number(l.debit) > 0 ? formatAmount(l.debit) : ''}
+                        </td>
+                        <td className="py-2 text-right font-mono tabular-nums text-ink">
+                          {Number(l.credit) > 0 ? formatAmount(l.credit) : ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <EcritureResume
+                  associationId={associationId}
+                  entry={entry}
+                  comptes={comptesQuery.data ?? []}
+                />
+              )}
 
               <JustificatifsSection associationId={associationId} ecritureId={ecritureId} />
             </div>

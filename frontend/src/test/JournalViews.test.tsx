@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DisplayModeProvider } from '@/display/DisplayModeProvider';
+import { DisplayModeToggle } from '@/display/DisplayModeToggle';
 
 const listEcritures = vi.fn();
 const listJournaux = vi.fn();
@@ -94,11 +95,13 @@ const DEPENSE = {
   lignes: [],
 };
 
+/** The page under the app-wide toggle, exactly as the shell renders it (topbar). */
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
       <DisplayModeProvider>
+        <DisplayModeToggle />
         <MemoryRouter initialEntries={['/asso/A/journal']}>
           <Routes>
             <Route path="/asso/:associationId/journal" element={<JournalPage />} />
@@ -146,7 +149,7 @@ describe('Journal — vue comptable', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
-    await user.click(screen.getByRole('switch', { name: /vue comptable/i }));
+    await user.click(screen.getByRole('switch', { name: /mode comptable/i }));
 
     expect(await screen.findByRole('columnheader', { name: 'Débit' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Crédit' })).toBeInTheDocument();
@@ -159,7 +162,7 @@ describe('Journal — vue comptable', () => {
     renderPage();
     await screen.findByText('Cotisation Mars');
 
-    await user.click(screen.getByRole('switch', { name: /vue comptable/i }));
+    await user.click(screen.getByRole('switch', { name: /mode comptable/i }));
 
     await waitFor(() => expect(localStorage.getItem('abacus:display-mode')).toBe('avance'));
   });

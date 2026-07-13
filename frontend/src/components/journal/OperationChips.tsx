@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { accountingApi, type EcritureListItem } from '@/api/accounting';
+import { accountingApi } from '@/api/accounting';
+
+/** Anything carrying the three analytic tags — a journal row or a full entry. */
+export interface TaggedEntry {
+  categorie_id: string | null;
+  tiers_id: string | null;
+  evenement_id: string | null;
+}
 
 /**
  * The analytic tags of an entry, in the words the association chose: category,
@@ -12,7 +19,7 @@ export function OperationChips({
   entry,
 }: {
   associationId: string;
-  entry: EcritureListItem;
+  entry: TaggedEntry;
 }) {
   const categories = useQuery({
     queryKey: ['categories', associationId],

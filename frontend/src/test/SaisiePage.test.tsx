@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DisplayModeProvider } from '@/display/DisplayModeProvider';
+
 const listCategories = vi.fn();
 const listTresorerie = vi.fn();
 const listTiers = vi.fn();
@@ -103,11 +105,13 @@ function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/asso/A/saisie']}>
-        <Routes>
-          <Route path="/asso/:associationId/saisie" element={<SaisiePage />} />
-        </Routes>
-      </MemoryRouter>
+      <DisplayModeProvider>
+        <MemoryRouter initialEntries={['/asso/A/saisie']}>
+          <Routes>
+            <Route path="/asso/:associationId/saisie" element={<SaisiePage />} />
+          </Routes>
+        </MemoryRouter>
+      </DisplayModeProvider>
     </QueryClientProvider>
   );
 }
