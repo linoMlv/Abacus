@@ -26,7 +26,7 @@ from .service import (
     _owned_treasury,
     _post_solde_initial,
     _to_read,
-    _treasury_soldes,
+    treasury_soldes,
 )
 
 router = APIRouter(prefix="/api/asso/{association_id}", tags=["tresorerie"])
@@ -49,7 +49,7 @@ def list_tresorerie(
         statement.order_by(asc(Compte.ordre), asc(Compte.numero))
     ).all()
 
-    soldes = _treasury_soldes(session, ctx.association_id, [c.id for c in comptes])
+    soldes = treasury_soldes(session, ctx.association_id, [c.id for c in comptes])
     return [_to_read(c, soldes.get(c.id, ZERO)) for c in comptes]
 
 
@@ -108,7 +108,7 @@ def create_tresorerie(
     session.commit()
     session.refresh(compte)
 
-    solde = _treasury_soldes(session, ctx.association_id, [compte.id]).get(
+    solde = treasury_soldes(session, ctx.association_id, [compte.id]).get(
         compte.id, ZERO
     )
     return _to_read(compte, solde)
@@ -158,7 +158,7 @@ def set_solde_initial(
     session.commit()
     session.refresh(compte)
 
-    solde = _treasury_soldes(session, ctx.association_id, [compte.id]).get(
+    solde = treasury_soldes(session, ctx.association_id, [compte.id]).get(
         compte.id, ZERO
     )
     return _to_read(compte, solde)
@@ -208,7 +208,7 @@ def update_tresorerie(
     session.commit()
     session.refresh(compte)
 
-    solde = _treasury_soldes(session, ctx.association_id, [compte.id]).get(
+    solde = treasury_soldes(session, ctx.association_id, [compte.id]).get(
         compte.id, ZERO
     )
     return _to_read(compte, solde)

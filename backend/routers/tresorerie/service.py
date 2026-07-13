@@ -68,7 +68,7 @@ def _next_treasury_numero(session: Session, association_id: str, prefix: str) ->
     return f"{prefix}{n}"
 
 
-def _treasury_soldes(
+def treasury_soldes(
     session: Session, association_id: str, compte_ids: list[str]
 ) -> dict[str, Decimal]:
     """Current balance (Σ débit − Σ crédit) per account id, from the ledger.
