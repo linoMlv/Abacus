@@ -23,6 +23,13 @@ export interface RepartitionEvenement {
   resultat: string;
 }
 
+export interface RepartitionTresorerie {
+  compte_id: string;
+  libelle: string;
+  recettes: string;
+  depenses: string;
+}
+
 export interface CourbePoint {
   date: string;
   solde: string;
@@ -74,6 +81,7 @@ export interface Synthese {
   resultat: SyntheseResultat;
   repartition_categories: RepartitionCategorie[];
   repartition_evenements: RepartitionEvenement[];
+  repartition_tresorerie: RepartitionTresorerie[];
   courbe_tresorerie: CourbePoint[];
   alertes: SyntheseAlertes;
   budget: BudgetSynthese | null;
