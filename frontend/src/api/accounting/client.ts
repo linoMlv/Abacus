@@ -33,6 +33,14 @@ import type {
   UpdateEvenementInput,
 } from './evenement';
 import type {
+  BalanceCompte,
+  CompteFilters,
+  CreateCompteInput,
+  GrandLivreLigne,
+  RapprochementCompte,
+  UpdateCompteInput,
+} from './plan';
+import type {
   AffectationResultat,
   ClotureResult,
   Compte,
@@ -62,6 +70,27 @@ export const accountingApi = {
   listComptes: (associationId: string, classe?: number) =>
     api.get<Compte[]>(`${base(associationId)}/comptes${classe ? `?classe=${classe}` : ''}`),
   listJournaux: (associationId: string) => api.get<Journal[]>(`${base(associationId)}/journaux`),
+  // --- Plan comptable (page Comptes) ---
+  listPlanComptable: (associationId: string, filters: CompteFilters = {}) =>
+    api.get<Compte[]>(
+      `${base(associationId)}/comptes${qs({
+        classe: filters.classe,
+        include_inactive: filters.includeInactive ? 'true' : undefined,
+        search: filters.search || undefined,
+      })}`
+    ),
+  creerCompte: (associationId: string, input: CreateCompteInput) =>
+    api.post<Compte>(`${base(associationId)}/comptes`, input),
+  modifierCompte: (associationId: string, compteId: string, input: UpdateCompteInput) =>
+    api.patch<Compte>(`${base(associationId)}/comptes/${compteId}`, input),
+  getBalance: (associationId: string, exerciceId?: string) =>
+    api.get<BalanceCompte[]>(`${base(associationId)}/balance${qs({ exercice_id: exerciceId })}`),
+  getGrandLivre: (associationId: string, compteId: string, exerciceId?: string) =>
+    api.get<GrandLivreLigne[]>(
+      `${base(associationId)}/comptes/${compteId}/grand-livre${qs({ exercice_id: exerciceId })}`
+    ),
+  getRapprochement: (associationId: string) =>
+    api.get<RapprochementCompte[]>(`${base(associationId)}/banque/rapprochement`),
   listExercices: (associationId: string) => api.get<Exercice[]>(`${base(associationId)}/exercices`),
   creerExercice: (associationId: string, input: CreateExerciceInput) =>
     api.post<Exercice>(`${base(associationId)}/exercices`, input),

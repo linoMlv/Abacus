@@ -8,6 +8,7 @@ export * from './banque';
 export * from './recurrence';
 export * from './tiers';
 export * from './referentiel';
+export * from './plan';
 export * from './ecriture';
 export * from './evenement';
 export * from './synthese';
