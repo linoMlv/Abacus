@@ -3,7 +3,6 @@ edition, validation, contre-passation and bulk actions.
 """
 
 from datetime import UTC, date, datetime
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
@@ -26,7 +25,6 @@ from models import (
     EcritureStatut,
     Exercice,
     ExerciceStatut,
-    Journal,
     LigneEcriture,
     RecuFiscal,
     RecuFiscalLigne,
@@ -41,6 +39,7 @@ from .builders import (
     _build_virement_entry,
     _resolve_contenu,
 )
+from .journal_view import build_journal_rows
 from .resolution import (
     _audit_ecriture,
     _bad_request,
@@ -162,8 +161,10 @@ def list_ecritures(
     ``type_operation`` Recette/Dépense/Virement §15.3, category, tiers, event,
     statut) accept several values, each an OR *within* the facet. A ``date_from``/
     ``date_to`` range (inclusive) and a free-text libellé search complete them.
-    Each row carries its total amount and journal code so the listing needs no
-    per-row follow-up.
+
+    Each row is readable both ways without a follow-up request (C24): its amount
+    and journal code, the sens and treasury account for the plain-language view,
+    and its lines with named accounts for the accounting view.
     """
     filtre = JournalFilter(
         journal_id=journal_id,
@@ -190,38 +191,7 @@ def list_ecritures(
         .options(selectinload(Ecriture.lignes))  # one extra query, no N+1
     )
     ecritures = session.exec(statement).all()
-
-    # Journal codes resolved once for the (small) set of journals of the tenant.
-    journal_codes = {
-        j.id: j.code
-        for j in session.exec(
-            select(Journal).where(Journal.association_id == ctx.association_id)
-        ).all()
-    }
-    return [
-        EcritureListItem(
-            id=e.id,
-            exercice_id=e.exercice_id,
-            journal_id=e.journal_id,
-            categorie_id=e.categorie_id,
-            date=e.date,
-            numero_piece=e.numero_piece,
-            libelle=e.libelle,
-            tiers_id=e.tiers_id,
-            evenement_id=e.evenement_id,
-            reference_externe=e.reference_externe,
-            mode_reglement=e.mode_reglement,
-            statut=e.statut,
-            origine=e.origine,
-            extourne_de_id=e.extourne_de_id,
-            recurrence_id=e.recurrence_id,
-            created_at=e.created_at,
-            validated_at=e.validated_at,
-            montant=sum((ligne.debit for ligne in e.lignes), Decimal("0")),
-            journal_code=journal_codes.get(e.journal_id, ""),
-        )
-        for e in ecritures
-    ]
+    return build_journal_rows(session, ctx.association_id, list(ecritures))
 
 
 @router.get("/ecritures/{ecriture_id}", response_model=EcritureDetailRead)

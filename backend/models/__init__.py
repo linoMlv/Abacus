@@ -45,6 +45,7 @@ from .ecriture import (
     GrandLivreLigneRead,
     LigneEcriture,
     LigneEcritureRead,
+    LigneJournalRead,
     ModeReglement,
 )
 from .evenement import Evenement, EvenementRead, EvenementStatut
@@ -159,6 +160,7 @@ __all__ = [
     "LigneBudgetRead",
     "LigneEcriture",
     "LigneEcritureRead",
+    "LigneJournalRead",
     "LogEntry",
     "LogEntryRead",
     "Membership",

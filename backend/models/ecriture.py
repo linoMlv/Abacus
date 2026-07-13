@@ -152,12 +152,42 @@ class EcritureDetailRead(EcritureRead):
     lignes: list[LigneEcritureRead] = []
 
 
+class LigneJournalRead(SQLModel):
+    """A journal row's line, with its account already named (accounting view)."""
+
+    compte_id: str
+    compte_numero: str
+    compte_libelle: str
+    libelle: str
+    debit: Decimal
+    credit: Decimal
+
+
 class EcritureListItem(EcritureRead):
-    """A journal row: the entry plus its total amount and human journal code,
-    so the listing needs no per-row follow-up request."""
+    """A journal row, readable both ways without any follow-up request (C24).
+
+    Plain-language view: ``sens`` (what happened to the money) and the treasury
+    account it happened on — ``compte_contrepartie_libelle`` names the other end of
+    a virement. Both are derived from the entry's own lines server-side, so the
+    client never re-derives them from an account number.
+
+    Accounting view: ``lignes`` carries the débit/crédit and the counterpart
+    accounts, so switching to it costs no extra request per row.
+    """
 
     montant: Decimal  # total débit = total crédit (entries are balanced)
     journal_code: str
+    # recette / depense / virement, or None when the entry claims no direction
+    # (a manual entry, which may not even touch treasury).
+    sens: str | None = None
+    compte_libelle: str | None = None  # treasury account (source, for a virement)
+    compte_contrepartie_libelle: str | None = None  # virement destination
+    # Signed movement on treasury: positive = money in, negative = money out. It is
+    # what tells a contre-passation apart from the entry it reverses (same sens,
+    # opposite movement). None for a virement (money never left) and for entries
+    # that touch no treasury account.
+    montant_tresorerie: Decimal | None = None
+    lignes: list[LigneJournalRead] = []
 
 
 class BalanceCompteRead(SQLModel):
