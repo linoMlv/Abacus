@@ -44,6 +44,7 @@ class Permission(str, Enum):
     EXERCISE_CLOSE = "exercise:close"
     REPORT_EXPORT_FEC = "report:export_fec"
     ANNEXE_MANAGE = "annexe:manage"  # annexe narrative (rubriques ANC : CRUD)
+    ACCOUNT_MANAGE = "account:manage"  # plan comptable (créer / renommer / archiver)
 
     # Périphérie métier
     TRESORERIE_MANAGE = "tresorerie:manage"  # comptes de trésorerie (création/édition)
@@ -90,12 +91,15 @@ _TREASURER: frozenset[Permission] = _VIEWER | {
     Permission.ANNEXE_MANAGE,
 }
 
-# Full accounting authority: expert-comptable.
+# Full accounting authority: expert-comptable. The chart of accounts is theirs —
+# it is structural and durable (a wrong account distorts the bilan and the FEC),
+# whereas the treasurer's day-to-day vocabulary is the *catégorie* (C10).
 _ACCOUNTANT: frozenset[Permission] = _TREASURER | {
     Permission.ENTRY_CREATE_MANUAL,
     Permission.ENTRY_VALIDATE,
     Permission.EXERCISE_CLOSE,
     Permission.REPORT_EXPORT_FEC,
+    Permission.ACCOUNT_MANAGE,
 }
 
 # Admin holds every permission within the association (superset).
@@ -185,6 +189,7 @@ PERMISSION_CATALOG: tuple[PermissionInfo, ...] = (
     PermissionInfo(Permission.EXERCISE_CLOSE, "Clôture", "Clôturer un exercice"),
     PermissionInfo(Permission.REPORT_EXPORT_FEC, "Clôture", "Exporter le FEC"),
     PermissionInfo(Permission.ANNEXE_MANAGE, "Clôture", "Rédiger l'annexe"),
+    PermissionInfo(Permission.ACCOUNT_MANAGE, "Clôture", "Gérer le plan comptable"),
     # Périphérie métier
     PermissionInfo(
         Permission.TRESORERIE_MANAGE, "Gestion", "Gérer les comptes de trésorerie"

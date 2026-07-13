@@ -98,6 +98,15 @@ def test_accountant_has_accounting_authority_but_not_administration():
         assert not has_permission(role, perm), perm
 
 
+def test_account_manage_is_accounting_authority_not_treasurer():
+    """Editing the chart of accounts is durable and structural: expert-comptable
+    (and admin), never the day-to-day treasurer, who works with categories."""
+    assert has_permission(Role.ACCOUNTANT, Permission.ACCOUNT_MANAGE)
+    assert has_permission(Role.ADMIN, Permission.ACCOUNT_MANAGE)
+    assert not has_permission(Role.TREASURER, Permission.ACCOUNT_MANAGE)
+    assert not has_permission(Role.VIEWER, Permission.ACCOUNT_MANAGE)
+
+
 def test_logs_view_is_admin_only():
     for role in Role:
         expected = role is Role.ADMIN
