@@ -10,18 +10,24 @@ import { BudgetWidget } from '@/components/synthese/BudgetWidget';
 import { ChartsSkeleton } from '@/components/synthese/ChartsSkeleton';
 import { type Preset, presetParams } from '@/components/synthese/period';
 import { PeriodControl } from '@/components/synthese/PeriodControl';
-import { StatTile } from '@/components/synthese/StatTile';
+import { ResultStrip } from '@/components/synthese/ResultStrip';
+import { SyntheseHero } from '@/components/synthese/SyntheseHero';
 import { TreasuryCard } from '@/components/synthese/TreasuryCard';
 import { TreasuryAccountDialog } from '@/components/TreasuryAccountDialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useActiveAssociation } from '@/hooks/useActiveAssociation';
 import { usePermissions } from '@/hooks/usePermissions';
-import { formatDate, formatEUR } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { PERMISSIONS } from '@/lib/permissions';
 
-// Charts live in a lazily-loaded chunk so recharts never weighs on the main bundle.
-const SyntheseCharts = lazy(() => import('@/components/charts/SyntheseCharts'));
+// The répartitions carry recharts (via the donut), so they load lazily — recharts
+// never weighs on the app's main bundle.
+const RepartitionsSection = lazy(() =>
+  import('@/components/synthese/RepartitionsSection').then((m) => ({
+    default: m.RepartitionsSection,
+  }))
+);
 
 export function SynthesePage() {
   const { associationId } = useParams() as { associationId: string };
@@ -71,21 +77,21 @@ export function SynthesePage() {
     setDialogOpen(true);
   }
 
-  function statValue(amount: string | undefined): string {
-    if (syntheseQuery.isLoading) return '…';
-    if (amount === undefined) return '—';
-    return formatEUR(amount);
-  }
-
-  const resultatTone = synthese && Number(synthese.resultat.resultat) < 0 ? 'depense' : 'recette';
-  const hasChartData =
+  const hasActivity =
     !!synthese &&
     (synthese.courbe_tresorerie.length > 0 ||
       synthese.repartition_categories.length > 0 ||
+      synthese.repartition_evenements.length > 0 ||
+      Number(synthese.resultat.resultat) !== 0);
+  const showRepartitions =
+    !!synthese &&
+    (comptes.length > 0 ||
+      synthese.repartition_categories.length > 0 ||
       synthese.repartition_evenements.length > 0);
+  const showGettingStarted = !!synthese && !hasActivity && comptes.length === 0;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-7">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight text-ink">
@@ -107,35 +113,55 @@ export function SynthesePage() {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile
-          label="Trésorerie"
-          value={tresorerieQuery.isLoading ? '…' : formatEUR(total)}
-          hint="Solde consolidé des comptes"
-        />
-        <StatTile
-          label="Résultat"
-          value={statValue(synthese?.resultat.resultat)}
-          hint="Produits − charges de la période"
-          tone={synthese ? resultatTone : undefined}
-        />
-        <StatTile
-          label="Recettes"
-          value={statValue(synthese?.resultat.recettes)}
-          hint="Produits de la période"
-          tone="recette"
-        />
-        <StatTile
-          label="Dépenses"
-          value={statValue(synthese?.resultat.depenses)}
-          hint="Charges de la période"
-          tone="depense"
-        />
-      </div>
-
       {synthese && <AlertesPanel synthese={synthese} associationId={associationId} />}
 
-      {synthese?.budget && <BudgetWidget budget={synthese.budget} associationId={associationId} />}
+      {tresorerieQuery.isLoading ? (
+        <Card className="h-40 animate-pulse bg-hover" aria-hidden />
+      ) : (
+        <SyntheseHero total={total} comptes={comptes} courbe={synthese?.courbe_tresorerie ?? []} />
+      )}
+
+      {synthese &&
+        (synthese.budget ? (
+          <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+            <ResultStrip resultat={synthese.resultat} />
+            <BudgetWidget budget={synthese.budget} associationId={associationId} />
+          </div>
+        ) : (
+          <ResultStrip resultat={synthese.resultat} />
+        ))}
+
+      {syntheseQuery.isError ? (
+        <Card className="p-5 text-sm text-muted">Impossible de charger la synthèse.</Card>
+      ) : showRepartitions ? (
+        <Suspense fallback={<ChartsSkeleton />}>
+          <RepartitionsSection
+            associationId={associationId}
+            repartitionCategories={synthese.repartition_categories}
+            repartitionEvenements={synthese.repartition_evenements}
+            repartitionTresorerie={synthese.repartition_tresorerie}
+            comptes={comptes}
+            dateFrom={synthese.date_from}
+            dateTo={synthese.date_to}
+          />
+        </Suspense>
+      ) : null}
+
+      {showGettingStarted && (
+        <Card className="flex flex-col items-center gap-4 px-6 py-12 text-center">
+          <div>
+            <h3 className="text-base font-semibold text-ink">Bienvenue sur votre synthèse</h3>
+            <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
+              Saisissez une recette ou une dépense : Abacus génère l’écriture comptable et met les
+              soldes à jour.
+            </p>
+          </div>
+          <Button onClick={() => navigate(`/asso/${associationId}/saisie`)}>
+            Saisir une opération
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </Button>
+        </Card>
+      )}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
@@ -183,28 +209,6 @@ export function SynthesePage() {
           </div>
         </section>
       )}
-
-      {syntheseQuery.isError ? (
-        <Card className="p-5 text-sm text-muted">Impossible de charger la synthèse.</Card>
-      ) : hasChartData ? (
-        <Suspense fallback={<ChartsSkeleton />}>
-          <SyntheseCharts synthese={synthese} />
-        </Suspense>
-      ) : synthese && !syntheseQuery.isLoading ? (
-        <Card className="flex flex-col items-center gap-4 px-6 py-12 text-center">
-          <div>
-            <h3 className="text-base font-semibold text-ink">Aucun mouvement sur la période</h3>
-            <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
-              Saisissez une recette ou une dépense : Abacus génère l’écriture comptable et met les
-              soldes à jour.
-            </p>
-          </div>
-          <Button onClick={() => navigate(`/asso/${associationId}/saisie`)}>
-            Saisir une opération
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </Button>
-        </Card>
-      ) : null}
 
       {canManage && (
         <TreasuryAccountDialog

@@ -34,6 +34,7 @@ const EMPTY_SYNTHESE = {
   resultat: { recettes: '0.00', depenses: '0.00', resultat: '0.00' },
   repartition_categories: [],
   repartition_evenements: [],
+  repartition_tresorerie: [],
   courbe_tresorerie: [],
   alertes: {
     brouillons: 0,
@@ -104,15 +105,16 @@ beforeEach(() => {
 describe('SynthesePage', () => {
   it('shows a card per treasury account with its balance', async () => {
     renderPage();
-    expect(await screen.findByText('Compte courant')).toBeInTheDocument();
-    expect(await screen.findByText('Caisse buvette')).toBeInTheDocument();
+    // The account name shows in both the hero chip and the management card.
+    expect((await screen.findAllByText('Compte courant')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Caisse buvette')).length).toBeGreaterThan(0);
     expect(listTresorerie).toHaveBeenCalledWith('A');
   });
 
   it('shows the consolidated treasury total', async () => {
     renderPage();
-    // 500 + 150 = 650 across the accounts.
-    expect(await screen.findByText(/650,00/)).toBeInTheDocument();
+    // 500 + 150 = 650 across the accounts (shown in the hero, and in the treasury donut).
+    expect((await screen.findAllByText(/650,00/)).length).toBeGreaterThan(0);
   });
 
   it('shows an empty state when there is no treasury account', async () => {
@@ -123,7 +125,7 @@ describe('SynthesePage', () => {
 
   it('creates a treasury account through the dialog', async () => {
     renderPage();
-    await screen.findByText('Compte courant');
+    await screen.findAllByText('Compte courant');
 
     await userEvent.click(screen.getByRole('button', { name: /Nouveau compte/ }));
     const dialog = await screen.findByRole('dialog');
@@ -225,7 +227,7 @@ describe('SynthesePage', () => {
 
   it('refetches with an explicit period when a preset is chosen', async () => {
     renderPage();
-    await screen.findByText('Compte courant');
+    await screen.findAllByText('Compte courant');
     // Default preset is "Exercice": no dates sent (server uses the open exercice).
     await waitFor(() => expect(getSynthese).toHaveBeenCalledWith('A', {}));
 
