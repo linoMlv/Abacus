@@ -5,6 +5,7 @@ import { AuthProvider } from '@/auth/AuthProvider';
 import { useAuth } from '@/auth/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireAuth } from '@/components/RequireAuth';
+import { DisplayModeProvider } from '@/display/DisplayModeProvider';
 import { ALL_NAV_ITEMS } from '@/lib/nav';
 import { PlaceholderPage } from '@/pages/PlaceholderPage';
 import { AcceptInvitationPage } from '@/pages/auth/AcceptInvitationPage';
@@ -53,52 +54,54 @@ function PageFallback() {
 export default function App() {
   return (
     <AuthProvider>
-      <Suspense fallback={<PageFallback />}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/invitation" element={<AcceptInvitationPage />} />
+      <DisplayModeProvider>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/invitation" element={<AcceptInvitationPage />} />
 
-          <Route element={<RequireAuth />}>
-            <Route path="/" element={<HomeRedirect />} />
-            <Route path="/associations/nouvelle" element={<CreateAssociationPage />} />
-            <Route path="/asso/:associationId/bienvenue" element={<OnboardingSoldesPage />} />
+            <Route element={<RequireAuth />}>
+              <Route path="/" element={<HomeRedirect />} />
+              <Route path="/associations/nouvelle" element={<CreateAssociationPage />} />
+              <Route path="/asso/:associationId/bienvenue" element={<OnboardingSoldesPage />} />
 
-            <Route path="/asso/:associationId" element={<AppShell />}>
-              <Route index element={<Navigate to="synthese" replace />} />
-              <Route path="synthese" element={<SynthesePage />} />
-              <Route path="saisie" element={<SaisiePage />} />
-              <Route path="journal" element={<JournalPage />} />
-              <Route path="comptes" element={<ComptesPage />} />
-              <Route path="banque" element={<BanquePage />} />
-              <Route path="recurrences" element={<RecurrencesPage />} />
-              <Route path="budget" element={<BudgetPage />} />
-              <Route path="rapports" element={<RapportsPage />} />
-              <Route path="dons" element={<DonsPage />} />
-              <Route path="parametres" element={<ParametresPage />} />
-              {ALL_NAV_ITEMS.filter(
-                (item) =>
-                  ![
-                    'synthese',
-                    'saisie',
-                    'journal',
-                    'comptes',
-                    'banque',
-                    'recurrences',
-                    'budget',
-                    'rapports',
-                    'dons',
-                    'parametres',
-                  ].includes(item.segment)
-              ).map((item) => (
-                <Route key={item.segment} path={item.segment} element={<PlaceholderPage />} />
-              ))}
+              <Route path="/asso/:associationId" element={<AppShell />}>
+                <Route index element={<Navigate to="synthese" replace />} />
+                <Route path="synthese" element={<SynthesePage />} />
+                <Route path="saisie" element={<SaisiePage />} />
+                <Route path="journal" element={<JournalPage />} />
+                <Route path="comptes" element={<ComptesPage />} />
+                <Route path="banque" element={<BanquePage />} />
+                <Route path="recurrences" element={<RecurrencesPage />} />
+                <Route path="budget" element={<BudgetPage />} />
+                <Route path="rapports" element={<RapportsPage />} />
+                <Route path="dons" element={<DonsPage />} />
+                <Route path="parametres" element={<ParametresPage />} />
+                {ALL_NAV_ITEMS.filter(
+                  (item) =>
+                    ![
+                      'synthese',
+                      'saisie',
+                      'journal',
+                      'comptes',
+                      'banque',
+                      'recurrences',
+                      'budget',
+                      'rapports',
+                      'dons',
+                      'parametres',
+                    ].includes(item.segment)
+                ).map((item) => (
+                  <Route key={item.segment} path={item.segment} element={<PlaceholderPage />} />
+                ))}
+              </Route>
             </Route>
-          </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </DisplayModeProvider>
     </AuthProvider>
   );
 }
