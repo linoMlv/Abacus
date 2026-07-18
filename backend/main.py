@@ -9,6 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from sqlmodel import Session
 
 from database import engine
+from db_backup import start_backup_task, stop_backup_task
 from log_retention import purge_old_logs
 from mcp_server import get_session_manager, mcp_asgi_app
 from middleware import LoggingMiddleware, OriginValidationMiddleware
@@ -42,9 +43,13 @@ def _allowed_origins() -> list[str]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _purge_logs_on_startup()
+    backup_task = start_backup_task()
     session_manager = get_session_manager()
-    async with session_manager.run():
-        yield
+    try:
+        async with session_manager.run():
+            yield
+    finally:
+        await stop_backup_task(backup_task)
 
 
 def _purge_logs_on_startup() -> None:

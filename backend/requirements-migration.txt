@@ -1,4 +1,0 @@
-# Extra dependencies for the one-off MySQL -> PostgreSQL data migration.
-# Install alongside requirements.txt only when running
-# scripts/migrate_mysql_to_postgres.py.
-pymysql==1.1.0

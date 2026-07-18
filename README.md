@@ -262,15 +262,27 @@ sert déjà le front et l'API ensemble.
 4. Mettez `CORS_ORIGINS` et `APP_URL` à votre **URL publique** (ex.
    `https://abacus.example.com`).
 
-#### 4️⃣ Reprise d'une base MySQL existante (optionnel)
+#### 4️⃣ Restauration d'un dump PostgreSQL au démarrage (optionnel)
 
-Pour migrer automatiquement les données depuis une ancienne instance MySQL vers PostgreSQL, il vous suffit d'ajouter la variable `SOURCE_MYSQL` dans votre `.env` avant de lancer l'application :
+Le dossier `backup-db/` (monté depuis l'hôte, voir `docker-compose.yml`) sert à
+la fois de destination des sauvegardes automatiques et de point d'entrée pour
+restaurer une instance.
+
+Pour repartir d'une sauvegarde sur une instance **neuve**, déposez le dump
+PostgreSQL sous `backup-db/db.sql` avant le premier démarrage :
 
 ```bash
-SOURCE_MYSQL="mysql+pymysql://user:pass@ancien-hote:3306/abacus"
+cp mon_dump.sql backup-db/db.sql
+docker compose up --build -d
 ```
 
-Au démarrage, le conteneur va vérifier que la base PostgreSQL est vide. Si c'est le cas, il copiera chaque table, validera les données par comptage de lignes et sommes monétaires, puis committera la migration (tout se fait dans une transaction unique, en lecture seule sur le MySQL d'origine). Si la base PostgreSQL n'est plus vide au démarrage suivant, l'application ignorera silencieusement cette étape de migration.
+Au démarrage, si la base est **vide** et qu'un `db.sql` est présent, le conteneur
+le restaure puis le renomme en `db.bak.sql` (il ne sera donc pas re-restauré au
+redémarrage suivant). Si la base contient déjà des données, cette étape est
+ignorée et les migrations habituelles (`alembic upgrade head`) s'appliquent.
+
+> Le fichier doit être un dump PostgreSQL (`pg_dump`). La migration d'un ancien
+> export **MySQL** se fait par une commande dédiée (voir la préparation v3).
 
 #### ✅ Checklist post-déploiement
 
@@ -297,14 +309,25 @@ git pull && docker compose up --build -d   # les migrations s'appliquent au dém
 > ⚠️ **Ne jamais utiliser `docker compose down -v` en production** : le flag `-v`
 > **supprime le volume `pgdata` et détruit toutes les données**.
 
-**Sauvegarde / restauration** (recommandé avant toute maintenance) :
+**Sauvegardes automatiques** : l'application dump la base dans `backup-db/db.sql`
+au démarrage puis toutes les `BACKUP_INTERVAL_SECONDS` (1 h par défaut). Le dump
+précédent est conservé sous `backup-db/db.bak.sql` (deux générations). Ces
+fichiers vivent sur l'hôte via le montage `./backup-db`, indépendamment du
+volume `pgdata`.
 
 ```bash
-# Sauvegarde (dump SQL horodaté)
-docker compose exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup_$(date +%F).sql
+# Récupérer la dernière sauvegarde
+cp backup-db/db.sql sauvegarde_$(date +%F).sql
+```
 
-# Restauration dans une base vide
-cat backup_AAAA-MM-JJ.sql | docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+> Le dossier `backup-db/` doit être accessible en écriture par l'uid 1000
+> (l'utilisateur applicatif du conteneur).
+
+**Restauration manuelle** dans une base vide (voir aussi la section
+« Restauration d'un dump PostgreSQL au démarrage ») :
+
+```bash
+cat sauvegarde_AAAA-MM-JJ.sql | docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 
 > Sous **Coolify** : « Stop » et les redéploiements conservent le volume.

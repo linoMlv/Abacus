@@ -1,0 +1,2 @@
+# Keeps the backup directory in the repo so the docker-compose bind mount
+# (./backup-db) exists with the right ownership. Dumps (*.sql) are gitignored.
