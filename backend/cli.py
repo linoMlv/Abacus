@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import typer
 import uvicorn
 from rich.console import Console
@@ -63,6 +65,47 @@ def purge_logs(days: int = typer.Option(None, help="Override LOG_RETENTION_DAYS.
     with Session(engine) as session:
         deleted = purge_old_logs(session, retention_days=days)
     console.print(f"[bold green]Purged {deleted} log entries.[/bold green]")
+
+
+@app.command("migrate-mysql")
+def migrate_mysql(
+    dump: Path = typer.Argument(
+        ...,
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to the MySQL .sql export (mysqldump / phpMyAdmin).",
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Parse, import and validate, then roll back."
+    ),
+):
+    """
+    Import a legacy MySQL dump into the PostgreSQL database (one-off migration).
+
+    The schema must already exist ('alembic upgrade head') and the target tables
+    must be empty. Everything runs in a single transaction.
+    """
+    from mysql_import import MysqlImportError, migrate_mysql_dump
+
+    try:
+        imported = migrate_mysql_dump(dump, dry_run=dry_run)
+    except MysqlImportError as exc:
+        console.print(f"[bold red]Migration refused:[/bold red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    total = sum(imported.values())
+    for table, rows in imported.items():
+        console.print(f"  {rows:>6} rows  ->  {table}")
+    if dry_run:
+        console.print(
+            f"[bold yellow]Dry run:[/bold yellow] {total} rows validated, "
+            "rolled back (nothing committed)."
+        )
+    else:
+        console.print(
+            f"[bold green]Migration committed:[/bold green] {total} rows imported."
+        )
 
 
 if __name__ == "__main__":
