@@ -281,8 +281,40 @@ le restaure puis le renomme en `db.bak.sql` (il ne sera donc pas re-restauré au
 redémarrage suivant). Si la base contient déjà des données, cette étape est
 ignorée et les migrations habituelles (`alembic upgrade head`) s'appliquent.
 
-> Le fichier doit être un dump PostgreSQL (`pg_dump`). La migration d'un ancien
-> export **MySQL** se fait par une commande dédiée (voir la préparation v3).
+> Ce mécanisme attend un dump **PostgreSQL** (`pg_dump`). Pour reprendre un ancien
+> export **MySQL**, voir la section « Migration depuis une ancienne base MySQL »
+> ci-dessous.
+
+#### 5️⃣ Migration depuis une ancienne base MySQL (one-shot)
+
+Pour reprendre les données d'une ancienne instance Abacus tournant sous **MySQL**,
+exportez-les en SQL (`mysqldump` ou phpMyAdmin → « Exporter »), puis importez-les
+avec la commande dédiée `migrate-mysql`. Elle convertit le dialecte MySQL vers
+PostgreSQL à la volée — quoting des identifiants (dont les mots réservés `group` et
+`user`), décodage des échappements de chaînes, `tinyint(1)` → booléen. **Aucun
+serveur MySQL n'est requis** : seul le fichier `.sql` compte.
+
+**Prérequis** : le schéma PostgreSQL doit déjà exister (l'app le crée au démarrage
+via `alembic upgrade head`) et les tables cibles doivent être **vides**. L'import se
+fait parents d'abord, dans une **seule transaction** : en cas d'erreur, rien n'est
+écrit.
+
+```bash
+# 1. Déposez l'export MySQL dans le dossier monté (visible dans le conteneur).
+#    N'utilisez PAS le nom db.sql (réservé à la restauration PostgreSQL au boot).
+cp export_mysql.sql backup-db/
+
+# 2. Recommandé : validation à blanc (conversion + import + contrôle, puis rollback)
+docker compose exec app python cli.py migrate-mysql /app/backup-db/export_mysql.sql --dry-run
+
+# 3. Import réel
+docker compose exec app python cli.py migrate-mysql /app/backup-db/export_mysql.sql
+```
+
+La commande affiche le nombre de lignes importées par table et valide l'intégrité
+(comptage source vs cible). Les tables `alembic_version` (gérée par Alembic) et
+`refresh_session` (sessions éphémères) sont ignorées. Si les tables ne sont pas
+vides, l'import est refusé — de quoi le relancer sans risque de doublons.
 
 #### ✅ Checklist post-déploiement
 
