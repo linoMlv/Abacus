@@ -79,17 +79,29 @@ def migrate_mysql(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Parse, import and validate, then roll back."
     ),
+    reset: bool = typer.Option(
+        False,
+        "--reset",
+        help="Truncate the target tables (and dependents) before importing.",
+    ),
 ):
     """
     Import a legacy MySQL dump into the PostgreSQL database (one-off migration).
 
-    The schema must already exist ('alembic upgrade head') and the target tables
-    must be empty. Everything runs in a single transaction.
+    The schema must already exist ('alembic upgrade head'). The target tables
+    must be empty, or pass --reset to truncate them first (handy right after a
+    deploy, when log_entry already holds the app's own request logs). Everything
+    runs in a single transaction.
     """
     from mysql_import import MysqlImportError, migrate_mysql_dump
 
+    if reset and not dry_run:
+        console.print(
+            "[bold yellow]--reset:[/bold yellow] truncating target tables "
+            "before import."
+        )
     try:
-        imported = migrate_mysql_dump(dump, dry_run=dry_run)
+        imported = migrate_mysql_dump(dump, dry_run=dry_run, reset=reset)
     except MysqlImportError as exc:
         console.print(f"[bold red]Migration refused:[/bold red] {exc}")
         raise typer.Exit(code=1) from exc

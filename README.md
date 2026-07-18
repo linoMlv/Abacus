@@ -313,8 +313,18 @@ docker compose exec app python cli.py migrate-mysql /app/backup-db/export_mysql.
 
 La commande affiche le nombre de lignes importées par table et valide l'intégrité
 (comptage source vs cible). Les tables `alembic_version` (gérée par Alembic) et
-`refresh_session` (sessions éphémères) sont ignorées. Si les tables ne sont pas
-vides, l'import est refusé — de quoi le relancer sans risque de doublons.
+`refresh_session` (sessions éphémères) sont ignorées.
+
+> **Base « non vide » juste après un déploiement ?** Dès que l'app tourne, la
+> table `log_entry` se remplit toute seule (chaque requête, dont le healthcheck
+> Docker, y est journalisée), ce qui bloque l'import strict. Ajoutez `--reset`
+> pour vider les tables cibles (et leurs dépendantes) **dans la même
+> transaction** avant l'import — combinable avec `--dry-run` pour tester sans
+> rien écrire :
+>
+> ```bash
+> docker compose exec app python cli.py migrate-mysql /app/backup-db/export_mysql.sql --reset
+> ```
 
 #### ✅ Checklist post-déploiement
 

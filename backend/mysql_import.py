@@ -287,11 +287,16 @@ def _insert_statements(table: str, columns: list[str], rows: list[list[Cell]]):
 # --------------------------------------------------------------------------- #
 # Migration
 # --------------------------------------------------------------------------- #
-def migrate_mysql_dump(path: Path, *, dry_run: bool = False) -> dict[str, int]:
+def migrate_mysql_dump(
+    path: Path, *, dry_run: bool = False, reset: bool = False
+) -> dict[str, int]:
     """Import a MySQL dump into PostgreSQL; return ``{table: rows_imported}``.
 
-    The schema must already exist and the target tables must be empty. Runs in a
-    single transaction: with ``dry_run`` it rolls back after validating.
+    The schema must already exist. By default the target tables must be empty;
+    ``reset`` truncates them (and their dependents) first — useful right after a
+    deploy, where log_entry fills up from the app's own request logging. Runs in
+    a single transaction: with ``dry_run`` it rolls back after validating, which
+    also undoes the truncation.
     """
     text = Path(path).read_text(encoding="utf-8")
     tables = parse_dump(text)
@@ -312,18 +317,24 @@ def migrate_mysql_dump(path: Path, *, dry_run: bool = False) -> dict[str, int]:
     conn = engine.connect()
     trans = conn.begin()
     try:
-        non_empty = {
-            t: count
-            for t in TABLE_ORDER
-            if inspector.has_table(t)
-            and (count := conn.exec_driver_sql(f'SELECT count(*) FROM "{t}"').scalar())
-        }
-        if non_empty:
-            raise MysqlImportError(
-                "Target database is not empty: "
-                + ", ".join(f"{k}={v}" for k, v in non_empty.items())
-                + ". Refusing to import."
-            )
+        existing = [t for t in TABLE_ORDER if inspector.has_table(t)]
+        if reset:
+            if existing:
+                joined = ", ".join(f'"{t}"' for t in existing)
+                # CASCADE also clears FK dependents (e.g. refresh_session).
+                conn.exec_driver_sql(f"TRUNCATE {joined} CASCADE")
+        else:
+            counts = {
+                t: conn.exec_driver_sql(f'SELECT count(*) FROM "{t}"').scalar()
+                for t in existing
+            }
+            non_empty = {t: c for t, c in counts.items() if c}
+            if non_empty:
+                raise MysqlImportError(
+                    "Target database is not empty: "
+                    + ", ".join(f"{k}={v}" for k, v in non_empty.items())
+                    + ". Refusing to import (use --reset to truncate them first)."
+                )
 
         # Execute the generated INSERTs on the raw DBAPI cursor with no bound
         # parameters, so the driver performs no '%' placeholder interpolation:
